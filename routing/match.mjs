@@ -1,5 +1,5 @@
-// Which app a request goes to under the rules in vercel.ts, for the dev
-// router. Covers the parts of Vercel's matching that vercel.ts uses: an exact
+// Which app a request goes to under the rules in rules.mjs, for the dev
+// router. Covers the parts of Vercel's matching those rules use: an exact
 // path, a "/prefix/(.*)" pattern, and an exact host (compared without a port).
 export function serviceFor(rules, pathname, host) {
   const hostname = (host ?? "").toLowerCase().replace(/:\d+$/, "");

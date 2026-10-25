@@ -1,0 +1,65 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "admin": {
+      "root": "apps/admin",
+      "framework": "nextjs"
+    },
+    "booking": {
+      "root": "apps/booking",
+      "framework": "nextjs"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/webhooks/stripe",
+      "destination": {
+        "service": "booking"
+      }
+    },
+    {
+      "source": "/api/webhooks/stripe-accounts",
+      "destination": {
+        "service": "booking"
+      }
+    },
+    {
+      "source": "/api/jobs/(.*)",
+      "destination": {
+        "service": "booking"
+      }
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "admin"
+      }
+    },
+    {
+      "source": "/booking/(.*)",
+      "destination": {
+        "service": "booking"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "admin"
+      }
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/jobs/cleanup-photos",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/jobs/retention",
+      "schedule": "0 4 * * 1"
+    },
+    {
+      "path": "/api/jobs/emails",
+      "schedule": "0 7 * * *"
+    }
+  ]
+}

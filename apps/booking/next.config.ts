@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { NextConfig } from "next";
 
@@ -19,11 +20,23 @@ if ((process.env.ROUTING_MODE || "path") !== (process.env.NEXT_PUBLIC_ROUTING_MO
   throw new Error("ROUTING_MODE and NEXT_PUBLIC_ROUTING_MODE must have the same value.");
 }
 
+// vercel.json is written for one mode (npm run routing:vercel). Building for
+// the other would send requests to the wrong app, so stop instead.
+const vercelJson = path.resolve(__dirname, "../../vercel.json");
+if (existsSync(vercelJson)) {
+  const rules: { has?: unknown[] }[] = JSON.parse(readFileSync(vercelJson, "utf8")).rewrites ?? [];
+  const written = rules.some((r) => r.has?.length) ? "subdomain" : "path";
+  const mode = process.env.ROUTING_MODE || "path";
+  if (written !== mode) {
+    throw new Error(`vercel.json is written for ${written} mode but ROUTING_MODE is ${mode}: run npm run routing:vercel and commit it.`);
+  }
+}
+
 const nextConfig: NextConfig = {
   transpilePackages: ["@leadgen/core"],
   // In path mode this app shares one origin with the admin app, which owns
   // /_next. This app's own files are served under /booking/_next instead, and
-  // /booking/* is routed here (vercel.ts, routing/dev-router.mjs). Kept in
+  // /booking/* is routed here (routing/rules.mjs → vercel.json). Kept in
   // subdomain mode too, so the build doesn't depend on the mode.
   assetPrefix: "/booking",
   // Requests arrive on localhost:3000 through the dev router, or on

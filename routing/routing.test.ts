@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { rewrites } from "../vercel";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { modeOf, rewrites, vercelConfig } from "./rules.mjs";
 import { serviceFor } from "./match.mjs";
 
 const path = rewrites({ ROUTING_MODE: "path", NEXT_PUBLIC_ROUTING_MODE: "path" });
@@ -64,5 +66,15 @@ describe("env checks", () => {
   it("refuses mismatched or incomplete settings", () => {
     expect(() => rewrites({ ROUTING_MODE: "subdomain", NEXT_PUBLIC_ROUTING_MODE: "path" })).toThrow(/same value/);
     expect(() => rewrites({ ROUTING_MODE: "subdomain", NEXT_PUBLIC_ROUTING_MODE: "subdomain" })).toThrow(/ROOT_DOMAIN/);
+  });
+});
+
+describe("vercel.json", () => {
+  it("is what write-vercel-json.mjs makes for the mode it was written for", () => {
+    const committed = JSON.parse(readFileSync(join(__dirname, "../vercel.json"), "utf8"));
+    const mode = modeOf(committed);
+    const root = committed.rewrites.find((r: { has?: { value: string }[] }) => r.has)?.has[0].value;
+    const env = { ROUTING_MODE: mode, NEXT_PUBLIC_ROUTING_MODE: mode, NEXT_PUBLIC_ROOT_DOMAIN: root };
+    expect(committed).toEqual(vercelConfig(env));
   });
 });

@@ -1,15 +1,17 @@
 // Local stand-in for Vercel's routing: one address, localhost:3000, in front
 // of the two dev servers (admin on :3001, booking on :3002), applying the
-// rules in vercel.ts. So every surface works on one origin in path mode, and
-// on *.localhost:3000 in subdomain mode, like production. Requests and their
+// rules in rules.mjs, the same ones vercel.json is written from. So every
+// surface works on one origin in path mode, and on *.localhost:3000 in
+// subdomain mode, like production. Requests and their
 // Host header are passed through untouched; websockets too (hot reload).
 //
-// Started by `npm run dev` and `npm start` (needs Node's TypeScript stripping
-// to read vercel.ts). PORT, ADMIN_PORT and BOOKING_PORT change the ports.
+// Started by `npm run dev` and `npm start`. PORT, ADMIN_PORT and
+// BOOKING_PORT change the ports.
 import http from "node:http";
 import net from "node:net";
 import path from "node:path";
 import { serviceFor } from "./match.mjs";
+import { rewrites, routingMode } from "./rules.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 try {
@@ -17,7 +19,6 @@ try {
 } catch (error) {
   if (error.code !== "ENOENT") throw error;
 }
-const { rewrites, routingMode } = await import("../vercel.ts");
 
 const env = process.env;
 const ports = { admin: Number(env.ADMIN_PORT || 3001), booking: Number(env.BOOKING_PORT || 3002) };
