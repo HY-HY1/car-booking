@@ -1,0 +1,19 @@
+{
+  "name": "@leadgen/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared backend code for the booking and admin apps: Supabase clients, tenant lookup and the booking engine.",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.136.0",
+    "@supabase/supabase-js": "^2.117.3",
+    "server-only": "^0.0.1",
+    "stripe": "^23.0.0",
+    "zod": "^4.6.7"
+  }
+}

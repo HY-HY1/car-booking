@@ -1,0 +1,330 @@
+# Hardcoded internal URLs (inventory for routing.md)
+
+Generated 2026-10-25 from the code at commit 75bcba5. Every place that builds an internal path or URL by hand. Each one moves to the lib/urls.ts helpers. Template-string backticks are shown as ' so the lines render.
+
+## 1. Absolute URLs that leave the app (emails, Stripe, Supabase, copy-paste snippets, API docs)
+
+- [admin/src/app/api/v1/catalog/route.ts:51](../apps/admin/src/app/api/v1/catalog/route.ts#L51) `bookingUrl: host ? bookingUrl(host) : null,`
+- [admin/src/app/dashboard/[tenant]/pricing/services/[id]/page.tsx:35](../apps/admin/src/app/dashboard/[tenant]/pricing/services/[id]/page.tsx#L35) `const pageUrl = service?.slug && domain ? '${bookingUrl(domain.hostname)}/services/${service.slug}' : null;`
+- [admin/src/app/dashboard/[tenant]/settings/account/actions.ts:41](../apps/admin/src/app/dashboard/[tenant]/settings/account/actions.ts#L41) `{ emailRedirectTo: '${adminBaseUrl()}/dashboard/${encodeURIComponent(slug)}/settings/account' },`
+- [admin/src/app/dashboard/[tenant]/settings/booking-page/page.tsx:38](../apps/admin/src/app/dashboard/[tenant]/settings/booking-page/page.tsx#L38) `url: bookingUrl(d.hostname),`
+- [admin/src/app/dashboard/[tenant]/settings/integrations/page.tsx:21](../apps/admin/src/app/dashboard/[tenant]/settings/integrations/page.tsx#L21) `const endpoint = '${adminBaseUrl()}/api/v1/catalog';`
+- [admin/src/app/dashboard/[tenant]/settings/integrations/page.tsx:22](../apps/admin/src/app/dashboard/[tenant]/settings/integrations/page.tsx#L22) `const docs = docsBaseUrl();`
+- [admin/src/app/dashboard/[tenant]/settings/team/page.tsx:62](../apps/admin/src/app/dashboard/[tenant]/settings/team/page.tsx#L62) `<AddMemberForm action={addMemberAction.bind(null, slug)} loginUrl={'${adminBaseUrl()}/login'} />`
+- [admin/src/app/dashboard/[tenant]/setup/page.tsx:81](../apps/admin/src/app/dashboard/[tenant]/setup/page.tsx#L81) `<a href={bookingUrl(live.hostname)} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}>`
+- [admin/src/app/dashboard/[tenant]/setup/page.tsx:144](../apps/admin/src/app/dashboard/[tenant]/setup/page.tsx#L144) `src={bookingUrl(shown.hostname)}`
+- [admin/src/app/dashboard/[tenant]/setup/page.tsx:156](../apps/admin/src/app/dashboard/[tenant]/setup/page.tsx#L156) `href={bookingUrl(shown.hostname)}`
+- [admin/src/app/dashboard/[tenant]/setup/page.tsx:182](../apps/admin/src/app/dashboard/[tenant]/setup/page.tsx#L182) `<CopyText value={'<script src="${bookingUrl(shown.hostname)}/embed.js" async></script>'} label="website script" />`
+- [admin/src/app/dashboard/[tenant]/setup/page.tsx:184](../apps/admin/src/app/dashboard/[tenant]/setup/page.tsx#L184) `<CopyText value={bookingUrl(shown.hostname)} label="booking page link" />`
+- [admin/src/app/docs/api/catalog/page.tsx:12](../apps/admin/src/app/docs/api/catalog/page.tsx#L12) `const endpoint = '${dashboardUrl()}/api/v1/catalog';`
+- [admin/src/app/docs/api/examples/page.tsx:60](../apps/admin/src/app/docs/api/examples/page.tsx#L60) `const endpoint = '${dashboardUrl()}/api/v1/catalog';`
+- [admin/src/app/docs/api/page.tsx:10](../apps/admin/src/app/docs/api/page.tsx#L10) `const base = '${dashboardUrl()}/api/v1';`
+- [admin/src/app/docs/getting-started/page.tsx:10](../apps/admin/src/app/docs/getting-started/page.tsx#L10) `const dashboard = dashboardUrl();`
+- [admin/src/app/docs/layout.tsx:19](../apps/admin/src/app/docs/layout.tsx#L19) `const dashboard = dashboardUrl();`
+- [admin/src/app/docs/page.tsx:46](../apps/admin/src/app/docs/page.tsx#L46) `const endpoint = '${dashboardUrl()}/api/v1/catalog';`
+- [admin/src/app/docs/privacy/page.tsx:10](../apps/admin/src/app/docs/privacy/page.tsx#L10) `const dashboard = dashboardUrl();`
+- [admin/src/app/page.tsx:47](../apps/admin/src/app/page.tsx#L47) `const docs = docsBaseUrl();`
+- [admin/src/app/platform/[slug]/page.tsx:70](../apps/admin/src/app/platform/[slug]/page.tsx#L70) `<CopyText value={bookingUrl(primary.hostname)} label="booking address" />`
+- [admin/src/app/platform/[slug]/page.tsx:72](../apps/admin/src/app/platform/[slug]/page.tsx#L72) `<CopyText value={'<script src="${bookingUrl(primary.hostname)}/embed.js" async></script>'} label="embed script" />`
+- [admin/src/lib/billing.ts:35](../apps/admin/src/lib/billing.ts#L35) `const base = adminBaseUrl();`
+- [admin/src/lib/billing.ts:39](../apps/admin/src/lib/billing.ts#L39) `returnUrl: '${base}/onboarding/complete?tenant=${slug}&session_id={CHECKOUT_SESSION_ID}',`
+- [admin/src/lib/billing.ts:51](../apps/admin/src/lib/billing.ts#L51) `returnUrl: returnUrls(tenant).returnUrl,`
+- [admin/src/lib/billing.ts:70](../apps/admin/src/lib/billing.ts#L70) `return createPortalUrl(customerId, '${adminBaseUrl()}/dashboard/${encodeURIComponent(tenant.slug)}/settings/billing');`
+- [admin/src/lib/docs.ts:21](../apps/admin/src/lib/docs.ts#L21) `const base = docsBaseUrl();`
+- [admin/src/lib/stripe.ts:22](../apps/admin/src/lib/stripe.ts#L22) `const base = adminBaseUrl();`
+- [admin/src/lib/stripe.ts:24](../apps/admin/src/lib/stripe.ts#L24) `returnUrl: '${base}/dashboard/${slug}/settings/payments?stripe=return',`
+- [admin/src/lib/stripe.ts:26](../apps/admin/src/lib/stripe.ts#L26) `refreshUrl: '${base}/api/stripe/onboarding-link?tenant=${encodeURIComponent(slug)}',`
+- [admin/src/proxy.ts:18](../apps/admin/src/proxy.ts#L18) `const base = docsBaseUrl();`
+- [booking/src/app/embed.js/route.ts:31](../apps/booking/src/app/embed.js/route.ts#L31) `url: '${request.nextUrl.protocol}//${host}/quote?embed=1',`
+- [booking/src/app/embed.js/route.ts:32](../apps/booking/src/app/embed.js/route.ts#L32) `origin: '${request.nextUrl.protocol}//${host}',`
+- [booking/src/app/quote/actions.ts:49](../apps/booking/src/app/quote/actions.ts#L49) `async function requestOrigin() {`
+- [booking/src/app/quote/actions.ts:73](../apps/booking/src/app/quote/actions.ts#L73) `origin: await requestOrigin(),`
+- [packages/core/src/billing/subscriptions.ts:89](../packages/core/src/billing/subscriptions.ts#L89) `stripe.checkout.sessions.create({ ...subscriptionSession(args), ui_mode: "elements", return_url: args.returnUrl }),`
+- [packages/core/src/billing/subscriptions.ts:100](../packages/core/src/billing/subscriptions.ts#L100) `success_url: args.returnUrl,`
+- [packages/core/src/billing/subscriptions.ts:101](../packages/core/src/billing/subscriptions.ts#L101) `cancel_url: args.cancelUrl,`
+- [packages/core/src/billing/subscriptions.ts:199](../packages/core/src/billing/subscriptions.ts#L199) `const session = await getStripe().billingPortal.sessions.create({ customer: customerId, return_url: returnUrl });`
+- [packages/core/src/email/notify.ts:66](../packages/core/src/email/notify.ts#L66) `function dashboardUrl(path: string) {`
+- [packages/core/src/email/notify.ts:119](../packages/core/src/email/notify.ts#L119) `siteUrl: domain.data ? bookingSiteUrl(domain.data.hostname) : "",`
+- [packages/core/src/email/notify.ts:219](../packages/core/src/email/notify.ts#L219) `bookingLink: t.siteUrl,`
+- [packages/core/src/email/notify.ts:247](../packages/core/src/email/notify.ts#L247) `link: dashboardUrl('/dashboard/${t.slug}/bookings/${b.id}'),`
+- [packages/core/src/email/notify.ts:272](../packages/core/src/email/notify.ts#L272) `if (!secret || !t.siteUrl) return "skipped";`
+- [packages/core/src/email/notify.ts:273](../packages/core/src/email/notify.ts#L273) `unsubscribeUrl = '${t.siteUrl}/unsubscribe?t=${await signUnsubscribeToken(secret, m.marketing.customerId, "email")}';`
+- [packages/core/src/email/notify.ts:300](../packages/core/src/email/notify.ts#L300) `: ['Alerts for ${t.name}. Change which ones you get: ${dashboardUrl('/dashboard/${t.slug}/settings/notifications')}'];`
+- [packages/core/src/email/notify.ts:449](../packages/core/src/email/notify.ts#L449) `const content = ownerPaymentProblem(alert.detail, t ? dashboardUrl('/dashboard/${t.slug}/payments') : dashboardUrl("/platform"));`
+- [packages/core/src/email/notify.ts:489](../packages/core/src/email/notify.ts#L489) `link: b ? dashboardUrl('/dashboard/${t.slug}/bookings/${b.id}') : dashboardUrl('/dashboard/${t.slug}/payments'),`
+- [packages/core/src/email/notify.ts:694](../packages/core/src/email/notify.ts#L694) `link: dashboardUrl('/dashboard/${t.slug}/leads/${lead.id}'),`
+- [packages/core/src/stripe/accounts.ts:69](../packages/core/src/stripe/accounts.ts#L69) `return_url: urls.returnUrl,`
+- [packages/core/src/stripe/accounts.ts:70](../packages/core/src/stripe/accounts.ts#L70) `refresh_url: urls.refreshUrl,`
+- [packages/core/src/stripe/checkout.ts:55](../packages/core/src/stripe/checkout.ts#L55) `success_url: '${input.origin}/confirmed/${input.bookingId}',`
+- [packages/core/src/stripe/checkout.ts:56](../packages/core/src/stripe/checkout.ts#L56) `cancel_url: '${input.origin}/confirmed/${input.bookingId}?cancelled=1',`
+
+## 2. Env vars and hostname rules that encode the current two-app layout
+
+- [admin/src/components/platform/new-business-form.tsx:51](../apps/admin/src/components/platform/new-business-form.tsx#L51) `hint="Where customers book, e.g. bookings.theirsite.co.uk. For testing use something.localhost."`
+- [admin/src/components/platform/new-business-form.tsx:136](../apps/admin/src/components/platform/new-business-form.tsx#L136) `const url = created.hostname.endsWith(".localhost") ? 'http://${created.hostname}:3000' : 'https://${created.hostname}';`
+- [admin/src/lib/billing.ts:12](../apps/admin/src/lib/billing.ts#L12) `const domain = process.env.BOOKING_BASE_DOMAIN?.trim().toLowerCase();`
+- [admin/src/lib/billing.ts:14](../apps/admin/src/lib/billing.ts#L14) `if (process.env.NODE_ENV === "production") throw new Error("BOOKING_BASE_DOMAIN must be set for self-serve signup.");`
+- [admin/src/lib/billing.ts:26](../apps/admin/src/lib/billing.ts#L26) `missing.push("BOOKING_BASE_DOMAIN");`
+- [admin/src/lib/docs.ts:6](../apps/admin/src/lib/docs.ts#L6) `const url = process.env.DOCS_URL || (process.env.NODE_ENV === "production" ? undefined : "http://docs.localhost:3001");`
+- [admin/src/lib/docs.ts:15](../apps/admin/src/lib/docs.ts#L15) `return (process.env.ADMIN_APP_URL || "http://localhost:3001").replace(/\/$/, "");`
+- [admin/src/lib/docs.ts:20](../apps/admin/src/lib/docs.ts#L20) `export function isDocsHost(host: string | null) {`
+- [admin/src/lib/stripe.ts:12](../apps/admin/src/lib/stripe.ts#L12) `const url = process.env.ADMIN_APP_URL ?? (process.env.NODE_ENV === "production" ? undefined : "http://localhost:3001");`
+- [admin/src/lib/stripe.ts:13](../apps/admin/src/lib/stripe.ts#L13) `if (!url) throw new Error("ADMIN_APP_URL must be set (the public https:// address of the admin app).");`
+- [admin/src/proxy.ts:2](../apps/admin/src/proxy.ts#L2) `import { docsBaseUrl, isDocsHost } from "@/lib/docs";`
+- [admin/src/proxy.ts:10](../apps/admin/src/proxy.ts#L10) `if (isDocsHost(request.headers.get("host"))) {`
+- [booking/src/app/embed-test/route.ts:17](../apps/booking/src/app/embed-test/route.ts#L17) `const subdomain = hostname.endsWith(".localhost") ? hostname.slice(0, -".localhost".length) : null;`
+- [booking/src/app/embed-test/route.ts:21](../apps/booking/src/app/embed-test/route.ts#L21) `const bookingHost = 'http://${slug}.localhost${port ? ':${port}' : ""}';`
+- [booking/src/app/embed-test/route.ts:48](../apps/booking/src/app/embed-test/route.ts#L48) `Try: <a href="http://ascnd.localhost${port ? ':${port}' : ""}/embed-test">ascnd</a> ·`
+- [booking/src/app/embed-test/route.ts:49](../apps/booking/src/app/embed-test/route.ts#L49) `<a href="http://test.localhost${port ? ':${port}' : ""}/embed-test">test</a>`
+- [booking/src/app/embed-test/route.ts:63](../apps/booking/src/app/embed-test/route.ts#L63) `: "No business is set up for ${slug}.localhost, so there's no button. Add it to the domains table.";`
+- [booking/src/app/embed.js/route.ts:17](../apps/booking/src/app/embed.js/route.ts#L17) `const tenant = await getTenantByHost(host);`
+- [booking/src/app/page.tsx:102](../apps/booking/src/app/page.tsx#L102) `<a className="underline" href="http://ascnd.localhost:3000">ascnd.localhost:3000</a>`
+- [booking/src/app/page.tsx:103](../apps/booking/src/app/page.tsx#L103) `<a className="underline" href="http://test.localhost:3000">test.localhost:3000</a>`
+- [booking/src/app/quote/actions.ts:51](../apps/booking/src/app/quote/actions.ts#L51) `const local = /^(localhost|[^:]*\.localhost)(:\d+)?$/.test(host);`
+- [booking/src/lib/tenant.ts:11](../apps/booking/src/lib/tenant.ts#L11) `return getTenantByHost(host);`
+- [packages/core/src/email/notify.ts:67](../packages/core/src/email/notify.ts#L67) `return '${(process.env.ADMIN_APP_URL || "http://localhost:3001").replace(/\/$/, "")}${path}';`
+- [packages/core/src/platform/businesses.ts:121](../packages/core/src/platform/businesses.ts#L121) `const hostnameVerified = options.hostnameVerified ?? input.hostname.endsWith(".localhost");`
+- [packages/core/src/platform/businesses.ts:272](../packages/core/src/platform/businesses.ts#L272) `verified: hostname.endsWith(".localhost"),`
+- [packages/core/src/platform/rules.ts:51](../packages/core/src/platform/rules.ts#L51) `(h) => HOSTNAME.test(h) || /^[a-z0-9-]+\.localhost$/.test(h),`
+- [packages/core/src/settings/domains.ts:13](../packages/core/src/settings/domains.ts#L13) `return process.env.BOOKING_CNAME_TARGET || "cname.vercel-dns.com";`
+- [packages/core/src/settings/domains.ts:18](../packages/core/src/settings/domains.ts#L18) `return process.env.BOOKING_BASE_DOMAIN || "localhost";`
+- [packages/core/src/tenants.ts:63](../packages/core/src/tenants.ts#L63) `return hostname.endsWith(".localhost") ? 'http://${hostname}:3000' : 'https://${hostname}';`
+- [packages/core/src/tenants.ts:72](../packages/core/src/tenants.ts#L72) `export async function getTenantByHost(host: string | null | undefined): Promise<PublicTenant | null> {`
+
+## 3. Business dashboard links and redirects (/dashboard/...): 122 lines
+
+- [admin/src/app/account/password/page.tsx:30](../apps/admin/src/app/account/password/page.tsx#L30) `<Link href="/dashboard" className="text-sm text-muted-foreground underline-offset-4 hover:underline">`
+- [admin/src/app/dashboard/page.tsx:41](../apps/admin/src/app/dashboard/page.tsx#L41) `redirect('/dashboard/${memberships[0].tenant.slug}');`
+- [admin/src/app/dashboard/page.tsx:60](../apps/admin/src/app/dashboard/page.tsx#L60) `href={'/dashboard/${tenant.slug}'}`
+- [admin/src/app/dashboard/[tenant]/bookings/page.tsx:18](../apps/admin/src/app/dashboard/[tenant]/bookings/page.tsx#L18) `}: PageProps<"/dashboard/[tenant]/bookings">) {`
+- [admin/src/app/dashboard/[tenant]/bookings/page.tsx:49](../apps/admin/src/app/dashboard/[tenant]/bookings/page.tsx#L49) `const base = '/dashboard/${slug}/bookings';`
+- [admin/src/app/dashboard/[tenant]/bookings/[id]/page.tsx:64](../apps/admin/src/app/dashboard/[tenant]/bookings/[id]/page.tsx#L64) `export default async function BookingPage({ params }: PageProps<"/dashboard/[tenant]/bookings/[id]">) {`
+- [admin/src/app/dashboard/[tenant]/bookings/[id]/page.tsx:139](../apps/admin/src/app/dashboard/[tenant]/bookings/[id]/page.tsx#L139) `<BackLink href={'/dashboard/${slug}/bookings'}>Bookings</BackLink>`
+- [admin/src/app/dashboard/[tenant]/bookings/[id]/page.tsx:273](../apps/admin/src/app/dashboard/[tenant]/bookings/[id]/page.tsx#L273) `href={'/dashboard/${slug}/customers/${b.customer.id}#photos'}`
+- [admin/src/app/dashboard/[tenant]/bookings/[id]/page.tsx:303](../apps/admin/src/app/dashboard/[tenant]/bookings/[id]/page.tsx#L303) `href={'/dashboard/${slug}/customers/${b.customer.id}'}`
+- [admin/src/app/dashboard/[tenant]/coverage/page.tsx:14](../apps/admin/src/app/dashboard/[tenant]/coverage/page.tsx#L14) `export default async function CoveragePage({ params }: PageProps<"/dashboard/[tenant]/coverage">) {`
+- [admin/src/app/dashboard/[tenant]/coverage/page.tsx:50](../apps/admin/src/app/dashboard/[tenant]/coverage/page.tsx#L50) `<Link href={'/dashboard/${slug}/settings/booking'} className="underline">`
+- [admin/src/app/dashboard/[tenant]/customers/actions.ts:102](../apps/admin/src/app/dashboard/[tenant]/customers/actions.ts#L102) `redirect('/dashboard/${slug}/customers/${data.id}');`
+- [admin/src/app/dashboard/[tenant]/customers/actions.ts:159](../apps/admin/src/app/dashboard/[tenant]/customers/actions.ts#L159) `redirect('/dashboard/${slug}/customers/${id}?erased=1');`
+- [admin/src/app/dashboard/[tenant]/customers/actions.ts:166](../apps/admin/src/app/dashboard/[tenant]/customers/actions.ts#L166) `redirect('/dashboard/${slug}/customers');`
+- [admin/src/app/dashboard/[tenant]/customers/new/page.tsx:11](../apps/admin/src/app/dashboard/[tenant]/customers/new/page.tsx#L11) `}: PageProps<"/dashboard/[tenant]/customers/new">) {`
+- [admin/src/app/dashboard/[tenant]/customers/new/page.tsx:17](../apps/admin/src/app/dashboard/[tenant]/customers/new/page.tsx#L17) `<BackLink href={'/dashboard/${slug}/customers'}>Customers</BackLink>`
+- [admin/src/app/dashboard/[tenant]/customers/page.tsx:18](../apps/admin/src/app/dashboard/[tenant]/customers/page.tsx#L18) `}: PageProps<"/dashboard/[tenant]/customers">) {`
+- [admin/src/app/dashboard/[tenant]/customers/page.tsx:27](../apps/admin/src/app/dashboard/[tenant]/customers/page.tsx#L27) `const base = '/dashboard/${slug}/customers';`
+- [admin/src/app/dashboard/[tenant]/customers/[id]/export/route.ts:9](../apps/admin/src/app/dashboard/[tenant]/customers/[id]/export/route.ts#L9) `{ params }: RouteContext<"/dashboard/[tenant]/customers/[id]/export">,`
+- [admin/src/app/dashboard/[tenant]/customers/[id]/page.tsx:22](../apps/admin/src/app/dashboard/[tenant]/customers/[id]/page.tsx#L22) `}: PageProps<"/dashboard/[tenant]/customers/[id]">) {`
+- [admin/src/app/dashboard/[tenant]/customers/[id]/page.tsx:35](../apps/admin/src/app/dashboard/[tenant]/customers/[id]/page.tsx#L35) `<BackLink href={'/dashboard/${slug}/customers'}>Customers</BackLink>`
+- [admin/src/app/dashboard/[tenant]/customers/[id]/page.tsx:108](../apps/admin/src/app/dashboard/[tenant]/customers/[id]/page.tsx#L108) `href={'/dashboard/${slug}/customers/${customer.id}/export'}`
+- [admin/src/app/dashboard/[tenant]/diary/page.tsx:40](../apps/admin/src/app/dashboard/[tenant]/diary/page.tsx#L40) `}: PageProps<"/dashboard/[tenant]/diary">) {`
+- [admin/src/app/dashboard/[tenant]/layout.tsx:15](../apps/admin/src/app/dashboard/[tenant]/layout.tsx#L15) `}: LayoutProps<"/dashboard/[tenant]">) {`
+- [admin/src/app/dashboard/[tenant]/layout.tsx:48](../apps/admin/src/app/dashboard/[tenant]/layout.tsx#L48) `href="/dashboard"`
+- [admin/src/app/dashboard/[tenant]/layout.tsx:74](../apps/admin/src/app/dashboard/[tenant]/layout.tsx#L74) `<Link href={'/dashboard/${slug}/settings/account'} className="text-muted-foreground underline-offset-4 hover:underline">`
+- [admin/src/app/dashboard/[tenant]/leads/page.tsx:36](../apps/admin/src/app/dashboard/[tenant]/leads/page.tsx#L36) `}: PageProps<"/dashboard/[tenant]/leads">) {`
+- [admin/src/app/dashboard/[tenant]/leads/page.tsx:53](../apps/admin/src/app/dashboard/[tenant]/leads/page.tsx#L53) `const base = '/dashboard/${slug}/leads';`
+- [admin/src/app/dashboard/[tenant]/leads/page.tsx:102](../apps/admin/src/app/dashboard/[tenant]/leads/page.tsx#L102) `href={'/dashboard/${slug}/customers/${l.customer.id}'}`
+- [admin/src/app/dashboard/[tenant]/leads/page.tsx:127](../apps/admin/src/app/dashboard/[tenant]/leads/page.tsx#L127) `href={'/dashboard/${slug}/customers/${l.customer.id}#photos'}`
+- [admin/src/app/dashboard/[tenant]/leads/page.tsx:138](../apps/admin/src/app/dashboard/[tenant]/leads/page.tsx#L138) `href={'/dashboard/${slug}/leads/${l.id}'}`
+- [admin/src/app/dashboard/[tenant]/leads/[id]/page.tsx:32](../apps/admin/src/app/dashboard/[tenant]/leads/[id]/page.tsx#L32) `export default async function LeadPage({ params }: PageProps<"/dashboard/[tenant]/leads/[id]">) {`
+- [admin/src/app/dashboard/[tenant]/leads/[id]/page.tsx:64](../apps/admin/src/app/dashboard/[tenant]/leads/[id]/page.tsx#L64) `<BackLink href={'/dashboard/${slug}/leads'}>Leads</BackLink>`
+- [admin/src/app/dashboard/[tenant]/leads/[id]/page.tsx:89](../apps/admin/src/app/dashboard/[tenant]/leads/[id]/page.tsx#L89) `href={'/dashboard/${slug}/customers/${lead.customer.id}#photos'}`
+- [admin/src/app/dashboard/[tenant]/leads/[id]/page.tsx:135](../apps/admin/src/app/dashboard/[tenant]/leads/[id]/page.tsx#L135) `href={'/dashboard/${slug}/customers/${lead.customer.id}'}`
+- [admin/src/app/dashboard/[tenant]/no-access/page.tsx:10](../apps/admin/src/app/dashboard/[tenant]/no-access/page.tsx#L10) `export default async function NoAccessPage({ params }: PageProps<"/dashboard/[tenant]/no-access">) {`
+- [admin/src/app/dashboard/[tenant]/no-access/page.tsx:19](../apps/admin/src/app/dashboard/[tenant]/no-access/page.tsx#L19) `<Link href={'/dashboard/${slug}/diary'} className={buttonVariants({ variant: "outline" })}>`
+- [admin/src/app/dashboard/[tenant]/page.tsx:22](../apps/admin/src/app/dashboard/[tenant]/page.tsx#L22) `}: PageProps<"/dashboard/[tenant]">) {`
+- [admin/src/app/dashboard/[tenant]/page.tsx:140](../apps/admin/src/app/dashboard/[tenant]/page.tsx#L140) `<Link href={'/dashboard/${slug}/bookings/${u.id}'} className="grid gap-0.5 py-2 text-sm hover:bg-muted/40">`
+- [admin/src/app/dashboard/[tenant]/page.tsx:200](../apps/admin/src/app/dashboard/[tenant]/page.tsx#L200) `<Link href={'/dashboard/${slug}/payments'} className="mt-3 inline-block text-sm text-muted-foreground underline-offset-4 hover:text-foregrou`
+- [admin/src/app/dashboard/[tenant]/page.tsx:239](../apps/admin/src/app/dashboard/[tenant]/page.tsx#L239) `return { text: "Connect Stripe to see income here.", href: '/dashboard/${slug}/settings/payments', cta: "Open Settings" };`
+- [admin/src/app/dashboard/[tenant]/payments/layout.tsx:7](../apps/admin/src/app/dashboard/[tenant]/payments/layout.tsx#L7) `}: LayoutProps<"/dashboard/[tenant]/payments">) {`
+- [admin/src/app/dashboard/[tenant]/payments/links/page.tsx:22](../apps/admin/src/app/dashboard/[tenant]/payments/links/page.tsx#L22) `export default async function PaymentLinksPage({ params }: PageProps<"/dashboard/[tenant]/payments/links">) {`
+- [admin/src/app/dashboard/[tenant]/payments/notices.tsx:15](../apps/admin/src/app/dashboard/[tenant]/payments/notices.tsx#L15) `<Link href={'/dashboard/${slug}/settings/payments'} className="underline underline-offset-4">`
+- [admin/src/app/dashboard/[tenant]/payments/page.tsx:16](../apps/admin/src/app/dashboard/[tenant]/payments/page.tsx#L16) `}: PageProps<"/dashboard/[tenant]/payments">) {`
+- [admin/src/app/dashboard/[tenant]/payments/page.tsx:25](../apps/admin/src/app/dashboard/[tenant]/payments/page.tsx#L25) `const base = '/dashboard/${slug}/payments';`
+- [admin/src/app/dashboard/[tenant]/payments/page.tsx:97](../apps/admin/src/app/dashboard/[tenant]/payments/page.tsx#L97) `href={'/dashboard/${slug}/bookings/${p.booking.id}'}`
+- [admin/src/app/dashboard/[tenant]/pricing/actions.ts:130](../apps/admin/src/app/dashboard/[tenant]/pricing/actions.ts#L130) `if (!id) redirect('/dashboard/${slug}/pricing/services/${serviceId}');`
+- [admin/src/app/dashboard/[tenant]/pricing/actions.ts:161](../apps/admin/src/app/dashboard/[tenant]/pricing/actions.ts#L161) `redirect('/dashboard/${slug}/pricing');`
+- [admin/src/app/dashboard/[tenant]/pricing/page.tsx:24](../apps/admin/src/app/dashboard/[tenant]/pricing/page.tsx#L24) `export default async function PricingPage({ params }: PageProps<"/dashboard/[tenant]/pricing">) {`
+- [admin/src/app/dashboard/[tenant]/pricing/page.tsx:31](../apps/admin/src/app/dashboard/[tenant]/pricing/page.tsx#L31) `const base = '/dashboard/${slug}/pricing';`
+- [admin/src/app/dashboard/[tenant]/pricing/page.tsx:114](../apps/admin/src/app/dashboard/[tenant]/pricing/page.tsx#L114) `<Link href={'/dashboard/${slug}/settings/payments'} className="underline underline-offset-4">`
+- [admin/src/app/dashboard/[tenant]/pricing/services/[id]/page.tsx:13](../apps/admin/src/app/dashboard/[tenant]/pricing/services/[id]/page.tsx#L13) `export default async function ServicePage({ params }: PageProps<"/dashboard/[tenant]/pricing/services/[id]">) {`
+- [admin/src/app/dashboard/[tenant]/pricing/services/[id]/page.tsx:18](../apps/admin/src/app/dashboard/[tenant]/pricing/services/[id]/page.tsx#L18) `const back = <BackLink href={'/dashboard/${slug}/pricing'}>All services</BackLink>;`
+- [admin/src/app/dashboard/[tenant]/search/actions.ts:28](../apps/admin/src/app/dashboard/[tenant]/search/actions.ts#L28) `const base = '/dashboard/${slug}';`
+- [admin/src/app/dashboard/[tenant]/search/page.tsx:11](../apps/admin/src/app/dashboard/[tenant]/search/page.tsx#L11) `export default async function SearchPage({ params, searchParams }: PageProps<"/dashboard/[tenant]/search">) {`
+- [admin/src/app/dashboard/[tenant]/search/page.tsx:18](../apps/admin/src/app/dashboard/[tenant]/search/page.tsx#L18) `const base = '/dashboard/${slug}';`
+- [admin/src/app/dashboard/[tenant]/settings/account/page.tsx:14](../apps/admin/src/app/dashboard/[tenant]/settings/account/page.tsx#L14) `export default async function AccountPage({ params }: PageProps<"/dashboard/[tenant]/settings/account">) {`
+- [admin/src/app/dashboard/[tenant]/settings/api/page.tsx:4](../apps/admin/src/app/dashboard/[tenant]/settings/api/page.tsx#L4) `export default async function ApiSettingsPage({ params }: PageProps<"/dashboard/[tenant]/settings/api">) {`
+- [admin/src/app/dashboard/[tenant]/settings/api/page.tsx:6](../apps/admin/src/app/dashboard/[tenant]/settings/api/page.tsx#L6) `redirect('/dashboard/${encodeURIComponent(tenant)}/settings/integrations#developer');`
+- [admin/src/app/dashboard/[tenant]/settings/assistant/page.tsx:11](../apps/admin/src/app/dashboard/[tenant]/settings/assistant/page.tsx#L11) `export default async function AssistantPage({ params }: PageProps<"/dashboard/[tenant]/settings/assistant">) {`
+- [admin/src/app/dashboard/[tenant]/settings/billing/actions.ts:18](../apps/admin/src/app/dashboard/[tenant]/settings/billing/actions.ts#L18) `redirect(url ?? '/dashboard/${encodeURIComponent(slug)}/settings/billing?error=1');`
+- [admin/src/app/dashboard/[tenant]/settings/billing/page.tsx:27](../apps/admin/src/app/dashboard/[tenant]/settings/billing/page.tsx#L27) `}: PageProps<"/dashboard/[tenant]/settings/billing">) {`
+- [admin/src/app/dashboard/[tenant]/settings/booking/page.tsx:15](../apps/admin/src/app/dashboard/[tenant]/settings/booking/page.tsx#L15) `export default async function BookingSettingsPage({ params }: PageProps<"/dashboard/[tenant]/settings/booking">) {`
+- [admin/src/app/dashboard/[tenant]/settings/booking-page/page.tsx:14](../apps/admin/src/app/dashboard/[tenant]/settings/booking-page/page.tsx#L14) `export default async function BookingPageSettings({ params }: PageProps<"/dashboard/[tenant]/settings/booking-page">) {`
+- [admin/src/app/dashboard/[tenant]/settings/integrations/page.tsx:14](../apps/admin/src/app/dashboard/[tenant]/settings/integrations/page.tsx#L14) `export default async function IntegrationsPage({ params }: PageProps<"/dashboard/[tenant]/settings/integrations">) {`
+- [admin/src/app/dashboard/[tenant]/settings/layout.tsx:8](../apps/admin/src/app/dashboard/[tenant]/settings/layout.tsx#L8) `}: LayoutProps<"/dashboard/[tenant]/settings">) {`
+- [admin/src/app/dashboard/[tenant]/settings/notifications/page.tsx:10](../apps/admin/src/app/dashboard/[tenant]/settings/notifications/page.tsx#L10) `export default async function NotificationsPage({ params }: PageProps<"/dashboard/[tenant]/settings/notifications">) {`
+- [admin/src/app/dashboard/[tenant]/settings/page.tsx:11](../apps/admin/src/app/dashboard/[tenant]/settings/page.tsx#L11) `export default async function SettingsPage({ params }: PageProps<"/dashboard/[tenant]/settings">) {`
+- [admin/src/app/dashboard/[tenant]/settings/page.tsx:68](../apps/admin/src/app/dashboard/[tenant]/settings/page.tsx#L68) `<Link href={'/dashboard/${slug}/settings/booking'} className="underline underline-offset-4">`
+- [admin/src/app/dashboard/[tenant]/settings/page.tsx:75](../apps/admin/src/app/dashboard/[tenant]/settings/page.tsx#L75) `<Link href={'/dashboard/${slug}/staff'} className="underline underline-offset-4">`
+- [admin/src/app/dashboard/[tenant]/settings/payments/page.tsx:19](../apps/admin/src/app/dashboard/[tenant]/settings/payments/page.tsx#L19) `}: PageProps<"/dashboard/[tenant]/settings/payments">) {`
+- [admin/src/app/dashboard/[tenant]/settings/payments/page.tsx:79](../apps/admin/src/app/dashboard/[tenant]/settings/payments/page.tsx#L79) `<Link href={'/dashboard/${slug}/payments'} className="underline underline-offset-4">`
+- [admin/src/app/dashboard/[tenant]/settings/payments/page.tsx:111](../apps/admin/src/app/dashboard/[tenant]/settings/payments/page.tsx#L111) `<Link href={'/dashboard/${slug}/settings/booking#policy-heading'} className="underline underline-offset-4">`
+- [admin/src/app/dashboard/[tenant]/settings/privacy/export/route.ts:7](../apps/admin/src/app/dashboard/[tenant]/settings/privacy/export/route.ts#L7) `export async function GET(_request: Request, { params }: RouteContext<"/dashboard/[tenant]/settings/privacy/export">) {`
+- [admin/src/app/dashboard/[tenant]/settings/privacy/page.tsx:24](../apps/admin/src/app/dashboard/[tenant]/settings/privacy/page.tsx#L24) `export default async function PrivacyPage({ params }: PageProps<"/dashboard/[tenant]/settings/privacy">) {`
+- [admin/src/app/dashboard/[tenant]/settings/privacy/page.tsx:187](../apps/admin/src/app/dashboard/[tenant]/settings/privacy/page.tsx#L187) `<a href={'/dashboard/${slug}/settings/privacy/export'} className={buttonVariants({ variant: "outline" })} download>`
+- [admin/src/app/dashboard/[tenant]/settings/privacy/page.tsx:257](../apps/admin/src/app/dashboard/[tenant]/settings/privacy/page.tsx#L257) `<Link href={'/dashboard/${slug}/customers/${r.customer_id}'} className="underline">`
+- [admin/src/app/dashboard/[tenant]/settings/subscription/page.tsx:4](../apps/admin/src/app/dashboard/[tenant]/settings/subscription/page.tsx#L4) `export default async function SubscriptionPage({ params }: PageProps<"/dashboard/[tenant]/settings/subscription">) {`
+- [admin/src/app/dashboard/[tenant]/settings/subscription/page.tsx:6](../apps/admin/src/app/dashboard/[tenant]/settings/subscription/page.tsx#L6) `redirect('/dashboard/${encodeURIComponent(tenant)}/settings/billing');`
+- [admin/src/app/dashboard/[tenant]/settings/team/page.tsx:17](../apps/admin/src/app/dashboard/[tenant]/settings/team/page.tsx#L17) `export default async function TeamAccessPage({ params }: PageProps<"/dashboard/[tenant]/settings/team">) {`
+- [admin/src/app/dashboard/[tenant]/settings/team/page.tsx:55](../apps/admin/src/app/dashboard/[tenant]/settings/team/page.tsx#L55) `<Link href={'/dashboard/${slug}/staff'} className="underline underline-offset-4">`
+- [admin/src/app/dashboard/[tenant]/setup/actions.ts:19](../apps/admin/src/app/dashboard/[tenant]/setup/actions.ts#L19) `revalidatePath('/dashboard/${slug}');`
+- [admin/src/app/dashboard/[tenant]/setup/page.tsx:20](../apps/admin/src/app/dashboard/[tenant]/setup/page.tsx#L20) `export default async function SetupPage({ params }: PageProps<"/dashboard/[tenant]/setup">) {`
+- [admin/src/app/dashboard/[tenant]/setup/page.tsx:38](../apps/admin/src/app/dashboard/[tenant]/setup/page.tsx#L38) `const base = '/dashboard/${slug}';`
+- [admin/src/app/dashboard/[tenant]/staff/page.tsx:25](../apps/admin/src/app/dashboard/[tenant]/staff/page.tsx#L25) `export default async function StaffPage({ params }: PageProps<"/dashboard/[tenant]/staff">) {`
+- [admin/src/app/docs/getting-started/page.tsx:120](../apps/admin/src/app/docs/getting-started/page.tsx#L120) `<Link href="/dashboard#roles">Your dashboard</Link> for what each role can do.`
+- [admin/src/app/docs/page.tsx:14](../apps/admin/src/app/docs/page.tsx#L14) `"/dashboard": "The calendar, bookings, leads, customers and team roles.",`
+- [admin/src/app/docs/privacy/page.tsx:114](../apps/admin/src/app/docs/privacy/page.tsx#L114) `organisations</a>. See also <Link href="/dashboard#roles">who on your team can do what</Link>.`
+- [admin/src/app/onboarding/billing/actions.ts:15](../apps/admin/src/app/onboarding/billing/actions.ts#L15) `if (hasAccess(membership.tenant.subscription_status)) redirect('/dashboard/${slug}');`
+- [admin/src/app/onboarding/billing/page.tsx:30](../apps/admin/src/app/onboarding/billing/page.tsx#L30) `if (hasAccess(membership.tenant.subscription_status)) redirect('/dashboard/${slug}');`
+- [admin/src/app/onboarding/billing/page.tsx:42](../apps/admin/src/app/onboarding/billing/page.tsx#L42) `if (recovered) redirect('/dashboard/${membership.tenant.slug}/setup');`
+- [admin/src/app/onboarding/complete/route.ts:18](../apps/admin/src/app/onboarding/complete/route.ts#L18) `if (!membership) redirect("/dashboard");`
+- [admin/src/app/onboarding/complete/route.ts:27](../apps/admin/src/app/onboarding/complete/route.ts#L27) `redirect(ok ? '/dashboard/${membership.tenant.slug}/setup' : '${back}&error=1');`
+- [admin/src/app/onboarding/signup-form.tsx:64](../apps/admin/src/app/onboarding/signup-form.tsx#L64) `if (arrivedSignedIn) router.replace("/dashboard");`
+- [admin/src/app/platform/layout.tsx:31](../apps/admin/src/app/platform/layout.tsx#L31) `<Link href="/dashboard" className="text-sidebar-foreground/70 hover:text-sidebar-foreground">`
+- [admin/src/app/platform/[slug]/page.tsx:51](../apps/admin/src/app/platform/[slug]/page.tsx#L51) `<Link href={'/dashboard/${b.slug}'} className={buttonVariants()}>`
+- [admin/src/components/dashboard/announcements.tsx:36](../apps/admin/src/components/dashboard/announcements.tsx#L36) `const base = '/dashboard/${slug}';`
+- [admin/src/components/dashboard/bookings-table.tsx:114](../apps/admin/src/components/dashboard/bookings-table.tsx#L114) `href={'/dashboard/${slug}/customers/${b.customer.id}'}`
+- [admin/src/components/dashboard/bookings-table.tsx:125](../apps/admin/src/components/dashboard/bookings-table.tsx#L125) `href={'/dashboard/${slug}/customers/${b.customer.id}#photos'}`
+- [admin/src/components/dashboard/bookings-table.tsx:281](../apps/admin/src/components/dashboard/bookings-table.tsx#L281) `href={'/dashboard/${slug}/bookings/${b.id}'}`
+- [admin/src/components/dashboard/dashboard-nav.tsx:62](../apps/admin/src/components/dashboard/dashboard-nav.tsx#L62) `const base = '/dashboard/${slug}';`
+- [admin/src/components/dashboard/dashboard-search.tsx:39](../apps/admin/src/components/dashboard/dashboard-search.tsx#L39) `const base = '/dashboard/${slug}';`
+- [admin/src/components/dashboard/diary/diary-controls.tsx:12](../apps/admin/src/components/dashboard/diary/diary-controls.tsx#L12) `return '/dashboard/${slug}/diary?${params}';`
+- [admin/src/components/dashboard/diary/job-panel.tsx:99](../apps/admin/src/components/dashboard/diary/job-panel.tsx#L99) `href={'/dashboard/${slug}/customers/${b.customer.id}'}`
+- [admin/src/components/dashboard/diary/job-panel.tsx:196](../apps/admin/src/components/dashboard/diary/job-panel.tsx#L196) `href={'/dashboard/${slug}/bookings/${b.id}'}`
+- [admin/src/components/dashboard/overview/period-controls.tsx:21](../apps/admin/src/components/dashboard/overview/period-controls.tsx#L21) `const base = '/dashboard/${slug}';`
+- [admin/src/components/dashboard/payments-tabs.tsx:9](../apps/admin/src/components/dashboard/payments-tabs.tsx#L9) `const base = '/dashboard/${slug}/payments';`
+- [admin/src/components/dashboard/settings-tabs.tsx:12](../apps/admin/src/components/dashboard/settings-tabs.tsx#L12) `const base = '/dashboard/${slug}/settings';`
+- [admin/src/components/dashboard/setup-nudge.tsx:24](../apps/admin/src/components/dashboard/setup-nudge.tsx#L24) `const href = '/dashboard/${slug}/setup';`
+- [admin/src/lib/auth.ts:25](../apps/admin/src/lib/auth.ts#L25) `export async function requireUser(next = "/dashboard") {`
+- [admin/src/lib/auth.ts:53](../apps/admin/src/lib/auth.ts#L53) `const user = await requireUser('/dashboard/${slug}');`
+- [admin/src/lib/auth.ts:70](../apps/admin/src/lib/auth.ts#L70) `if (!result.can(permission)) redirect('/dashboard/${encodeURIComponent(slug)}/no-access');`
+- [admin/src/lib/docs-nav.ts:23](../apps/admin/src/lib/docs-nav.ts#L23) `{ href: "/dashboard", title: "Your dashboard" },`
+- [admin/src/lib/safe-next.ts:2](../apps/admin/src/lib/safe-next.ts#L2) `export function safeNext(value: unknown, fallback = "/dashboard") {`
+- [admin/src/lib/supabase/proxy.ts:37](../apps/admin/src/lib/supabase/proxy.ts#L37) `const isDashboard = ["/dashboard", "/platform", "/account"].some(`
+- [admin/src/lib/supabase/proxy.ts:50](../apps/admin/src/lib/supabase/proxy.ts#L50) `url.pathname = "/dashboard";`
+- [packages/core/src/email/notify.ts:247](../packages/core/src/email/notify.ts#L247) `link: dashboardUrl('/dashboard/${t.slug}/bookings/${b.id}'),`
+- [packages/core/src/email/notify.ts:300](../packages/core/src/email/notify.ts#L300) `: ['Alerts for ${t.name}. Change which ones you get: ${dashboardUrl('/dashboard/${t.slug}/settings/notifications')}'];`
+- [packages/core/src/email/notify.ts:449](../packages/core/src/email/notify.ts#L449) `const content = ownerPaymentProblem(alert.detail, t ? dashboardUrl('/dashboard/${t.slug}/payments') : dashboardUrl("/platform"));`
+- [packages/core/src/email/notify.ts:489](../packages/core/src/email/notify.ts#L489) `link: b ? dashboardUrl('/dashboard/${t.slug}/bookings/${b.id}') : dashboardUrl('/dashboard/${t.slug}/payments'),`
+- [packages/core/src/email/notify.ts:694](../packages/core/src/email/notify.ts#L694) `link: dashboardUrl('/dashboard/${t.slug}/leads/${lead.id}'),`
+
+## 4. Super-admin links (/platform/...): 21 lines
+
+- [admin/src/app/dashboard/page.tsx:71](../apps/admin/src/app/dashboard/page.tsx#L71) `href="/platform"`
+- [admin/src/app/dashboard/[tenant]/layout.tsx:70](../apps/admin/src/app/dashboard/[tenant]/layout.tsx#L70) `<Link href="/platform" className="text-muted-foreground underline-offset-4 hover:underline">`
+- [admin/src/app/platform/actions.ts:18](../apps/admin/src/app/platform/actions.ts#L18) `const admin = await requirePlatformAdmin("/platform/new");`
+- [admin/src/app/platform/layout.tsx:8](../apps/admin/src/app/platform/layout.tsx#L8) `export default function PlatformLayout({ children }: LayoutProps<"/platform">) {`
+- [admin/src/app/platform/layout.tsx:24](../apps/admin/src/app/platform/layout.tsx#L24) `<Link href="/platform" className="font-semibold">`
+- [admin/src/app/platform/layout.tsx:28](../apps/admin/src/app/platform/layout.tsx#L28) `<Link href="/platform" className="text-sidebar-foreground/70 hover:text-sidebar-foreground">`
+- [admin/src/app/platform/layout.tsx:37](../apps/admin/src/app/platform/layout.tsx#L37) `<Link href="/platform/new" className={buttonVariants({ size: "sm" })}>`
+- [admin/src/app/platform/new/page.tsx:12](../apps/admin/src/app/platform/new/page.tsx#L12) `<BackLink href="/platform">Businesses</BackLink>`
+- [admin/src/app/platform/new/page.tsx:25](../apps/admin/src/app/platform/new/page.tsx#L25) `await requirePlatformAdmin("/platform/new");`
+- [admin/src/app/platform/page.tsx:59](../apps/admin/src/app/platform/page.tsx#L59) `<Link href="/platform/new" className="underline underline-offset-4">`
+- [admin/src/app/platform/page.tsx:88](../apps/admin/src/app/platform/page.tsx#L88) `<Link href={'/platform/${b.slug}'} className="font-medium underline-offset-4 hover:underline">`
+- [admin/src/app/platform/[slug]/actions.ts:15](../apps/admin/src/app/platform/[slug]/actions.ts#L15) `await requirePlatformAdmin('/platform/${slug}');`
+- [admin/src/app/platform/[slug]/page.tsx:24](../apps/admin/src/app/platform/[slug]/page.tsx#L24) `export default function BusinessPage({ params }: PageProps<"/platform/[slug]">) {`
+- [admin/src/app/platform/[slug]/page.tsx:27](../apps/admin/src/app/platform/[slug]/page.tsx#L27) `<BackLink href="/platform">Businesses</BackLink>`
+- [admin/src/app/platform/[slug]/page.tsx:37](../apps/admin/src/app/platform/[slug]/page.tsx#L37) `const admin = await requirePlatformAdmin('/platform/${slug}');`
+- [admin/src/components/platform/new-business-form.tsx:126](../apps/admin/src/components/platform/new-business-form.tsx#L126) `<Link href="/platform" className={buttonVariants({ variant: "ghost", size: "lg" })}>`
+- [admin/src/components/platform/new-business-form.tsx:182](../apps/admin/src/components/platform/new-business-form.tsx#L182) `<Link href={'/platform/${created.slug}'} className={buttonVariants()}>`
+- [admin/src/components/platform/new-business-form.tsx:185](../apps/admin/src/components/platform/new-business-form.tsx#L185) `<Link href="/platform/new" className={buttonVariants({ variant: "outline" })} prefetch={false}>`
+- [admin/src/lib/platform.ts:26](../apps/admin/src/lib/platform.ts#L26) `export async function requirePlatformAdmin(next = "/platform") {`
+- [admin/src/lib/supabase/proxy.ts:37](../apps/admin/src/lib/supabase/proxy.ts#L37) `const isDashboard = ["/dashboard", "/platform", "/account"].some(`
+- [packages/core/src/email/notify.ts:449](../packages/core/src/email/notify.ts#L449) `const content = ownerPaymentProblem(alert.detail, t ? dashboardUrl('/dashboard/${t.slug}/payments') : dashboardUrl("/platform"));`
+
+## 5. Sign-in, signup and account (/login, /onboarding, /account): 25 lines
+
+- [admin/src/app/account/password/actions.ts:10](../apps/admin/src/app/account/password/actions.ts#L10) `await requireUser("/account/password");`
+- [admin/src/app/account/password/page.tsx:21](../apps/admin/src/app/account/password/page.tsx#L21) `const user = await requireUser("/account/password");`
+- [admin/src/app/dashboard/actions.ts:9](../apps/admin/src/app/dashboard/actions.ts#L9) `redirect("/login");`
+- [admin/src/app/dashboard/[tenant]/settings/account/actions.ts:75](../apps/admin/src/app/dashboard/[tenant]/settings/account/actions.ts#L75) `redirect("/login?signed_out=everywhere");`
+- [admin/src/app/login/page.tsx:31](../apps/admin/src/app/login/page.tsx#L31) `<Link href="/onboarding" className="underline underline-offset-4">`
+- [admin/src/app/onboarding/actions.ts:137](../apps/admin/src/app/onboarding/actions.ts#L137) `if (signedIn.error) redirect("/login");`
+- [admin/src/app/onboarding/actions.ts:146](../apps/admin/src/app/onboarding/actions.ts#L146) `if (!checkout) redirect('/onboarding/billing?tenant=${encodeURIComponent(tenant.slug)}&error=1');`
+- [admin/src/app/onboarding/billing/actions.ts:11](../apps/admin/src/app/onboarding/billing/actions.ts#L11) `const user = await requireUser('/onboarding/billing?tenant=${encodeURIComponent(slug)}');`
+- [admin/src/app/onboarding/billing/actions.ts:24](../apps/admin/src/app/onboarding/billing/actions.ts#L24) `redirect(url ?? '/onboarding/billing?tenant=${encodeURIComponent(slug)}&error=1');`
+- [admin/src/app/onboarding/billing/page.tsx:14](../apps/admin/src/app/onboarding/billing/page.tsx#L14) `export default function BillingPage({ searchParams }: PageProps<"/onboarding/billing">) {`
+- [admin/src/app/onboarding/billing/page.tsx:24](../apps/admin/src/app/onboarding/billing/page.tsx#L24) `async function Billing({ searchParams }: { searchParams: PageProps<"/onboarding/billing">["searchParams"] }) {`
+- [admin/src/app/onboarding/billing/page.tsx:27](../apps/admin/src/app/onboarding/billing/page.tsx#L27) `await requireUser('/onboarding/billing?tenant=${encodeURIComponent(slug)}');`
+- [admin/src/app/onboarding/complete/route.ts:14](../apps/admin/src/app/onboarding/complete/route.ts#L14) `const back = '/onboarding/billing?tenant=${encodeURIComponent(slug)}';`
+- [admin/src/app/onboarding/complete/route.ts:15](../apps/admin/src/app/onboarding/complete/route.ts#L15) `if (!user) redirect('/login?next=${encodeURIComponent(back)}');`
+- [admin/src/app/onboarding/page.tsx:56](../apps/admin/src/app/onboarding/page.tsx#L56) `<Link href="/login" className="text-foreground underline underline-offset-4">`
+- [admin/src/app/page.tsx:62](../apps/admin/src/app/page.tsx#L62) `<Link href="/login" className={buttonVariants({ variant: "ghost" })}>`
+- [admin/src/app/page.tsx:65](../apps/admin/src/app/page.tsx#L65) `<Link href="/onboarding" className={buttonVariants()}>`
+- [admin/src/app/page.tsx:83](../apps/admin/src/app/page.tsx#L83) `<Link href="/onboarding" className={buttonVariants({ size: "lg" })}>`
+- [admin/src/app/page.tsx:86](../apps/admin/src/app/page.tsx#L86) `<Link href="/login" className={buttonVariants({ size: "lg", variant: "outline" })}>`
+- [admin/src/app/page.tsx:135](../apps/admin/src/app/page.tsx#L135) `<Link href="/onboarding" className={cn(buttonVariants({ size: "lg" }), "mt-6")}>`
+- [admin/src/lib/auth.ts:27](../apps/admin/src/lib/auth.ts#L27) `if (!user) redirect('/login?next=${encodeURIComponent(next)}');`
+- [admin/src/lib/auth.ts:59](../apps/admin/src/lib/auth.ts#L59) `redirect('/onboarding/billing?tenant=${encodeURIComponent(slug)}');`
+- [admin/src/lib/supabase/proxy.ts:37](../apps/admin/src/lib/supabase/proxy.ts#L37) `const isDashboard = ["/dashboard", "/platform", "/account"].some(`
+- [admin/src/lib/supabase/proxy.ts:43](../apps/admin/src/lib/supabase/proxy.ts#L43) `url.pathname = "/login";`
+- [admin/src/lib/supabase/proxy.ts:48](../apps/admin/src/lib/supabase/proxy.ts#L48) `if (signedIn && pathname === "/login") {`
+
+## 6. Marketing, docs and legal (/docs, /legal): 13 lines
+
+- [admin/src/app/dashboard/[tenant]/settings/privacy/page.tsx:95](../apps/admin/src/app/dashboard/[tenant]/settings/privacy/page.tsx#L95) `<Link href="/legal/dpa" className="underline">Read them</Link>.`
+- [admin/src/app/docs/layout.tsx:18](../apps/admin/src/app/docs/layout.tsx#L18) `export default function DocsLayout({ children }: LayoutProps<"/docs">) {`
+- [admin/src/app/legal/layout.tsx:6](../apps/admin/src/app/legal/layout.tsx#L6) `export default function LegalLayout({ children }: LayoutProps<"/legal">) {`
+- [admin/src/app/legal/layout.tsx:11](../apps/admin/src/app/legal/layout.tsx#L11) `<Link href="/legal/terms" className="underline">Terms of Service</Link>`
+- [admin/src/app/legal/layout.tsx:12](../apps/admin/src/app/legal/layout.tsx#L12) `<Link href="/legal/privacy" className="underline">Privacy Policy</Link>`
+- [admin/src/app/legal/layout.tsx:13](../apps/admin/src/app/legal/layout.tsx#L13) `<Link href="/legal/dpa" className="underline">Data Processing Terms</Link>`
+- [admin/src/app/legal/terms/page.tsx:49](../apps/admin/src/app/legal/terms/page.tsx#L49) `<a href="/legal/dpa" className="underline">Data Processing Terms</a> apply and form part of this`
+- [admin/src/app/onboarding/signup-form.tsx:223](../apps/admin/src/app/onboarding/signup-form.tsx#L223) `<a href="/legal/terms" target="_blank" rel="noopener" className="underline">Terms of Service</a> and the{" "}`
+- [admin/src/app/onboarding/signup-form.tsx:224](../apps/admin/src/app/onboarding/signup-form.tsx#L224) `<a href="/legal/dpa" target="_blank" rel="noopener" className="underline">Data Processing Terms</a>, and have`
+- [admin/src/app/onboarding/signup-form.tsx:226](../apps/admin/src/app/onboarding/signup-form.tsx#L226) `<a href="/legal/privacy" target="_blank" rel="noopener" className="underline">Privacy Policy</a>.`
+- [admin/src/proxy.ts:12](../apps/admin/src/proxy.ts#L12) `url.pathname = pathname === "/" ? "/docs" : '/docs${pathname}';`
+- [admin/src/proxy.ts:17](../apps/admin/src/proxy.ts#L17) `if (pathname === "/docs" || pathname.startsWith("/docs/")) {`
+- [admin/src/proxy.ts:20](../apps/admin/src/proxy.ts#L20) `return NextResponse.redirect('${base}${pathname.slice("/docs".length) || "/"}${search}');`
+
+## 7. Customer booking UI (/quote, /services, /privacy, /confirmed, /unsubscribe, /embed.js): 22 lines
+
+- [admin/src/app/docs/booking-flow/page.tsx:31](../apps/admin/src/app/docs/booking-flow/page.tsx#L31) `<Link href="/privacy">Customer data and privacy</Link>)`
+- [admin/src/app/docs/dashboard/page.tsx:89](../apps/admin/src/app/docs/dashboard/page.tsx#L89) `<Link href="/privacy">Customer data and privacy</Link>.`
+- [admin/src/app/docs/dashboard/page.tsx:118](../apps/admin/src/app/docs/dashboard/page.tsx#L118) `<Link href="/privacy">Customer data and privacy</Link>.`
+- [admin/src/app/docs/page.tsx:16](../apps/admin/src/app/docs/page.tsx#L16) `"/privacy": "Data requests, erasing and exporting customer data, retention.",`
+- [admin/src/lib/docs-nav.ts:25](../apps/admin/src/lib/docs-nav.ts#L25) `{ href: "/privacy", title: "Customer data and privacy" },`
+- [booking/src/app/confirmed/[id]/actions.ts:12](../apps/booking/src/app/confirmed/[id]/actions.ts#L12) `redirect(url ?? '/confirmed/${bookingId}?cancelled=1');`
+- [booking/src/app/confirmed/[id]/page.tsx:15](../apps/booking/src/app/confirmed/[id]/page.tsx#L15) `export default async function ConfirmedPage({ params, searchParams }: PageProps<"/confirmed/[id]">) {`
+- [booking/src/app/confirmed/[id]/page.tsx:127](../apps/booking/src/app/confirmed/[id]/page.tsx#L127) `href="/quote"`
+- [booking/src/app/layout.tsx:32](../apps/booking/src/app/layout.tsx#L32) `<a href="/privacy" className="underline">Privacy notice</a>`
+- [booking/src/app/layout.tsx:34](../apps/booking/src/app/layout.tsx#L34) `<a href="/privacy/request" className="underline">Your data rights</a>`
+- [booking/src/app/page.tsx:30](../apps/booking/src/app/page.tsx#L30) `href="/quote"`
+- [booking/src/app/page.tsx:63](../apps/booking/src/app/page.tsx#L63) `href={'/services/${s.slug}'}`
+- [booking/src/app/page.tsx:104](../apps/booking/src/app/page.tsx#L104) `<a className="underline" href="/embed-test">The embed test page</a>`
+- [booking/src/app/privacy/page.tsx:97](../apps/booking/src/app/privacy/page.tsx#L97) `<Link href="/privacy/request" className="underline">Make a request here</Link>`
+- [booking/src/app/privacy/request/page.tsx:18](../apps/booking/src/app/privacy/request/page.tsx#L18) `<Link href="/privacy" className="underline">privacy notice</Link> for what we hold and why.`
+- [booking/src/app/quote/booking-flow.tsx:1153](../apps/booking/src/app/quote/booking-flow.tsx#L1153) `<a href={'/services/${s.slug}'} target="_top" className="justify-self-start px-1 text-sm text-neutral-500 underline-offset-2 hover:text-neut`
+- [booking/src/app/quote/page.tsx:16](../apps/booking/src/app/quote/page.tsx#L16) `export default async function QuotePage({ searchParams }: PageProps<"/quote">) {`
+- [booking/src/app/quote/page.tsx:104](../apps/booking/src/app/quote/page.tsx#L104) `privacyUrl={tenant.privacy.policyUrl ?? "/privacy"}`
+- [booking/src/app/services/[slug]/page.tsx:23](../apps/booking/src/app/services/[slug]/page.tsx#L23) `export async function generateMetadata({ params }: PageProps<"/services/[slug]">): Promise<Metadata> {`
+- [booking/src/app/services/[slug]/page.tsx:39](../apps/booking/src/app/services/[slug]/page.tsx#L39) `export default async function ServicePage({ params }: PageProps<"/services/[slug]">) {`
+- [booking/src/app/services/[slug]/page.tsx:42](../apps/booking/src/app/services/[slug]/page.tsx#L42) `const book = '/quote?service=${service.id}';`
+- [booking/src/app/services/[slug]/page.tsx:198](../apps/booking/src/app/services/[slug]/page.tsx#L198) `href={'/services/${o.slug}'}`
+
+## 8. API paths referenced in code (/api/...): 17 lines
+
+- [admin/src/app/docs/api/catalog/page.tsx:56](../apps/admin/src/app/docs/api/catalog/page.tsx#L56) `<code>missing_key</code> or <code>invalid_key</code>. See <Link href="/api#errors">Errors</Link>.`
+- [admin/src/app/docs/api/examples/page.tsx:72](../apps/admin/src/app/docs/api/examples/page.tsx#L72) `<Link href="/api/keys">API keys</Link> for how to get one.`
+- [admin/src/app/docs/api/keys/page.tsx:50](../apps/admin/src/app/docs/api/keys/page.tsx#L50) `<code>401</code> with the code <code>missing_key</code>. See <Link href="/api#errors">Errors</Link>.`
+- [admin/src/app/docs/api/keys/page.tsx:65](../apps/admin/src/app/docs/api/keys/page.tsx#L65) `<Link href="/api#server-only">why the API is server-only</Link>.`
+- [admin/src/app/docs/api/page.tsx:35](../apps/admin/src/app/docs/api/page.tsx#L35) `<Link key="catalog" href="/api/catalog" className="font-mono text-[13px]">`
+- [admin/src/app/docs/api/page.tsx:51](../apps/admin/src/app/docs/api/page.tsx#L51) `<Link href="/api/keys">API keys</Link>.`
+- [admin/src/app/docs/api/page.tsx:107](../apps/admin/src/app/docs/api/page.tsx#L107) `See <Link href="/api/examples">Examples</Link> for code that does this.`
+- [admin/src/app/docs/dashboard/page.tsx:125](../apps/admin/src/app/docs/dashboard/page.tsx#L125) `Keys for your website to read your services and prices. See <Link href="/api">the API docs</Link>.`
+- [admin/src/app/docs/page.tsx:17](../apps/admin/src/app/docs/page.tsx#L17) `"/api": "Base URL, authentication, errors, caching and versioning.",`
+- [admin/src/app/docs/page.tsx:18](../apps/admin/src/app/docs/page.tsx#L18) `"/api/keys": "Create, store and revoke the keys your website uses.",`
+- [admin/src/app/docs/page.tsx:19](../apps/admin/src/app/docs/page.tsx#L19) `"/api/catalog": "Every field in the catalogue response.",`
+- [admin/src/app/docs/page.tsx:20](../apps/admin/src/app/docs/page.tsx#L20) `"/api/examples": "Copy-paste code for curl, Node, Next.js, Astro and WordPress.",`
+- [admin/src/app/docs/website/page.tsx:116](../apps/admin/src/app/docs/website/page.tsx#L116) `lines of code. Point them at <Link href="/api">the API docs</Link>.`
+- [admin/src/lib/docs-nav.ts:31](../apps/admin/src/lib/docs-nav.ts#L31) `{ href: "/api", title: "Overview" },`
+- [admin/src/lib/docs-nav.ts:32](../apps/admin/src/lib/docs-nav.ts#L32) `{ href: "/api/keys", title: "API keys" },`
+- [admin/src/lib/docs-nav.ts:33](../apps/admin/src/lib/docs-nav.ts#L33) `{ href: "/api/catalog", title: "Get the catalogue" },`
+- [admin/src/lib/docs-nav.ts:34](../apps/admin/src/lib/docs-nav.ts#L34) `{ href: "/api/examples", title: "Examples" },`

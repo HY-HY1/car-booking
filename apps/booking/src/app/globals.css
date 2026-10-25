@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+/* Tenant colours are set per request in layout.tsx from the tenant's
+   branding; these are the fallbacks for pages with no tenant. */
+:root {
+  --brand: #18181b;
+  --brand-fg: #ffffff;
+  --accent: #3b82f6;
+  --accent-fg: #ffffff;
+}
+
+@theme inline {
+  --color-brand: var(--brand);
+  --color-brand-fg: var(--brand-fg);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --font-sans: var(--font-sans);
+}
+
+body {
+  background: #fafafa;
+  color: #0a0a0a;
+}

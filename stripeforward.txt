@@ -1,0 +1,9 @@
+.\stripe.exe listen --api-key %KEY% --forward-connect-to localhost:3000/api/webhooks/stripe
+.\stripe.exe listen --api-key %KEY% --forward-to localhost:3001/api/webhooks/stripe-billing
+
+
+
+stripe-listen.cmd
+
+
+npx concurrently -k -n connect,billing -c cyan,yellow ".\stripe.exe listen --api-key %KEY% --forward-connect-to localhost:3000/api/webhooks/stripe" ".\stripe.exe listen --api-key %KEY% --forward-to localhost:3001/api/webhooks/stripe-billing"

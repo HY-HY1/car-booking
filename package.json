@@ -1,0 +1,38 @@
+{
+  "name": "leadgen",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n router,booking,admin -c gray,blue,magenta \"node --experimental-strip-types --no-warnings routing/dev-router.mjs\" \"npm run dev -w @leadgen/booking\" \"npm run dev -w @leadgen/admin\"",
+    "dev:booking": "npm run dev -w @leadgen/booking",
+    "dev:admin": "npm run dev -w @leadgen/admin",
+    "build": "npm run build -w @leadgen/booking -w @leadgen/admin",
+    "build:booking": "npm run build -w @leadgen/booking",
+    "build:admin": "npm run build -w @leadgen/admin",
+    "start": "concurrently -k -n router,booking,admin -c gray,blue,magenta \"node --experimental-strip-types --no-warnings routing/dev-router.mjs\" \"npm run start -w @leadgen/booking\" \"npm run start -w @leadgen/admin\"",
+    "start:booking": "npm run start -w @leadgen/booking",
+    "start:admin": "npm run start -w @leadgen/admin",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "router": "node --experimental-strip-types --no-warnings routing/dev-router.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "concurrently": "^9",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.3",
+    "typescript": "^5",
+    "vitest": "^5.0.4"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-win32-x64-msvc": "1.2.13"
+  }
+}
