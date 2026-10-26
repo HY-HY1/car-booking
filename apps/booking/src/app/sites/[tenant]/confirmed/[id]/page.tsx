@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Check, Clock } from "lucide-react";
 import { formatPence } from "@leadgen/core/booking/config";
 import { getBookingSummary } from "@leadgen/core/booking/engine";
+import { confirmFromCheckout } from "@leadgen/core/stripe/payments";
 import { requireRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
 import { resumePaymentAction } from "./actions";
@@ -10,14 +11,24 @@ import { RefreshWhileWaiting } from "./refresh-while-waiting";
 
 export const metadata: Metadata = { title: "Your booking" };
 
-// Where Stripe sends the customer after the deposit page. This only reads the
-// booking: it's the webhook, not this page, that confirms a payment, so it
-// still works if the customer closed the tab on Stripe.
+// Where Stripe sends the customer after the deposit page. The webhook
+// confirms the payment, so it still happens if the customer closed the tab
+// on Stripe. While the booking is still held, this page also asks Stripe
+// itself, so a late or missing webhook doesn't leave a paid booking held.
 export default async function ConfirmedPage({ params, searchParams }: PageProps<"/sites/[tenant]/confirmed/[id]">) {
   const tenant = await requireRequestTenant();
   const { id } = await params;
   const cancelled = (await searchParams).cancelled === "1";
-  const booking = await getBookingSummary(tenant.id, id);
+  let booking = await getBookingSummary(tenant.id, id);
+  const waiting = booking?.status === "held" || (booking?.status === "expired" && booking.depositStatus === "pending");
+  if (waiting && !cancelled) {
+    try {
+      if (await confirmFromCheckout(tenant.id, id)) booking = await getBookingSummary(tenant.id, id);
+    } catch (error) {
+      // The webhook may still get there; the page keeps checking.
+      console.error("Checking the deposit with Stripe failed", error);
+    }
+  }
 
   return (
     <main className="flex flex-1 flex-col">

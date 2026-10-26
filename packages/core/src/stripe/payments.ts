@@ -4,6 +4,7 @@ import { notifyBookingSecured } from "../email/notify";
 import { createAdminClient } from "../supabase/admin";
 import { raiseAlert } from "./alerts";
 import { getStripe } from "./client";
+import { recordPaidSession } from "./ledger";
 
 // What Stripe payment events do to bookings (info/stripe.md, sections 4 to 6).
 // Every function takes the connected account the event came from and resolves
@@ -203,4 +204,45 @@ export async function refundDeposit(tenantId: string, bookingId: string, amountP
     .eq("id", booking.id);
   if (updated.error) throw updated.error;
   return { ok: true as const };
+}
+
+// The webhook is what confirms a paid deposit. This is the backstop for when
+// it's late or never arrives: it asks Stripe about the booking's Checkout
+// Session directly (never trusting the redirect itself) and, if it's paid,
+// does what checkout.session.completed would have. Called while the customer
+// waits on the confirmation page (or opens it again later). Safe to repeat: confirmPaidBooking only
+// moves a booking on once, and the webhook arriving later finds it done.
+export async function confirmFromCheckout(tenantId: string, bookingId: string) {
+  const { data, error } = await createAdminClient()
+    .from("bookings")
+    .select("status, deposit_status, stripe_checkout_session_id, tenant:tenants(stripe_account_id)")
+    .eq("tenant_id", tenantId)
+    .eq("id", bookingId)
+    .maybeSingle();
+  if (error) throw error;
+  const accountId = (data?.tenant as unknown as { stripe_account_id: string | null } | null)?.stripe_account_id;
+  // Held, or expired while waiting on a payment that may still have gone
+  // through: confirmPaidBooking takes the slot if it's free, else refunds.
+  const waiting = data?.status === "held" || (data?.status === "expired" && data.deposit_status === "pending");
+  if (!waiting || !data.stripe_checkout_session_id || !accountId) return null;
+
+  const session = await getStripe().checkout.sessions.retrieve(data.stripe_checkout_session_id, {}, { stripeAccount: accountId });
+  // Only this booking's own deposit session counts.
+  if (session.metadata?.booking_id !== bookingId || session.payment_link) return null;
+  if (session.status === "expired") {
+    await releaseHold(tenantId, bookingId);
+    return "expired" as const;
+  }
+  const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
+  if (session.payment_status !== "paid" || !paymentIntentId) return null;
+
+  const result = await confirmPaidBooking({
+    accountId,
+    bookingId,
+    sessionId: session.id,
+    paymentIntentId,
+    amountPaid: session.amount_total ?? 0,
+  });
+  await recordPaidSession(accountId, session).catch((e) => console.error("Couldn't record a paid session", e));
+  return result;
 }
