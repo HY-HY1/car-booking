@@ -60,11 +60,11 @@ export type GridColumn = {
 };
 
 const TONE: Record<string, string> = {
-  held: "border-amber-500 border-dashed bg-amber-100 text-amber-950",
-  requested: "border-violet-500 border-dashed bg-violet-100 text-violet-950",
-  confirmed: "border-emerald-600 bg-emerald-100 text-emerald-950",
-  completed: "border-sky-600 bg-sky-100 text-sky-950",
-  no_show: "border-red-600 bg-red-100 text-red-950 opacity-80",
+  held: "border-amber-500 border-dashed bg-amber-100 dark:bg-amber-950/60 text-amber-950 dark:text-amber-100",
+  requested: "border-violet-500 border-dashed bg-violet-100 dark:bg-violet-950/60 text-violet-950 dark:text-violet-100",
+  confirmed: "border-emerald-600 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-100",
+  completed: "border-sky-600 bg-sky-100 dark:bg-sky-950/60 text-sky-950 dark:text-sky-100",
+  no_show: "border-red-600 bg-red-100 dark:bg-red-950/60 text-red-950 dark:text-red-100 opacity-80",
 };
 
 export function DiaryGrid({
@@ -254,7 +254,7 @@ export function DiaryGrid({
                     className={cn(
                       "absolute inset-x-1.5 overflow-hidden rounded border border-dashed px-1 text-[10px] leading-4",
                       leg.tight
-                        ? "border-red-400 bg-red-50 text-red-800"
+                        ? "border-red-400 bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300"
                         : "border-muted-foreground/40 bg-muted/70 text-muted-foreground",
                     )}
                     style={{ top, height: h }}

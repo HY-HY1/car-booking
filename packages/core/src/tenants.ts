@@ -27,6 +27,8 @@ export const brandingSchema = z.object({
   website_url: websiteUrlSchema.optional().catch(undefined),
   primary_color: hexColor.catch("#18181b"),
   accent_color: hexColor.catch("#3b82f6"),
+  // Optional: the dashboard's active nav highlight. Unset keeps it neutral.
+  secondary_color: hexColor.optional().catch(undefined),
   logo_url: z.url().optional().catch(undefined),
   // Behind the heading on the booking page's home.
   cover_url: z.url().optional().catch(undefined),

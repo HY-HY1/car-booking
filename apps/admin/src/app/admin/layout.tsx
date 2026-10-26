@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { LogOut } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { requirePlatformAdmin } from "@/lib/platform";
 import { signOut } from "@/app/app/actions";
@@ -35,6 +36,7 @@ async function Header() {
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <span className="hidden text-xs text-muted-foreground sm:inline">{user.email}</span>
+          <ThemeToggle />
           <Link href={adminUrl("/new")} className={buttonVariants({ size: "sm" })}>
             New business
           </Link>

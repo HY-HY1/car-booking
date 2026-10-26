@@ -87,7 +87,7 @@ export default async function TeamAccessPage({ params }: PageProps<"/app/[tenant
                   {ROLE_KEYS.map((r) => (
                     <td key={r} className="px-2 py-2 text-center">
                       {can(r, row.permission) ? (
-                        <Check className="mx-auto size-4 text-emerald-600" aria-label="Yes" />
+                        <Check className="mx-auto size-4 text-emerald-600 dark:text-emerald-400" aria-label="Yes" />
                       ) : (
                         <Minus className="mx-auto size-4 text-muted-foreground" aria-label="No" />
                       )}

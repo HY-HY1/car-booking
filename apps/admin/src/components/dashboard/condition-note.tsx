@@ -38,7 +38,7 @@ export function ConditionNote({
       )}
       {condition?.summary && <p className="text-muted-foreground">&ldquo;{condition.summary}&rdquo;</p>}
       {needsInspection && (
-        <p className={cn("rounded-lg bg-amber-50 text-amber-900", size === "xs" ? "px-2 py-1" : "px-3 py-2")}>
+        <p className={cn("rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100", size === "xs" ? "px-2 py-1" : "px-3 py-2")}>
           {reason ? `${reason} ${confirm}` : confirm}
         </p>
       )}

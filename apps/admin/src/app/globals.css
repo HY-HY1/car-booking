@@ -18,6 +18,8 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-nav-active: var(--nav-active);
+  --color-nav-active-foreground: var(--nav-active-foreground);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -83,6 +85,10 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* The selected dashboard menu item. Neutral here; inside a business's
+     dashboard it takes its brand colour (core/branding/colors.ts, [data-brand]). */
+  --nav-active: var(--sidebar-accent);
+  --nav-active-foreground: var(--sidebar-accent-foreground);
 }
 
 .dark {

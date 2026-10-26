@@ -20,10 +20,10 @@ export function Callout({ tone = "note", title, children }: { tone?: "note" | "w
     <div
       className={cn(
         "mt-5 flex gap-3 rounded-lg border p-4 text-sm",
-        tone === "warning" ? "border-amber-300 bg-amber-50 text-amber-950" : "bg-muted/40",
+        tone === "warning" ? "border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-950 dark:text-amber-100" : "bg-muted/40",
       )}
     >
-      <Icon className={cn("mt-0.5 size-4 shrink-0", tone === "warning" ? "text-amber-600" : "text-muted-foreground")} aria-hidden />
+      <Icon className={cn("mt-0.5 size-4 shrink-0", tone === "warning" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")} aria-hidden />
       <div className="min-w-0 [&_p:first-child]:mt-0 [&_p]:mt-2">
         {title && <p className="font-medium">{title}</p>}
         {children}

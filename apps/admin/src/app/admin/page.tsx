@@ -106,7 +106,7 @@ async function Businesses() {
                   {primary ? (
                     <>
                       <span className="font-mono text-xs">{primary.hostname}</span>
-                      {!primary.verified && <span className="block text-xs text-amber-700">Not verified yet</span>}
+                      {!primary.verified && <span className="block text-xs text-amber-700 dark:text-amber-400">Not verified yet</span>}
                     </>
                   ) : (
                     <span className="font-mono text-xs text-muted-foreground">

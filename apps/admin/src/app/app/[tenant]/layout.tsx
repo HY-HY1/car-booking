@@ -4,7 +4,10 @@ import { LogOut } from "lucide-react";
 import { Announcements } from "@/components/dashboard/announcements";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
 import { Button } from "@/components/ui/button";
+import { dashboardBrandCss } from "@leadgen/core/branding/colors";
 import { ROLES } from "@leadgen/core/team/access";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { getBranding } from "@/lib/branding";
 import { getMemberships, requireTenant } from "@/lib/auth";
 import { getIsPlatformAdmin } from "@/lib/platform";
 import { signOut } from "../actions";
@@ -15,7 +18,11 @@ export default function TenantLayout({
   params,
 }: LayoutProps<"/app/[tenant]">) {
   return (
-    <div className="flex flex-1 flex-col md:flex-row">
+    // The business's colours apply inside data-brand (BrandStyle).
+    <div data-brand className="flex flex-1 flex-col md:flex-row">
+      <Suspense>
+        <BrandStyle params={params} />
+      </Suspense>
       <aside className="border-b bg-sidebar text-sidebar-foreground md:sticky md:top-0 md:h-dvh md:w-60 md:shrink-0 md:border-r md:border-b-0">
         <Suspense fallback={<div className="h-28 md:h-full" />}>
           <Sidebar params={params} />
@@ -33,16 +40,33 @@ export default function TenantLayout({
   );
 }
 
+// The brand's colours for this dashboard, in light and dark mode. The CSS is
+// built only from colours the schema checked are #rrggbb.
+async function BrandStyle({ params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant: slug } = await params;
+  const { tenant } = await requireTenant(slug);
+  const branding = await getBranding(tenant.id);
+  return <style dangerouslySetInnerHTML={{ __html: dashboardBrandCss(branding) }} />;
+}
+
 async function Sidebar({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant: slug } = await params;
   const { user, tenant, role } = await requireTenant(slug);
-  const memberships = await getMemberships();
-  const platformAdmin = await getIsPlatformAdmin();
+  const [memberships, platformAdmin, branding] = await Promise.all([
+    getMemberships(),
+    getIsPlatformAdmin(),
+    getBranding(tenant.id),
+  ]);
 
   return (
     <div className="flex h-full flex-col gap-4 p-4">
       <div className="flex items-start justify-between gap-2 md:block">
         <div className="min-w-0">
+          {branding.logo_url && (
+            // The owner's own upload: any size, so it's capped to the sidebar.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={branding.logo_url} alt="" className="mb-2 h-8 w-auto max-w-40 object-contain" />
+          )}
           <p className="truncate font-semibold">{tenant.name}</p>
           {memberships.length > 1 && (
             <Link
@@ -53,12 +77,15 @@ async function Sidebar({ params }: { params: Promise<{ tenant: string }> }) {
             </Link>
           )}
         </div>
-        <form action={signOut} className="md:hidden">
-          <Button type="submit" variant="ghost" size="sm">
-            <LogOut />
-            Sign out
-          </Button>
-        </form>
+        <div className="flex shrink-0 items-center gap-1 md:hidden">
+          <ThemeToggle />
+          <form action={signOut}>
+            <Button type="submit" variant="ghost" size="sm">
+              <LogOut />
+              Sign out
+            </Button>
+          </form>
+        </div>
       </div>
 
       <DashboardNav slug={slug} role={role} />
@@ -76,12 +103,15 @@ async function Sidebar({ params }: { params: Promise<{ tenant: string }> }) {
             Your account
           </Link>
         </div>
-        <form action={signOut} className="mt-2">
-          <Button type="submit" variant="ghost" size="sm" className="-ml-2">
-            <LogOut />
-            Sign out
-          </Button>
-        </form>
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <form action={signOut}>
+            <Button type="submit" variant="ghost" size="sm" className="-ml-2">
+              <LogOut />
+              Sign out
+            </Button>
+          </form>
+          <ThemeToggle />
+        </div>
       </div>
     </div>
   );

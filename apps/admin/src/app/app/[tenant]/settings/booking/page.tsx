@@ -64,7 +64,7 @@ export default async function BookingSettingsPage({ params }: PageProps<"/app/[t
         {summary.warnings.length > 0 && (
           <ul className="grid gap-2">
             {summary.warnings.map((w) => (
-              <li key={w} className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <li key={w} className="rounded-lg bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
                 {w}
               </li>
             ))}

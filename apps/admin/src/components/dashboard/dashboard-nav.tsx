@@ -89,7 +89,7 @@ export function DashboardNav({ slug, role }: { slug: string; role: Role }) {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  active && "bg-sidebar-accent text-sidebar-accent-foreground",
+                  active && "bg-nav-active text-nav-active-foreground",
                 )}
               >
                 <Icon className="size-4" />

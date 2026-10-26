@@ -135,6 +135,8 @@ export const BUTTON_POSITIONS = { right: "Bottom right", left: "Bottom left" } a
 export const brandingFormSchema = z.object({
   primary_color: hexColor,
   accent_color: hexColor,
+  // Blank clears it.
+  secondary_color: z.union([z.literal(""), hexColor]).optional().transform((v) => v || undefined),
   tagline: text(120, "the tagline").transform((v) => v || undefined),
   website_url: optionalUrl.transform((v) => v ?? undefined),
   button_label: text(30, "the button text").transform((v) => v || undefined),

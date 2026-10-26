@@ -154,7 +154,7 @@ export default async function BookingPage({ params }: PageProps<"/app/[tenant]/b
           <span
             className={cn(
               "rounded-full px-2.5 py-1",
-              summary.fullyPaid ? "bg-emerald-100 text-emerald-900" : "bg-amber-100 text-amber-900",
+              summary.fullyPaid ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-100" : "bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-100",
             )}
           >
             {summary.fullyPaid ? "Paid in full" : `${formatPence(summary.balancePence)} to pay`}

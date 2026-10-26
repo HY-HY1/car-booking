@@ -4,6 +4,7 @@ import { useId, useState, useTransition } from "react";
 import { Check, RefreshCw, Star, Trash2 } from "lucide-react";
 import { BUTTON_POSITIONS, TIMEZONES, TRADES } from "@leadgen/core/settings/forms";
 import type { Branding } from "@leadgen/core/tenants";
+import { readableOn as textOn } from "@leadgen/core/branding/colors";
 import {
   checkDomainAction,
   makePrimaryDomainAction,
@@ -108,6 +109,7 @@ export function BrandingForm({
 }) {
   const [primary, setPrimary] = useState(branding.primary_color);
   const [accent, setAccent] = useState(branding.accent_color);
+  const [secondary, setSecondary] = useState(branding.secondary_color ?? "");
   const [label, setLabel] = useState(branding.button_label ?? "");
   const [position, setPosition] = useState(branding.button_position);
 
@@ -117,7 +119,19 @@ export function BrandingForm({
         <>
           <div className="grid gap-4 sm:grid-cols-2">
             <ColourField label="Main colour" name="primary_color" value={primary} onChange={setPrimary} error={errors.primary_color} />
-            <ColourField label="Button colour" name="accent_color" value={accent} onChange={setAccent} error={errors.accent_color} />
+            <ColourField label="Accent colour" name="accent_color" value={accent} onChange={setAccent} error={errors.accent_color} />
+            <ColourField
+              label="Secondary colour (optional)"
+              name="secondary_color"
+              value={secondary}
+              onChange={setSecondary}
+              error={errors.secondary_color}
+              placeholder="None"
+            />
+            <p className="self-end text-xs text-muted-foreground">
+              Main: the booking page header and your dashboard&apos;s buttons. Accent: booking buttons and your charts.
+              Secondary: the selected item in your dashboard menu (the main colour if left blank). Each is adjusted for light and dark mode.
+            </p>
             <Field label="Tagline" name="tagline" error={errors.tagline} className="sm:col-span-2">
               <Input name="tagline" defaultValue={branding.tagline ?? ""} placeholder="Mobile valeting across Bristol" maxLength={120} />
             </Field>
@@ -205,12 +219,15 @@ function ColourField({
   value,
   onChange,
   error,
+  placeholder,
 }: {
   label: string;
   name: string;
   value: string;
   onChange: (v: string) => void;
   error?: string;
+  // Set for an optional colour, which can be left blank.
+  placeholder?: string;
 }) {
   const id = `${name}-${useId()}`;
   return (
@@ -219,7 +236,7 @@ function ColourField({
       <div className="flex items-center gap-2">
         <input
           type="color"
-          value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#000000"}
+          value={/^#[0-9a-f]{6}$/i.test(value) ? value : placeholder ? "#e4e4e7" : "#000000"}
           onChange={(e) => onChange(e.target.value)}
           aria-label={`Pick the ${label.toLowerCase()}`}
           className="h-8 w-10 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5"
@@ -231,6 +248,7 @@ function ColourField({
           onChange={(e) => onChange(e.target.value)}
           className="font-mono"
           maxLength={7}
+          placeholder={placeholder}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-error` : undefined}
         />
@@ -274,14 +292,10 @@ function ImageField({
   );
 }
 
-// Black or white text, whichever reads better (the booking page does the same).
+// Black or white text, by the same rule as the booking page and dashboard;
+// white while a half-typed colour isn't one yet.
 function readableOn(hex: string) {
-  if (!/^#[0-9a-f]{6}$/i.test(hex)) return "#ffffff";
-  const [r, g, b] = [1, 3, 5].map((i) => {
-    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? "#0a0a0a" : "#ffffff";
+  return /^#[0-9a-f]{6}$/i.test(hex) ? textOn(hex) : "#ffffff";
 }
 
 // ------------------------------------------------------------- Custom domains

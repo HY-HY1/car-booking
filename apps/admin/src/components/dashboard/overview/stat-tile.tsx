@@ -30,7 +30,7 @@ export function StatTile({
         <p
           className={cn(
             "flex items-center gap-1 text-xs",
-            change > 0 ? "text-emerald-700" : change < 0 ? "text-red-700" : "text-muted-foreground",
+            change > 0 ? "text-emerald-700 dark:text-emerald-400" : change < 0 ? "text-red-700 dark:text-red-400" : "text-muted-foreground",
           )}
         >
           {change > 0 ? <ArrowUp className="size-3" /> : change < 0 ? <ArrowDown className="size-3" /> : <Minus className="size-3" />}

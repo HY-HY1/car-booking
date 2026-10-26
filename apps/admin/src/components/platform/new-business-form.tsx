@@ -161,7 +161,7 @@ function Created({ created }: { created: NonNullable<NewBusinessState["created"]
           <p className="font-medium">Booking page</p>
           <CopyText value={url} label="booking address" />
           {created.hostname && (
-            <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+            <p className="rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-3 text-xs text-amber-900 dark:text-amber-100">
               {created.hostname} isn&apos;t live yet. Point its DNS at us, add the domain to the project&apos;s
               hosting, then mark it verified on the business page. Until then customers use the address above.
             </p>

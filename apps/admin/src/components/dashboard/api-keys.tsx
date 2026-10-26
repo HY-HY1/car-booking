@@ -52,7 +52,7 @@ export function ApiKeys({
       </form>
 
       {created.key && (
-        <div role="status" className="grid gap-2 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+        <div role="status" className="grid gap-2 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-4 text-sm text-amber-950 dark:text-amber-100">
           <p className="font-medium">Copy your new key now</p>
           <p>It won&apos;t be shown again. Keep it on your website&apos;s server or in its build settings, never in page code visitors can see.</p>
           <CopyText value={created.key} label="API key" />

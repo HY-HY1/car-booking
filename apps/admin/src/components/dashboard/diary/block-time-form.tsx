@@ -86,7 +86,7 @@ export function BlockTimeForm({
         </Button>
         <p role="status" className="text-sm">
           {state.message ? (
-            <span className={state.saved ? "text-amber-700" : "text-destructive"}>{state.message}</span>
+            <span className={state.saved ? "text-amber-700 dark:text-amber-400" : "text-destructive"}>{state.message}</span>
           ) : state.saved && !pending ? (
             <span className="text-muted-foreground">Blocked.</span>
           ) : null}
