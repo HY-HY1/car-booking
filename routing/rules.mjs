@@ -13,7 +13,7 @@
 // Each app then maps the URL onto its own folders in its src/proxy.ts.
 
 /** @typedef {"admin" | "booking"} Service */
-/** @typedef {{ source: string, has?: { type: "host", value: string }[], destination: { service: Service } }} Rewrite */
+/** @typedef {{ source: string, has?: { type: "host", value: string | { suf: string } }[], destination: { service: Service } }} Rewrite */
 
 // The booking app's API routes. Everything else under /api is the admin app's.
 const BOOKING_API = ["/api/webhooks/stripe", "/api/webhooks/stripe-accounts", "/api/jobs/(.*)"];
@@ -38,22 +38,35 @@ export function rewrites(env) {
     { source: "/api/(.*)", destination: to("admin") },
     { source: "/booking/(.*)", destination: to("booking") },
   ];
-  if (routingMode(env) === "path") return [...shared, { source: "/(.*)", destination: to("admin") }];
+  /** @param {string | { suf: string }} value */
+  const onHost = (value, service) => ({ source: "/(.*)", has: [{ type: /** @type {const} */ ("host"), value }], destination: to(service) });
+
+  if (routingMode(env) === "path") {
+    // The platform's own address (the site, any *.vercel.app preview, this
+    // machine) → admin. Any other host is a business's own domain → booking.
+    const site = new URL(env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").hostname.toLowerCase();
+    const platform = [...new Set([site, "localhost", "127.0.0.1"])];
+    return [
+      ...shared,
+      ...platform.map((value) => onHost(value, "admin")),
+      onHost({ suf: ".vercel.app" }, "admin"),
+      { source: "/(.*)", destination: to("booking") },
+    ];
+  }
 
   // Exact hostnames, no port: domain.com, www.domain.com, app.domain.com, admin.domain.com.
   const root = (env.NEXT_PUBLIC_ROOT_DOMAIN ?? "").trim().toLowerCase().replace(/:\d+$/, "");
   const adminHosts = [root, `www.${root}`, `app.${root}`, `admin.${root}`];
-  return [
-    ...shared,
-    ...adminHosts.map((value) => ({ source: "/(.*)", has: [{ type: /** @type {const} */ ("host"), value }], destination: to("admin") })),
-    { source: "/(.*)", destination: to("booking") },
-  ];
+  return [...shared, ...adminHosts.map((value) => onHost(value, "admin")), { source: "/(.*)", destination: to("booking") }];
 }
 
-// The mode a vercel.json was written for: subdomain if any rule matches on host.
+// The mode a vercel.json was written for: subdomain mode has an app.<root> host rule.
 /** @param {{ rewrites?: Rewrite[] }} vercelJson */
 export function modeOf(vercelJson) {
-  return (vercelJson.rewrites ?? []).some((r) => r.has?.length) ? "subdomain" : "path";
+  const appHost = (vercelJson.rewrites ?? []).some((r) =>
+    r.has?.some((h) => typeof h.value === "string" && h.value.startsWith("app.")),
+  );
+  return appHost ? "subdomain" : "path";
 }
 
 /** @param {Record<string, string | undefined>} env */

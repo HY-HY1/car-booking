@@ -43,8 +43,58 @@
     },
     {
       "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "car-booking-azure.vercel.app"
+        }
+      ],
       "destination": {
         "service": "admin"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "localhost"
+        }
+      ],
+      "destination": {
+        "service": "admin"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "127.0.0.1"
+        }
+      ],
+      "destination": {
+        "service": "admin"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": {
+            "suf": ".vercel.app"
+          }
+        }
+      ],
+      "destination": {
+        "service": "admin"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "booking"
       }
     }
   ],

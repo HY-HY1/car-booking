@@ -89,7 +89,7 @@ async function Business({ params }: { params: Promise<{ slug: string }> }) {
             <CardTitle>Own domains</CardTitle>
             <CardDescription>
               The booking page always works at its free address. A domain of their own takes over once it&apos;s
-              verified and primary (on the platform&apos;s own domain only): check its DNS points at us, then mark it verified.
+              verified and primary: check its DNS points at us, add it to the Vercel project (Settings → Domains), then mark it verified.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">

@@ -6,6 +6,7 @@ import {
   appPathOf,
   appUrl,
   docsUrl,
+  isPlatformHost,
   marketingUrl,
   parseBookingPath,
   routingConfig,
@@ -46,9 +47,30 @@ describe("path mode", () => {
     expect(marketingUrl("/", { absolute: true })).toBe("https://bookings-cars.vercel.app");
   });
 
-  it("ignores custom domains: everything shares one origin", () => {
+  it("uses a verified custom domain on the live site", () => {
+    mode({ mode: "path", site: "https://car-booking-azure.vercel.app" });
+    expect(tenantUrl("ascnd", "/quote", { customDomain: "book.ascnddetailing.co.uk" })).toBe("https://book.ascnddetailing.co.uk/quote");
+    expect(tenantUrl("ascnd", "/quote", { customDomain: null })).toBe("/booking/ascnd/quote");
+  });
+
+  it("keeps links on localhost while developing, even with a custom domain", () => {
     mode({ mode: "path" });
-    expect(tenantUrl("ascnd", "/quote", { customDomain: "booking.theirsite.com" })).toBe("/booking/ascnd/quote");
+    expect(tenantUrl("ascnd", "/quote", { customDomain: "book.ascnddetailing.co.uk" })).toBe("/booking/ascnd/quote");
+  });
+});
+
+describe("isPlatformHost", () => {
+  const cfg = { mode: "path" as const, rootDomain: "car-booking-azure.vercel.app", siteUrl: "https://car-booking-azure.vercel.app" };
+
+  it("knows the site, its previews and this machine", () => {
+    for (const host of ["car-booking-azure.vercel.app", "car-booking-git-main-x.vercel.app", "localhost:3000", "127.0.0.1:3000"]) {
+      expect(isPlatformHost(host, cfg), host).toBe(true);
+    }
+  });
+
+  it("treats anything else as a business's own domain", () => {
+    expect(isPlatformHost("book.ascnddetailing.co.uk", cfg)).toBe(false);
+    expect(isPlatformHost("vercel.app.evil.com", cfg)).toBe(false);
   });
 });
 

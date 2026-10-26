@@ -24,8 +24,10 @@ if ((process.env.ROUTING_MODE || "path") !== (process.env.NEXT_PUBLIC_ROUTING_MO
 // the other would send requests to the wrong app, so stop instead.
 const vercelJson = path.resolve(__dirname, "../../vercel.json");
 if (existsSync(vercelJson)) {
-  const rules: { has?: unknown[] }[] = JSON.parse(readFileSync(vercelJson, "utf8")).rewrites ?? [];
-  const written = rules.some((r) => r.has?.length) ? "subdomain" : "path";
+  // Subdomain mode routes app.<root> by host (routing/rules.mjs, modeOf).
+  const rules: { has?: { value?: unknown }[] }[] = JSON.parse(readFileSync(vercelJson, "utf8")).rewrites ?? [];
+  const appHost = rules.some((r) => r.has?.some((h) => typeof h.value === "string" && h.value.startsWith("app.")));
+  const written = appHost ? "subdomain" : "path";
   const mode = process.env.ROUTING_MODE || "path";
   if (written !== mode) {
     throw new Error(`vercel.json is written for ${written} mode but ROUTING_MODE is ${mode}: run npm run routing:vercel and commit it.`);

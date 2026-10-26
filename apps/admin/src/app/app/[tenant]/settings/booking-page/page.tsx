@@ -6,7 +6,7 @@ import { CopyText } from "@/components/platform/copy-text";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { routingConfig, tenantUrl } from "@/lib/urls";
+import { tenantUrl } from "@/lib/urls";
 import { addDomainAction, saveBrandingAction } from "../actions";
 
 export const metadata: Metadata = { title: "Booking page" };
@@ -93,10 +93,10 @@ export default async function BookingPageSettings({ params }: PageProps<"/app/[t
               <DomainRow key={d.id} slug={slug} domain={d} readOnly={readOnly} />
             ))}
           </ul>
-          {routingConfig().mode === "path" && custom.length > 0 && (
+          {custom.length > 0 && (
             <p className="text-xs text-muted-foreground">
-              Your own domain starts showing your booking page once the platform moves to its own domain. Until then
-              customers use the free address.
+              Once its DNS checks out, make it your main address. We also connect it on our side, which can take up to
+              a day; until then customers use the free address.
             </p>
           )}
           {!readOnly && <AddDomainForm action={addDomainAction.bind(null, slug)} />}

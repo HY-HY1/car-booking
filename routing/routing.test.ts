@@ -23,6 +23,14 @@ describe("path mode", () => {
     }
   });
 
+  it("sends a business's own domain to the booking app, and this machine to admin", () => {
+    expect(app(path, "/", "book.ascnddetailing.co.uk")).toBe("booking");
+    expect(app(path, "/quote", "book.ascnddetailing.co.uk")).toBe("booking");
+    expect(app(path, "/api/v1/catalog", "book.ascnddetailing.co.uk")).toBe("admin");
+    expect(app(path, "/app", "localhost:3000")).toBe("admin");
+    expect(app(path, "/", "car-booking-git-main-x.vercel.app")).toBe("admin");
+  });
+
   it("routes the API by path", () => {
     expect(app(path, "/api/webhooks/stripe")).toBe("booking");
     expect(app(path, "/api/webhooks/stripe-accounts")).toBe("booking");
@@ -73,8 +81,14 @@ describe("vercel.json", () => {
   it("is what write-vercel-json.mjs makes for the mode it was written for", () => {
     const committed = JSON.parse(readFileSync(join(__dirname, "../vercel.json"), "utf8"));
     const mode = modeOf(committed);
-    const root = committed.rewrites.find((r: { has?: { value: string }[] }) => r.has)?.has[0].value;
-    const env = { ROUTING_MODE: mode, NEXT_PUBLIC_ROUTING_MODE: mode, NEXT_PUBLIC_ROOT_DOMAIN: root };
+    const hosts = committed.rewrites
+      .flatMap((r: { has?: { value: unknown }[] }) => r.has ?? [])
+      .map((h: { value: unknown }) => h.value)
+      .filter((v: unknown): v is string => typeof v === "string");
+    const env =
+      mode === "subdomain"
+        ? { ROUTING_MODE: mode, NEXT_PUBLIC_ROUTING_MODE: mode, NEXT_PUBLIC_ROOT_DOMAIN: hosts[0] }
+        : { ROUTING_MODE: mode, NEXT_PUBLIC_ROUTING_MODE: mode, NEXT_PUBLIC_SITE_URL: `https://${hosts[0]}` };
     expect(committed).toEqual(vercelConfig(env));
   });
 });

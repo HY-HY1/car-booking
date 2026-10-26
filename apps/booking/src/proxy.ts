@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isReservedSlug } from "@leadgen/core/reserved-slugs";
-import { parseBookingPath, routingConfig, surfaceForHost, tenantUrl } from "@leadgen/core/urls";
+import { hostnameOf, isPlatformHost, parseBookingPath, routingConfig, surfaceForHost, tenantUrl } from "@leadgen/core/urls";
 import { customDomainFor, slugForHost } from "@/lib/domain-cache";
 import { TENANT_HEADER } from "@/lib/tenant-header";
 
@@ -9,6 +9,8 @@ import { TENANT_HEADER } from "@/lib/tenant-header";
 // duplicate addresses to the one canonical URL:
 //
 //   path mode       /booking/<slug>/…               → /sites/<slug>/…
+//                   booking.theirsite.com/… (verified) → /sites/<slug>/…
+//                   /booking/<slug>/…, if it has a verified main custom domain → 301 there
 //   subdomain mode  <slug>.domain.com/…              → /sites/<slug>/…
 //                   booking.theirsite.com/… (verified) → /sites/<slug>/…
 //                   /booking/<slug>/…                → 301 to the subdomain or custom domain
@@ -23,7 +25,19 @@ export async function proxy(request: NextRequest) {
 
   const booking = parseBookingPath(pathname);
   if (cfg.mode === "path") {
+    const host = request.headers.get("host");
+    // A business's own domain (book.theirsite.co.uk): its pages at the root.
+    if (!isPlatformHost(host, cfg)) {
+      const slug = await slugForHost(hostnameOf(host ?? ""));
+      if (!slug) return notFound(request);
+      // A path-style link to the same business still lands on the right page.
+      return toTenant(request, slug, booking?.slug === slug ? booking.rest : pathname);
+    }
     if (!booking || isReservedSlug(booking.slug)) return notFound(request);
+    // One address per business: its own domain once it's verified and main.
+    const customDomain = await customDomainFor(booking.slug);
+    const canonical = tenantUrl(booking.slug, booking.rest + search, { customDomain });
+    if (customDomain && canonical.startsWith("https://")) return NextResponse.redirect(canonical, 301);
     return toTenant(request, booking.slug, booking.rest);
   }
 

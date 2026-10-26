@@ -96,22 +96,42 @@ export function adminUrl(path = "/", opts?: UrlOptions) {
   return onSite(cfg, "/admin", path, opts);
 }
 
+// Whether the site itself runs on this machine (localhost, *.localhost).
+function siteIsLocal(cfg: RoutingConfig) {
+  const host = hostnameOf(new URL(cfg.siteUrl).host);
+  return host === "localhost" || host.endsWith(".localhost") || host === "127.0.0.1";
+}
+
 // A business's booking pages. A verified custom domain (booking.theirsite.com)
-// is only used in subdomain mode: path mode has one origin for everything.
+// wins in either mode, except while the site runs locally: development keeps
+// every link on localhost rather than sending you to the live domain.
 export function tenantUrl(
   slug: string,
   path = "/",
   opts?: UrlOptions & { customDomain?: string | null },
 ) {
   const cfg = routingConfig();
-  if (cfg.mode === "subdomain") {
-    const custom = opts?.customDomain ? hostnameOf(opts.customDomain) : null;
-    if (!custom) return join(subdomainOrigin(cfg, slug), "", path);
-    // A *.localhost custom domain is a development stand-in: same scheme and port as the site.
-    const local = custom === "localhost" || custom.endsWith(".localhost");
-    return join(local ? `${protocolOf(cfg)}//${custom}${portOf(cfg)}` : `https://${custom}`, "", path);
-  }
+  const custom = opts?.customDomain ? hostnameOf(opts.customDomain) : null;
+  // A *.localhost custom domain is a development stand-in: same scheme and port as the site.
+  const localCustom = custom === "localhost" || !!custom?.endsWith(".localhost");
+  if (custom && localCustom) return join(`${protocolOf(cfg)}//${custom}${portOf(cfg)}`, "", path);
+  if (custom && !siteIsLocal(cfg)) return join(`https://${custom}`, "", path);
+  if (cfg.mode === "subdomain") return join(subdomainOrigin(cfg, slug), "", path);
   return onSite(cfg, `/booking/${encodeURIComponent(slug)}`, path, opts);
+}
+
+// In path mode, whether a request's host is the platform's own address (the
+// site, a Vercel preview of it, or this machine) rather than a business's
+// own domain, which shows that business's booking pages at its root.
+export function isPlatformHost(host: string | null | undefined, cfg = routingConfig()) {
+  const h = hostnameOf(host ?? "");
+  return (
+    h === hostnameOf(new URL(cfg.siteUrl).host) ||
+    h.endsWith(".vercel.app") ||
+    h === "localhost" ||
+    h.endsWith(".localhost") ||
+    h === "127.0.0.1"
+  );
 }
 
 // A page of the docs, which live on the marketing site:
