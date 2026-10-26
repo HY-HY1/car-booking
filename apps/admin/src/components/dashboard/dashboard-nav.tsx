@@ -38,7 +38,7 @@ const sections: {
     items: [
       { href: "/pricing", label: "Packages", icon: Package, permission: "pricing.view" },
       { href: "/coverage", label: "Coverage Area", icon: MapPin, permission: "settings.view" },
-      { href: "/staff", label: "Staff / Techs", icon: UsersRound, permission: "settings.view" },
+      { href: "/staff", label: "Staff", icon: UsersRound, permission: "settings.view" },
     ],
   },
   {
