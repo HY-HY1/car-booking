@@ -20,10 +20,11 @@ if ((process.env.ROUTING_MODE || "path") !== (process.env.NEXT_PUBLIC_ROUTING_MO
   throw new Error("ROUTING_MODE and NEXT_PUBLIC_ROUTING_MODE must have the same value.");
 }
 
-// vercel.json is written for one mode (npm run routing:vercel). Building for
-// the other would send requests to the wrong app, so stop instead.
+// vercel.json is written for one mode (npm run routing:vercel). Deploying
+// for the other would send requests to the wrong app, so stop instead. Only
+// on Vercel: locally the dev router builds its rules from the env itself.
 const vercelJson = path.resolve(__dirname, "../../vercel.json");
-if (existsSync(vercelJson)) {
+if (process.env.VERCEL && existsSync(vercelJson)) {
   // Subdomain mode routes app.<root> by host (routing/rules.mjs, modeOf).
   const rules: { has?: { value?: unknown }[] }[] = JSON.parse(readFileSync(vercelJson, "utf8")).rewrites ?? [];
   const appHost = rules.some((r) => r.has?.some((h) => typeof h.value === "string" && h.value.startsWith("app.")));
