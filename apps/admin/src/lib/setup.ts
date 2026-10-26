@@ -16,7 +16,7 @@ function hoursOrEmpty(value: unknown): WeeklyHours {
 // Cached per request: the Overview nudge and the setup page both call it.
 export const loadSetup = cache(async (tenantId: string) => {
   const supabase = await createClient();
-  const [settings, services, tenant, domains, bookings, leads] = await Promise.all([
+  const [settings, services, tenant, domains, bookings, leads, sender] = await Promise.all([
     supabase
       .from("booking_settings")
       .select("offers_mobile, offers_unit, weekly_hours, unit_weekly_hours, base_postcode, deposit")
@@ -31,8 +31,9 @@ export const loadSetup = cache(async (tenantId: string) => {
       .eq("tenant_id", tenantId)
       .in("status", ["confirmed", "completed"]),
     supabase.from("leads").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
+    supabase.from("email_senders").select("status").eq("tenant_id", tenantId).maybeSingle(),
   ]);
-  for (const r of [settings, services, tenant, domains, bookings, leads]) if (r.error) throw r.error;
+  for (const r of [settings, services, tenant, domains, bookings, leads, sender]) if (r.error) throw r.error;
 
   // No settings row means booking was never set up for this business; the
   // page says so rather than guessing at defaults.
@@ -48,6 +49,7 @@ export const loadSetup = cache(async (tenantId: string) => {
     basePostcode: settings.data.base_postcode,
     depositType: depositType === "percent" || depositType === "fixed" || depositType === "full" ? depositType : "none",
     stripe: tenant.data!.stripe_ready ? "connected" : tenant.data!.stripe_account_id ? "pending" : "none",
+    sender: sender.data?.status === "verified" ? "verified" : sender.data ? "pending" : "none",
     enquiries: (bookings.count ?? 0) + (leads.count ?? 0),
   };
 

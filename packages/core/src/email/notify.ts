@@ -27,7 +27,8 @@ import {
   type OwnerFacts,
 } from "./compose";
 import { afterJobDue, leadAlertDue, reminderDue, scheduledWindows } from "./schedule";
-import { deliver, fromAddress } from "./transport";
+import { verifiedSender } from "./senders-server";
+import { deliver, fromAddress, type SendResult } from "./transport";
 
 // Sends the emails: what a booking, an enquiry or a Stripe event means for
 // the customer and the business, and the scheduled reminders and follow-ups.
@@ -85,10 +86,12 @@ type TenantContext = {
   siteUrl: string;
   // Where alerts go: the address in Settings → Notifications, else the owner's login.
   alertEmail: () => Promise<string | null>;
+  // Its own verified sending address (email_senders), if it has one.
+  senderAddress: string | null;
 };
 
 async function loadTenant(db: Db, tenantId: string): Promise<TenantContext | null> {
-  const [tenant, settings, domain] = await Promise.all([
+  const [tenant, settings, domain, senderAddress] = await Promise.all([
     db
       .from("tenants")
       .select("id, name, slug, contact_email, branding, notification_settings")
@@ -96,6 +99,7 @@ async function loadTenant(db: Db, tenantId: string): Promise<TenantContext | nul
       .maybeSingle(),
     db.from("booking_settings").select("timezone").eq("tenant_id", tenantId).maybeSingle(),
     db.from("domains").select("hostname, verified, is_primary").eq("tenant_id", tenantId),
+    verifiedSender(tenantId, db),
   ]);
   if (tenant.error) throw tenant.error;
   if (settings.error) throw settings.error;
@@ -117,6 +121,7 @@ async function loadTenant(db: Db, tenantId: string): Promise<TenantContext | nul
     timezone: settings.data?.timezone ?? DEFAULT_TIMEZONE,
     customDomain,
     siteUrl: tenantUrl(t.slug, "/", { absolute: true, customDomain }),
+    senderAddress,
     alertEmail: () => {
       if (notifications.alerts.email) return Promise.resolve(notifications.alerts.email);
       ownerEmail ??= ownerLoginEmail(db, tenantId);
@@ -306,8 +311,14 @@ async function send(db: Db, t: TenantContext, m: Message): Promise<"sent" | "fai
     accentColor: t.accentColor,
     unsubscribeUrl,
   });
-  const result = await deliver({
-    from: fromHeader(t.settings.sender_name ?? t.name, fromAddress()),
+  // Customers hear from the business's own address, so until it's verified
+  // their emails aren't sent; alerts to the business can come from ours.
+  // Development without a key prints everything to the console regardless.
+  const sender = t.senderAddress ?? (audience === "owner" || !process.env.RESEND_API_KEY ? fromAddress() : null);
+  const result: SendResult = !sender
+    ? { ok: false, error: "No verified sending address: set one up in Settings → Notifications." }
+    : await deliver({
+    from: fromHeader(t.settings.sender_name ?? t.name, sender),
     to: m.to,
     replyTo: audience === "customer" ? (t.settings.reply_to ?? t.contactEmail) : null,
     subject: m.content.subject,

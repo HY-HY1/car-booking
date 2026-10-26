@@ -18,6 +18,7 @@ const DONE_TEXT: Record<SetupStepKey, string> = {
   hours: "Working hours set",
   area: "Starting point set",
   payments: "Stripe connected, deposits are live",
+  email: "Emails come from your own address",
   address: "Booking page is live",
   enquiry: "First enquiry received",
 };

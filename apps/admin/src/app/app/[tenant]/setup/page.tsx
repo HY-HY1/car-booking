@@ -68,6 +68,15 @@ export default async function SetupPage({ params }: PageProps<"/app/[tenant]/set
         <p className="text-sm text-muted-foreground">Ask the business owner to connect Stripe.</p>
       ),
     },
+    email: {
+      title: "Set up your email address",
+      text: "Customers get their confirmations and reminders from your own address, like hello@yourbusiness.co.uk. Add it, then add the DNS records it shows. Until it's verified, customers aren't emailed.",
+      action: (
+        <StepLink href={`${base}/settings/notifications`}>
+          {steps.find((s) => s.key === "email")?.state === "in_progress" ? "Finish email setup" : "Set up email"}
+        </StepLink>
+      ),
+    },
     address: {
       title: "Your booking page goes live",
       text: `Customers can book at ${bookingAddress}.`,

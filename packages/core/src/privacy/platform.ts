@@ -40,6 +40,11 @@ export const SUBPROCESSORS: Subprocessor[] = [
     data: "Name, email and payment details for deposits and subscriptions. Card numbers go straight to Stripe and are never seen by the business or the platform",
   },
   {
+    name: "Resend",
+    does: "Sends booking confirmations, reminders and alerts by email",
+    data: "Name, email address and booking details in each message",
+  },
+  {
     name: "postcodes.io",
     does: "Postcode lookups for service area and travel time",
     data: "Postcodes only, with no name or contact details",

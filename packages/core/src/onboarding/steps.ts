@@ -16,11 +16,14 @@ export type SetupInput = {
   basePostcode: string | null;
   depositType: "none" | "percent" | "fixed" | "full";
   stripe: "connected" | "pending" | "none";
+  // The business's own sending address (email_senders): customers aren't
+  // emailed until it's verified.
+  sender: "verified" | "pending" | "none";
   // Confirmed or completed bookings, plus leads.
   enquiries: number;
 };
 
-export type SetupStepKey = "services" | "hours" | "area" | "payments" | "address" | "enquiry";
+export type SetupStepKey = "services" | "hours" | "area" | "payments" | "email" | "address" | "enquiry";
 
 export type SetupStep = {
   key: SetupStepKey;
@@ -60,6 +63,12 @@ export function setupSteps(input: SetupInput): SetupStep[] {
       required: input.depositType !== "none",
       done: input.stripe === "connected",
       state: input.stripe === "pending" ? "in_progress" : undefined,
+    },
+    {
+      key: "email",
+      required: true,
+      done: input.sender === "verified",
+      state: input.sender === "pending" ? "in_progress" : undefined,
     },
     // A business's booking pages work from the moment it exists, at its
     // slug's address (/booking/<slug> or <slug>.domain.com), so this one is

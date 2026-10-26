@@ -52,7 +52,7 @@ export function NotificationsForm({
               </Field>
             </div>
             <p className="text-xs text-muted-foreground">
-              Emails come from our address with your name on them. Sending from your own domain is coming later.
+              Customers see the sender name on emails from your address above.
             </p>
           </section>
 

@@ -19,6 +19,7 @@ const fresh: SetupInput = {
   basePostcode: null,
   depositType: "percent",
   stripe: "none",
+  sender: "none",
   enquiries: 0,
 };
 
@@ -80,12 +81,18 @@ describe("setupSteps", () => {
     expect(step(fresh, "enquiry").required).toBe(false);
     expect(step({ ...fresh, enquiries: 1 }, "enquiry").done).toBe(true);
   });
+
+  it("needs the business's own email address verified", () => {
+    expect(step(fresh, "email")).toMatchObject({ required: true, done: false });
+    expect(step({ ...fresh, sender: "pending" }, "email")).toMatchObject({ done: false, state: "in_progress" });
+    expect(step({ ...fresh, sender: "verified" }, "email").done).toBe(true);
+  });
 });
 
 describe("setupProgress", () => {
   it("counts only required steps", () => {
-    expect(setupProgress(setupSteps(fresh))).toEqual({ doneRequired: 2, totalRequired: 5, ready: false });
-    expect(setupProgress(setupSteps({ ...fresh, depositType: "none" }))).toEqual({ doneRequired: 2, totalRequired: 4, ready: false });
+    expect(setupProgress(setupSteps(fresh))).toEqual({ doneRequired: 2, totalRequired: 6, ready: false });
+    expect(setupProgress(setupSteps({ ...fresh, depositType: "none" }))).toEqual({ doneRequired: 2, totalRequired: 5, ready: false });
   });
 
   it("is ready when every required step is done, even without an enquiry", () => {
@@ -94,7 +101,8 @@ describe("setupProgress", () => {
       services: [{ ...starter[0], base_price_pence: 6000 }],
       basePostcode: "BS1 4DJ",
       stripe: "connected",
+      sender: "verified",
     };
-    expect(setupProgress(setupSteps(ready))).toEqual({ doneRequired: 5, totalRequired: 5, ready: true });
+    expect(setupProgress(setupSteps(ready))).toEqual({ doneRequired: 6, totalRequired: 6, ready: true });
   });
 });
