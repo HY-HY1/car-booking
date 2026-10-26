@@ -66,7 +66,7 @@ async function Sidebar({ params }: { params: Promise<{ tenant: string }> }) {
           {branding.logo_url ? (
             // The owner's own upload: any shape, so it's fitted to the sidebar.
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={branding.logo_url} alt={tenant.name} className="h-10 w-auto max-w-44 object-contain object-left" />
+            <img src={branding.logo_url} alt={tenant.name} className="h-7 w-auto max-w-36 object-contain object-left" />
           ) : (
             <p className="truncate font-semibold">{tenant.name}</p>
           )}
