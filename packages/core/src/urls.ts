@@ -27,7 +27,12 @@ export type RoutingConfig = {
 export function routingConfig(): RoutingConfig {
   return {
     mode: process.env.NEXT_PUBLIC_ROUTING_MODE === "subdomain" ? "subdomain" : "path",
-    rootDomain: (process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost:3000").trim().toLowerCase().replace(/\/+$/, ""),
+    // Just the host (and port): "https://domain.com/" pasted as a URL still works.
+    rootDomain: (process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost:3000")
+      .trim()
+      .toLowerCase()
+      .replace(/^[a-z][a-z0-9+.-]*:\/\//, "")
+      .replace(/\/.*$/, ""),
     siteUrl: (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").trim().replace(/\/+$/, ""),
   };
 }

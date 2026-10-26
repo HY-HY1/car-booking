@@ -28,6 +28,11 @@ describe("path mode", () => {
     expect(routingConfig()).toEqual({ mode: "path", rootDomain: "localhost:3000", siteUrl: "http://localhost:3000" });
   });
 
+  it("accepts the root domain pasted as a URL", () => {
+    mode({ mode: "path", root: "https://Car-Booking-Azure.vercel.app/" });
+    expect(routingConfig().rootDomain).toBe("car-booking-azure.vercel.app");
+  });
+
   it("builds site-relative paths", () => {
     mode({ mode: "path" });
     expect(tenantUrl("ascnd", "/confirm")).toBe("/booking/ascnd/confirm");
