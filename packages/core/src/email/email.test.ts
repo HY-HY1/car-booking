@@ -6,6 +6,7 @@ import {
   formatDay,
   fromHeader,
   ownerNewBooking,
+  paymentReceived,
   paymentRequest,
   renderEmail,
   requestReceived,
@@ -85,6 +86,33 @@ describe("layout", () => {
 });
 
 describe("messages", () => {
+  it("thanks a customer for a payment, with the receipt and what's left", () => {
+    const base = {
+      customerName: "Sam Jones",
+      businessName: "Shine Detailing",
+      description: "Balance: Full valet, 24 Oct",
+      amountPence: 4000,
+      receiptUrl: "https://pay.stripe.com/receipts/abc",
+      booking: { service: "Full valet", date: "Friday 24 October", time: "9:30am" },
+    };
+    const full = paymentReceived({ ...base, balancePence: 0 });
+    expect(full.subject).toBe("Thank you, you're paid in full with Shine Detailing");
+    expect(full.body).toContain("Thank you for your payment of £40.");
+    expect(full.body).toContain("Booking: Full valet on Friday 24 October at 9:30am");
+    expect(full.body).toContain("Your booking is now paid in full.");
+    expect(full.button).toEqual({ label: "View your receipt", url: "https://pay.stripe.com/receipts/abc" });
+
+    const part = paymentReceived({ ...base, balancePence: 2000 });
+    expect(part.subject).toBe("Thank you for your payment to Shine Detailing");
+    expect(part.body).toContain("Still to pay: £20");
+
+    const loose = paymentReceived({ ...base, customerName: null, booking: null, balancePence: null, receiptUrl: null });
+    expect(loose.body.startsWith("Hello,")).toBe(true);
+    expect(loose.body).not.toContain("paid in full");
+    expect(loose.body).not.toContain("receipt is below");
+    expect(loose.button).toBeUndefined();
+  });
+
   it("asks for a payment, saying which booking it's for when there is one", () => {
     const base = { businessName: "Shine Detailing", description: "Balance: Full valet, 24 Oct", amountPence: 4000, url: "https://buy.stripe.com/abc" };
     const forBooking = paymentRequest({ ...base, customerName: "Sam Jones", booking: { service: "Full valet", date: "Friday 24 October", time: "9:30am" } });

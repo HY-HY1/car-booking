@@ -1,5 +1,6 @@
 import "server-only";
 import type Stripe from "stripe";
+import { notifyPaymentReceived } from "../email/notify";
 import { createAdminClient } from "../supabase/admin";
 import { syncAccountStatus } from "./accounts";
 import { raiseAlert } from "./alerts";
@@ -65,6 +66,8 @@ export async function handleConnectEvent(event: Stripe.Event) {
         });
       }
       await bestEffort("record payment", () => recordPaidSession(accountId, session));
+      // A payment link: thank the customer, with the receipt. Never throws.
+      if (session.payment_link) await notifyPaymentReceived(accountId, session);
       return;
     }
 

@@ -1,11 +1,15 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type Stripe from "stripe";
 import { signUnsubscribeToken } from "../privacy/rules";
 import { notificationsOf, renderTemplate, type NotificationSettings, type TemplateField } from "../settings/notifications";
 import { createAdminClient } from "../supabase/admin";
 import { isCustomHostname } from "../tenants";
 import { adminUrl, appUrl, tenantUrl } from "../urls";
 import type { StripeAlert } from "../stripe/alerts";
+import { getStripe } from "../stripe/client";
+import { loadBookingPayments } from "../stripe/ledger";
+import { paymentSummary } from "../stripe/payment-rules";
 import {
   cancelled,
   declined,
@@ -20,6 +24,7 @@ import {
   ownerNewBooking,
   ownerNewLead,
   ownerPaymentProblem,
+  paymentReceived,
   paymentRequest,
   renderEmail,
   requestReceived,
@@ -52,6 +57,7 @@ export type EmailKind =
   | "follow_up"
   | "review_request"
   | "payment_link"
+  | "payment_received"
   | "owner_new_booking"
   | "owner_cancellation"
   | "owner_new_lead"
@@ -305,6 +311,8 @@ async function send(db: Db, t: TenantContext, m: Message): Promise<"sent" | "fai
             ? `You're getting this because you booked with ${t.name} and said they could email you.`
             : m.kind === "payment_link"
               ? `You're getting this because ${t.name} sent you a payment request.`
+              : m.kind === "payment_received"
+                ? `You're getting this because you made a payment to ${t.name}.`
               : `You're getting this because you made a booking with ${t.name}.`,
         ]
       : [`Alerts for ${t.name}. Change which ones you get: ${dashboardUrl(t.slug, "/settings/notifications")}`];
@@ -780,4 +788,71 @@ export async function emailPaymentLink(
     console.error("[email] emailing a payment link failed", error);
     return { ok: false, message: "The email couldn't be sent. Try again in a minute." };
   }
+}
+
+// A payment link was paid (checkout.session.completed on the business's
+// account, from the webhook): thank the customer, with what's left on the
+// booking if it's for one, and Stripe's receipt. Deposits aren't sent this:
+// the booking confirmation covers them. Sent once per Checkout Session.
+export async function notifyPaymentReceived(accountId: string, session: Stripe.Checkout.Session) {
+  await quietly("payment received", async () => {
+    if (!session.payment_link || session.payment_status !== "paid") return;
+    const db = createAdminClient();
+    const tenant = await db.from("tenants").select("id").eq("stripe_account_id", accountId).maybeSingle();
+    if (tenant.error) throw tenant.error;
+    if (!tenant.data) return;
+    const tenantId = tenant.data.id;
+
+    const linkId = typeof session.payment_link === "string" ? session.payment_link : session.payment_link.id;
+    const [t, link] = await Promise.all([
+      loadTenant(db, tenantId),
+      db.from("payment_links").select("description, booking_id").eq("tenant_id", tenantId).eq("stripe_payment_link_id", linkId).maybeSingle(),
+    ]);
+    if (link.error) throw link.error;
+    if (!t || !t.settings.channels.email) return;
+
+    // The booking comes from our own record of the link, never the session's metadata alone.
+    const b = link.data?.booking_id ? await loadBooking(db, tenantId, link.data.booking_id) : null;
+    const to = session.customer_details?.email ?? b?.customer.email ?? null;
+    if (!to) return;
+    const customer = b && b.customer.email?.toLowerCase() === to.toLowerCase() ? b.customer : null;
+
+    const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
+    const pi = paymentIntentId
+      ? await getStripe().paymentIntents.retrieve(paymentIntentId, { expand: ["latest_charge"] }, { stripeAccount: accountId })
+      : null;
+    const charge = pi?.latest_charge && typeof pi.latest_charge !== "string" ? pi.latest_charge : null;
+
+    let balancePence: number | null = null;
+    if (b) {
+      const payments = await loadBookingPayments(tenantId, b.id);
+      // Stripe's lists can lag a moment behind the webhook; count this payment either way.
+      const withThis =
+        charge && !payments.some((p) => p.id === charge.id)
+          ? [...payments, { status: "paid" as const, amountPence: charge.amount, refundedPence: charge.amount_refunded }]
+          : payments;
+      balancePence = paymentSummary(
+        { price_pence: b.pricePence, deposit_pence: b.depositPence, deposit_status: b.depositStatus },
+        withThis,
+      ).balancePence;
+    }
+
+    const facts = b ? bookingFacts(t, b) : null;
+    await send(db, t, {
+      kind: "payment_received",
+      dedupeKey: `payment_received:${session.id}`,
+      bookingId: b?.id,
+      customerId: customer?.id,
+      to,
+      content: paymentReceived({
+        customerName: customer?.name ?? session.customer_details?.name ?? null,
+        businessName: t.name,
+        description: link.data?.description ?? null,
+        amountPence: session.amount_total ?? charge?.amount ?? 0,
+        receiptUrl: charge?.receipt_url ?? null,
+        booking: facts && { service: facts.service, date: facts.date, time: facts.time },
+        balancePence,
+      }),
+    });
+  });
 }

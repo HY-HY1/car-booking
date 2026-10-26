@@ -171,6 +171,34 @@ export function paymentRequest(f: {
   };
 }
 
+// A payment link was paid: thanks, what it was for, what's left on the
+// booking (if it's for one) and Stripe's receipt. `balancePence` is null when
+// the payment isn't for a booking.
+export function paymentReceived(f: {
+  customerName: string | null;
+  businessName: string;
+  description: string | null;
+  amountPence: number;
+  receiptUrl: string | null;
+  booking: { service: string; date: string; time: string } | null;
+  balancePence: number | null;
+}): Composed {
+  const amount = formatPence(f.amountPence);
+  const hi = f.customerName ? `Hi ${firstName(f.customerName)},` : "Hello,";
+  const paidInFull = f.balancePence === 0;
+  const lines = [
+    f.description && `For: ${f.description}`,
+    f.booking && `Booking: ${f.booking.service} on ${f.booking.date} at ${f.booking.time}`,
+    paidInFull ? "Your booking is now paid in full." : f.balancePence ? `Still to pay: ${formatPence(f.balancePence)}` : null,
+  ].filter(Boolean);
+  const receipt = f.receiptUrl ? "Your receipt is below if you need it for your records. " : "";
+  return {
+    subject: paidInFull ? `Thank you, you're paid in full with ${f.businessName}` : `Thank you for your payment to ${f.businessName}`,
+    body: `${hi}\n\nThank you for your payment of ${amount}. It's come through safely.${lines.length ? `\n\n${lines.join("\n")}` : ""}\n\n${receipt}If you have any questions, just reply to this email.\n\nThanks,\n${f.businessName}`,
+    ...(f.receiptUrl && { button: { label: "View your receipt", url: f.receiptUrl } }),
+  };
+}
+
 // ---------------------------------------------------------------- alerts to the business
 
 export type OwnerFacts = {
