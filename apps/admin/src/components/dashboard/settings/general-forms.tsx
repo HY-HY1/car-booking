@@ -15,6 +15,7 @@ import { CopyText } from "@/components/platform/copy-text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ACCEPTED_IMAGE_TYPES, MAX_UPLOAD_BYTES, shrinkImage } from "@/lib/shrink-image";
 import { cn } from "@/lib/utils";
 import { Check as CheckBox, Field, SaveForm, fieldClass, type Action } from "../form-kit";
 
@@ -275,19 +276,62 @@ function ImageField({
   error?: string;
   wide?: boolean;
 }) {
+  const [problem, setProblem] = useState<string>();
+  const [shrinking, setShrinking] = useState(false);
+
+  // The chosen file is shrunk straight away and swapped into the input, so
+  // what Save sends fits through the host's request limit (lib/shrink-image.ts).
+  async function choose(input: HTMLInputElement) {
+    setProblem(undefined);
+    const file = input.files?.[0];
+    if (!file) return;
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      input.value = "";
+      setProblem("Use a JPG, PNG or WebP image. For an SVG logo, save it as a PNG first.");
+      return;
+    }
+    setShrinking(true);
+    try {
+      const small = await shrinkImage(file, wide ? 2400 : 800);
+      const files = new DataTransfer();
+      files.items.add(small);
+      input.files = files.files;
+    } catch {
+      // Couldn't redraw it: send the original and let the size check decide.
+    } finally {
+      setShrinking(false);
+    }
+    if ((input.files?.[0]?.size ?? 0) > MAX_UPLOAD_BYTES) {
+      input.value = "";
+      setProblem("That image is too large even after shrinking. Try a smaller one.");
+    }
+  }
+
   return (
     <div className="grid content-start gap-2">
-      <Field label={label} name={name} error={error}>
-        <Input name={name} type="file" accept="image/jpeg,image/png,image/webp" />
+      <Field label={label} name={name} error={problem ?? error}>
+        <Input
+          name={name}
+          type="file"
+          accept={ACCEPTED_IMAGE_TYPES.join(",")}
+          onChange={(e) => void choose(e.currentTarget)}
+          aria-busy={shrinking || undefined}
+        />
       </Field>
       {current && (
         <div className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={current} alt={`Current ${label.toLowerCase()}`} className={cn("rounded border object-cover", wide ? "h-12 w-24" : "size-12")} />
+          <img
+            src={current}
+            alt={`Current ${label.toLowerCase()}`}
+            className={cn("rounded border", wide ? "h-12 w-24 object-cover" : "h-12 w-24 object-contain")}
+          />
           <CheckBox name={`remove_${name}`} label="Remove" defaultChecked={false} />
         </div>
       )}
-      <p className="text-xs text-muted-foreground">JPG, PNG or WebP, up to 5 MB.</p>
+      <p className="text-xs text-muted-foreground">
+        {shrinking ? "Preparing the image…" : "JPG, PNG or WebP. Large images are made smaller before they're sent."}
+      </p>
     </div>
   );
 }

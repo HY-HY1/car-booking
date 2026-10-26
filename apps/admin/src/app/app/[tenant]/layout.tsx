@@ -62,12 +62,14 @@ async function Sidebar({ params }: { params: Promise<{ tenant: string }> }) {
     <div className="flex h-full flex-col gap-4 p-4">
       <div className="flex items-start justify-between gap-2 md:block">
         <div className="min-w-0">
-          {branding.logo_url && (
-            // The owner's own upload: any size, so it's capped to the sidebar.
+          {/* Their logo stands in for the name once they've uploaded one. */}
+          {branding.logo_url ? (
+            // The owner's own upload: any shape, so it's fitted to the sidebar.
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={branding.logo_url} alt="" className="mb-2 h-8 w-auto max-w-40 object-contain" />
+            <img src={branding.logo_url} alt={tenant.name} className="h-10 w-auto max-w-44 object-contain object-left" />
+          ) : (
+            <p className="truncate font-semibold">{tenant.name}</p>
           )}
-          <p className="truncate font-semibold">{tenant.name}</p>
           {memberships.length > 1 && (
             <Link
               href={appUrl()}

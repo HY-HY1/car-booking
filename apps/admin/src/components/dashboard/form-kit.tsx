@@ -57,7 +57,17 @@ export function SaveForm({
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         startTransition(async () => {
-          const result = await action(formData);
+          let result: SaveState;
+          try {
+            result = await action(formData);
+          } catch (error) {
+            // The request itself failed (offline, or the host turned it away,
+            // e.g. images over its size limit). Say so and keep what was typed,
+            // rather than dropping into the page's error screen.
+            console.error("Save failed", error);
+            setState({ message: "Couldn't save. Check your connection and try again; if you added images, try smaller ones." });
+            return;
+          }
           setState(result);
           if (result.saved) {
             if (resetOnSave) form.current?.reset();
