@@ -1,7 +1,9 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { z } from "zod";
 import { createPaymentLink, deactivatePaymentLink, paymentLinkSchema, type CreatedPaymentLink } from "@leadgen/core/stripe/payment-links";
+import { emailPaymentLink } from "@leadgen/core/email/notify";
 import { requireTenant } from "@/lib/auth";
 
 // Owner-only (money). The business always comes from the URL's membership
@@ -57,4 +59,20 @@ export async function deactivateLinkAction(slug: string, id: string): Promise<{ 
   if (!result.ok) return { message: result.message };
   refresh();
   return {};
+}
+
+export type EmailLinkState = { error?: string; sentTo?: string };
+
+// Emails a payment link to the address typed in. Each press sends it again.
+export async function emailLinkAction(slug: string, id: string, _prev: EmailLinkState, formData: FormData): Promise<EmailLinkState> {
+  const { tenant, can } = await requireTenant(slug);
+  if (!can("money")) return { error: "Your access level doesn't include payment links." };
+  if (!z.uuid().safeParse(id).success) return { error: "That link wasn't found." };
+  const to = z.email().safeParse(String(formData.get("to") ?? "").trim());
+  if (!to.success) return { error: "Enter the customer's email address." };
+
+  const result = await emailPaymentLink(tenant.id, id, to.data);
+  if (!result.ok) return { error: result.message };
+  refresh();
+  return { sentTo: to.data };
 }

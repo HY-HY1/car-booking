@@ -6,6 +6,7 @@ import {
   formatDay,
   fromHeader,
   ownerNewBooking,
+  paymentRequest,
   renderEmail,
   requestReceived,
   textToHtml,
@@ -60,9 +61,44 @@ describe("layout", () => {
     const { html } = renderEmail({ heading: "x", body: "y", footer: [], accentColor: "red;background:url(x)" });
     expect(html).toContain("border-top:4px solid #18181b");
   });
+  it("draws a button in the brand colour, and writes it out in the text version", () => {
+    const { text, html } = renderEmail({
+      heading: "Shine",
+      body: "Hello",
+      footer: [],
+      accentColor: "#facc15",
+      button: { label: "Pay £40.00", url: "https://buy.stripe.com/abc" },
+    });
+    expect(text).toContain("Pay £40.00: https://buy.stripe.com/abc");
+    expect(html).toContain('href="https://buy.stripe.com/abc"');
+    // Dark text on a light brand colour.
+    expect(html).toContain("background:#facc15;color:#0a0a0a");
+  });
+
+  it("leaves out a button whose address isn't plain https", () => {
+    for (const url of ["javascript:alert(1)", "http://buy.stripe.com/abc", 'https://x.com/"onclick=1']) {
+      const { text, html } = renderEmail({ heading: "x", body: "y", footer: [], button: { label: "Pay", url } });
+      expect(text, url).not.toContain("Pay:");
+      expect(html, url).not.toContain("Pay</a>");
+    }
+  });
 });
 
 describe("messages", () => {
+  it("asks for a payment, saying which booking it's for when there is one", () => {
+    const base = { businessName: "Shine Detailing", description: "Balance: Full valet, 24 Oct", amountPence: 4000, url: "https://buy.stripe.com/abc" };
+    const forBooking = paymentRequest({ ...base, customerName: "Sam Jones", booking: { service: "Full valet", date: "Friday 24 October", time: "9:30am" } });
+    expect(forBooking.subject).toBe("Payment request from Shine Detailing: £40");
+    expect(forBooking.body).toContain("Hi Sam,");
+    expect(forBooking.body).toContain("Amount: £40");
+    expect(forBooking.body).toContain("It's for your Full valet on Friday 24 October at 9:30am.");
+    expect(forBooking.button).toEqual({ label: "Pay £40", url: "https://buy.stripe.com/abc" });
+
+    const loose = paymentRequest({ ...base, customerName: null, booking: null });
+    expect(loose.body.startsWith("Hello,")).toBe(true);
+    expect(loose.body).not.toContain("It's for your");
+  });
+
   it("tells a customer a request isn't booked yet", () => {
     const m = requestReceived(facts);
     expect(m.body).toMatch(/^Hi Sam,/);

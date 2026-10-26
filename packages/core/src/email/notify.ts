@@ -20,6 +20,7 @@ import {
   ownerNewBooking,
   ownerNewLead,
   ownerPaymentProblem,
+  paymentRequest,
   renderEmail,
   requestReceived,
   type BookingFacts,
@@ -50,6 +51,7 @@ export type EmailKind =
   | "reminder"
   | "follow_up"
   | "review_request"
+  | "payment_link"
   | "owner_new_booking"
   | "owner_cancellation"
   | "owner_new_lead"
@@ -301,7 +303,9 @@ async function send(db: Db, t: TenantContext, m: Message): Promise<"sent" | "fai
           `${t.name}${t.contactEmail ? ` · ${t.contactEmail}` : ""}`,
           m.marketing
             ? `You're getting this because you booked with ${t.name} and said they could email you.`
-            : `You're getting this because you made a booking with ${t.name}.`,
+            : m.kind === "payment_link"
+              ? `You're getting this because ${t.name} sent you a payment request.`
+              : `You're getting this because you made a booking with ${t.name}.`,
         ]
       : [`Alerts for ${t.name}. Change which ones you get: ${dashboardUrl(t.slug, "/settings/notifications")}`];
   const { text, html } = renderEmail({
@@ -310,6 +314,7 @@ async function send(db: Db, t: TenantContext, m: Message): Promise<"sent" | "fai
     footer,
     accentColor: t.accentColor,
     unsubscribeUrl,
+    button: m.content.button,
   });
   // Customers hear from the business's own address, so until it's verified
   // their emails aren't sent; alerts to the business can come from ours.
@@ -713,4 +718,66 @@ export async function runScheduledEmails(now = new Date()) {
   });
 
   return counts;
+}
+
+// ---------------------------------------------------------------- payment links
+
+// Someone at the business pressed "Email" on a payment link. Unlike the rest
+// of this file it reports back, since they're waiting to hear it went, and
+// each press sends again: asking twice is how a link gets resent.
+export async function emailPaymentLink(
+  tenantId: string,
+  linkId: string,
+  to: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const db = createAdminClient();
+    const [t, link] = await Promise.all([
+      loadTenant(db, tenantId),
+      db
+        .from("payment_links")
+        .select("id, url, description, amount_pence, active, booking_id")
+        .eq("tenant_id", tenantId)
+        .eq("id", linkId)
+        .maybeSingle(),
+    ]);
+    if (link.error) throw link.error;
+    if (!t || !link.data) return { ok: false, message: "That link wasn't found." };
+    if (!link.data.active) return { ok: false, message: "That link is switched off, so it can't be sent." };
+    if (!t.senderAddress && process.env.RESEND_API_KEY) {
+      return { ok: false, message: "Set up your email address under Settings → Notifications first, so it comes from you." };
+    }
+
+    const b = link.data.booking_id ? await loadBooking(db, tenantId, link.data.booking_id) : null;
+    // The booking's customer, if that's who it's going to.
+    const customer = b && b.customer.email?.toLowerCase() === to.toLowerCase() ? b.customer : null;
+    const facts = b ? bookingFacts(t, b) : null;
+    const result = await send(db, t, {
+      kind: "payment_link",
+      dedupeKey: `payment_link:${link.data.id}:${crypto.randomUUID()}`,
+      bookingId: b?.id,
+      customerId: customer?.id,
+      to,
+      content: paymentRequest({
+        customerName: customer?.name ?? null,
+        businessName: t.name,
+        description: link.data.description,
+        amountPence: link.data.amount_pence,
+        url: link.data.url,
+        booking: facts && { service: facts.service, date: facts.date, time: facts.time },
+      }),
+    });
+    if (result !== "sent") return { ok: false, message: "The email couldn't be sent. Try again in a minute." };
+
+    const stamped = await db
+      .from("payment_links")
+      .update({ emailed_at: new Date().toISOString() })
+      .eq("tenant_id", tenantId)
+      .eq("id", link.data.id);
+    if (stamped.error) console.error("[email] couldn't record that a payment link was emailed", stamped.error);
+    return { ok: true };
+  } catch (error) {
+    console.error("[email] emailing a payment link failed", error);
+    return { ok: false, message: "The email couldn't be sent. Try again in a minute." };
+  }
 }

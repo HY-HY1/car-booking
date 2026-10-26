@@ -130,8 +130,10 @@ export async function deactivatePaymentLink(tenantId: string, id: string) {
 
 // "Create payment" on a booking: a one-off link for exactly what's still
 // owed. The amount is worked out here from the booking and what Stripe says
-// has been paid; the browser only says which booking.
-export async function createBookingBalanceLink(tenantId: string, userId: string, bookingId: string) {
+// has been paid; the browser only says which booking. With `reuse` (emailing
+// it), a live one-off link already made for that same amount is sent again
+// rather than making another.
+export async function createBookingBalanceLink(tenantId: string, userId: string, bookingId: string, opts: { reuse?: boolean } = {}) {
   const { data: booking, error } = await createAdminClient()
     .from("bookings")
     .select("id, status, starts_at, price_pence, deposit_pence, deposit_status, service:services(name)")
@@ -146,6 +148,31 @@ export async function createBookingBalanceLink(tenantId: string, userId: string,
 
   const { balancePence, fullyPaid } = paymentSummary(booking, await loadBookingPayments(tenantId, booking.id));
   if (fullyPaid) return { ok: false as const, message: "This booking is already paid in full." };
+
+  if (opts.reuse) {
+    const { data: existing, error: existingError } = await createAdminClient()
+      .from("payment_links")
+      .select("id, url, description, amount_pence")
+      .eq("tenant_id", tenantId)
+      .eq("booking_id", booking.id)
+      .eq("active", true)
+      .eq("single_use", true)
+      .eq("amount_pence", balancePence)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (existing) {
+      const link: CreatedPaymentLink = {
+        id: existing.id,
+        url: existing.url,
+        description: existing.description,
+        amountPence: existing.amount_pence,
+        singleUse: true,
+      };
+      return { ok: true as const, link };
+    }
+  }
 
   const service = (booking.service as unknown as { name: string } | null)?.name ?? "Booking";
   const when = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "Europe/London" }).format(

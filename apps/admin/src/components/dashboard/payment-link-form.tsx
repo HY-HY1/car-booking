@@ -1,14 +1,15 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { createLinkAction, deactivateLinkAction, type CreateLinkState } from "@/app/app/[tenant]/payments/links/actions";
+import { Mail } from "lucide-react";
+import { createLinkAction, deactivateLinkAction, emailLinkAction, type CreateLinkState, type EmailLinkState } from "@/app/app/[tenant]/payments/links/actions";
 import { CopyText } from "@/components/platform/copy-text";
 import { Field, selectClass } from "@/components/platform/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatPence } from "@leadgen/core/booking/config";
 
-export type BookingChoice = { id: string; label: string; balancePence: number; description: string };
+export type BookingChoice = { id: string; label: string; balancePence: number; description: string; customerEmail: string | null };
 
 export function PaymentLinkForm({ slug, bookings }: { slug: string; bookings: BookingChoice[] }) {
   const [state, formAction, pending] = useActionState<CreateLinkState, FormData>(createLinkAction.bind(null, slug), {});
@@ -17,6 +18,8 @@ export function PaymentLinkForm({ slug, bookings }: { slug: string; bookings: Bo
   // Picking a booking fills in what's still owed; both can still be edited.
   const [description, setDescription] = useState(v.description ?? "");
   const [amount, setAmount] = useState(v.amount ?? "");
+  const [bookingId, setBookingId] = useState(v.bookingId ?? "");
+  const customerEmail = bookings.find((b) => b.id === bookingId)?.customerEmail ?? "";
 
   return (
     <div className="grid max-w-xl gap-4">
@@ -29,6 +32,7 @@ export function PaymentLinkForm({ slug, bookings }: { slug: string; bookings: Bo
               defaultValue={v.bookingId ?? ""}
               className={selectClass}
               onChange={(ev) => {
+                setBookingId(ev.target.value);
                 const b = bookings.find((x) => x.id === ev.target.value);
                 if (!b) return;
                 setDescription(b.description);
@@ -73,8 +77,9 @@ export function PaymentLinkForm({ slug, bookings }: { slug: string; bookings: Bo
           </p>
           <CopyText value={state.created.url} label="payment link" />
           <p className="text-xs text-muted-foreground">
-            Send it to your customer by message or email. {state.created.singleUse ? "It works for one payment." : "It can be paid more than once."}
+            Copy it into a message, or email it from here. {state.created.singleUse ? "It works for one payment." : "It can be paid more than once."}
           </p>
+          <EmailLinkForm key={state.created.id} slug={slug} id={state.created.id} defaultEmail={customerEmail} />
         </div>
       )}
     </div>
@@ -107,4 +112,48 @@ export function DeactivateLink({ slug, id }: { slug: string; id: string }) {
       )}
     </div>
   );
+}
+
+// Emails a link to the address given. Pressing it again sends it again.
+export function EmailLinkForm({ slug, id, defaultEmail = "" }: { slug: string; id: string; defaultEmail?: string }) {
+  const [state, formAction, pending] = useActionState<EmailLinkState, FormData>(emailLinkAction.bind(null, slug, id), {});
+  return (
+    <form action={formAction} className="grid gap-2">
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-56 flex-1">
+          <Field label="Email it to" name={`to-${id}`}>
+            <Input id={`to-${id}`} name="to" type="email" defaultValue={defaultEmail} placeholder="customer@example.com" required />
+          </Field>
+        </div>
+        <Button type="submit" variant="outline" disabled={pending}>
+          <Mail />
+          {pending ? "Sending…" : state.sentTo ? "Send again" : "Send"}
+        </Button>
+      </div>
+      {state.sentTo && (
+        <p role="status" className="text-xs text-emerald-700 dark:text-emerald-400">
+          Sent to {state.sentTo}.
+        </p>
+      )}
+      {state.error && (
+        <p role="alert" className="text-xs text-destructive">
+          {state.error}
+        </p>
+      )}
+    </form>
+  );
+}
+
+// A link in the list: its email form opens on demand.
+export function EmailLinkToggle({ slug, id, defaultEmail }: { slug: string; id: string; defaultEmail?: string }) {
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
+        <Mail />
+        Email
+      </Button>
+    );
+  }
+  return <EmailLinkForm slug={slug} id={id} defaultEmail={defaultEmail} />;
 }

@@ -1,10 +1,13 @@
 import { formatPence } from "../booking/config";
+import { readableOn } from "../branding/colors";
 
 // What goes in an email: the wording of the messages owners can't edit, the
 // alerts sent to the business, and the plain layout every email is wrapped
 // in. Pure: no database, no sending (email/notify.ts does that).
 
-export type Composed = { subject: string; body: string };
+// `button` is the one thing the email asks the reader to do, drawn as a
+// button (and written out in the plain-text version).
+export type Composed = { subject: string; body: string; button?: { label: string; url: string } };
 
 // ---------------------------------------------------------------- formatting
 
@@ -69,12 +72,18 @@ export type Layout = {
   accentColor?: string;
   // Marketing only: the one-click opt-out.
   unsubscribeUrl?: string;
+  // Only an https address is drawn; anything else is left out.
+  button?: { label: string; url: string };
 };
 
-export function renderEmail({ heading, body, footer, accentColor, unsubscribeUrl }: Layout) {
+export function renderEmail({ heading, body, footer, accentColor, unsubscribeUrl, button }: Layout) {
   const lines = unsubscribeUrl ? [...footer, `Don't want these emails? Unsubscribe: ${unsubscribeUrl}`] : footer;
-  const text = `${body.trim()}\n\n--\n${lines.join("\n")}\n`;
+  const action = button && /^https:\/\/[^\s"<>]+$/.test(button.url) ? button : undefined;
+  const text = `${body.trim()}${action ? `\n\n${action.label}: ${action.url}` : ""}\n\n--\n${lines.join("\n")}\n`;
   const accent = accentColor && hexColor.test(accentColor) ? accentColor : "#18181b";
+  const buttonHtml = action
+    ? `<tr><td style="padding:4px 28px 24px"><a href="${escapeHtml(action.url)}" style="display:inline-block;padding:12px 22px;border-radius:6px;background:${accent};color:${readableOn(accent)};font:600 15px/1 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;text-decoration:none">${escapeHtml(action.label)}</a></td></tr>`
+    : "";
   const small = lines
     .map((l) => `<p style="margin:0 0 6px">${linkify(escapeHtml(l))}</p>`)
     .join("");
@@ -84,7 +93,7 @@ export function renderEmail({ heading, body, footer, accentColor, unsubscribeUrl
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:8px;border-top:4px solid ${accent}">
 <tr><td style="padding:24px 28px 8px;font:600 18px/1.4 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#18181b">${escapeHtml(heading)}</td></tr>
 <tr><td style="padding:8px 28px 12px;font:15px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#27272a">${textToHtml(body)}</td></tr>
-</table>
+${buttonHtml}</table>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px"><tr><td style="padding:16px 28px;font:12px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#71717a">${small}</td></tr></table>
 </td></tr></table>
 </body></html>`;
@@ -139,6 +148,26 @@ export function lateRefund(f: BookingFacts, opts: { amountPence: number }): Comp
   return {
     subject: `Sorry, that time went before your payment arrived`,
     body: `Hi ${firstName(f.customerName)},\n\nYour deposit for ${f.service} on ${f.date} at ${f.time} came through after the time we were holding for you ran out, and it's since been booked by someone else.\n\nWe've refunded your ${formatPence(opts.amountPence)} in full. It can take 5 to 10 days to reach your account.\n\nSorry about that. You can pick another time here: ${f.bookingLink}\n\n${signOff(f)}`,
+  };
+}
+
+// The business sent a payment link (Payments → Payment links, or a booking's
+// "Email payment link"). `booking` is set when the link is for one.
+export function paymentRequest(f: {
+  customerName: string | null;
+  businessName: string;
+  description: string;
+  amountPence: number;
+  url: string;
+  booking: { service: string; date: string; time: string } | null;
+}): Composed {
+  const amount = formatPence(f.amountPence);
+  const hi = f.customerName ? `Hi ${firstName(f.customerName)},` : "Hello,";
+  const forBooking = f.booking ? `\n\nIt's for your ${f.booking.service} on ${f.booking.date} at ${f.booking.time}.` : "";
+  return {
+    subject: `Payment request from ${f.businessName}: ${amount}`,
+    body: `${hi}\n\n${f.businessName} has sent you a payment request.\n\nFor: ${f.description}\nAmount: ${amount}${forBooking}\n\nYou can pay securely by card with the button below. Payments are handled by Stripe. If anything doesn't look right, just reply to this email.\n\nThanks,\n${f.businessName}`,
+    button: { label: `Pay ${amount}`, url: f.url },
   };
 }
 

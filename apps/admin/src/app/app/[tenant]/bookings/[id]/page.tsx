@@ -380,6 +380,7 @@ export default async function BookingPage({ params }: PageProps<"/app/[tenant]/b
                     slug={slug}
                     bookingId={b.id}
                     balancePence={summary.balancePence}
+                    customerEmail={b.customer?.email ?? null}
                     blockedReason={
                       tenantRow.data.stripe_ready ? undefined : "Connect Stripe under Settings → Payments to create payment links."
                     }

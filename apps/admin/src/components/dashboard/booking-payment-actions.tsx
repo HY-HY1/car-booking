@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Link2, Mail } from "lucide-react";
 import { formatPence } from "@leadgen/core/booking/config";
-import { createBalanceLinkAction, type BalanceLinkState } from "@/app/app/[tenant]/bookings/[id]/actions";
+import { createBalanceLinkAction, emailBalanceLinkAction, type BalanceLinkState } from "@/app/app/[tenant]/bookings/[id]/actions";
 import { CopyText } from "@/components/platform/copy-text";
 import { Button } from "@/components/ui/button";
 
@@ -12,11 +12,13 @@ export function BookingPaymentActions({
   slug,
   bookingId,
   balancePence,
+  customerEmail,
   blockedReason,
 }: {
   slug: string;
   bookingId: string;
   balancePence: number;
+  customerEmail: string | null;
   // Why creating a link isn't possible right now (e.g. Stripe not connected).
   blockedReason?: string;
 }) {
@@ -38,16 +40,31 @@ export function BookingPaymentActions({
           <Link2 />
           {pending ? "Creating…" : `Create payment link · ${formatPence(balancePence)}`}
         </Button>
-        {/* Emailing isn't built yet: the button is here so the place is clear. */}
-        <Button type="button" variant="outline" disabled title="Coming soon: sending email isn't set up yet">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={pending || Boolean(blockedReason) || !customerEmail}
+          title={customerEmail ? undefined : "This customer has no email address"}
+          onClick={() => {
+            if (!confirm(`Email a payment link for ${formatPence(balancePence)} to ${customerEmail}?`)) return;
+            startTransition(async () => {
+              setState(await emailBalanceLinkAction(slug, bookingId));
+            });
+          }}
+        >
           <Mail />
-          Email payment link
+          {pending ? "Working…" : "Email payment link"}
         </Button>
       </div>
       {blockedReason && <p className="text-xs text-muted-foreground">{blockedReason}</p>}
       {state.error && (
         <p role="alert" className="text-sm text-destructive">
           {state.error}
+        </p>
+      )}
+      {state.sentTo && (
+        <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">
+          Payment link emailed to {state.sentTo}.
         </p>
       )}
       {state.link && (
@@ -57,7 +74,7 @@ export function BookingPaymentActions({
           </p>
           <CopyText value={state.link.url} label="payment link" />
           <p className="text-xs text-muted-foreground">
-            Send it to the customer. It stops working after one payment. Emailing it from here is coming soon.
+            {state.sentTo ? "It stops working after one payment." : "Send it to the customer. It stops working after one payment."}
           </p>
         </div>
       )}

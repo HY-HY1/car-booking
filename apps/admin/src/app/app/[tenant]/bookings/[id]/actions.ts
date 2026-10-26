@@ -3,9 +3,11 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { approveBooking, declineBooking } from "@leadgen/core/booking/approval";
+import { emailPaymentLink } from "@leadgen/core/email/notify";
 import { createBookingBalanceLink } from "@leadgen/core/stripe/payment-links";
 import { refundDeposit } from "@leadgen/core/stripe/payments";
 import { requireTenant } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 
 // Refunds the deposit through the owner's Stripe account: in full, or the
 // amount given (what the cancellation policy says to give back). Owner-only,
@@ -61,7 +63,12 @@ export async function declineBookingAction(
   }
 }
 
-export type BalanceLinkState = { error?: string; link?: { url: string; description: string; amountPence: number } };
+export type BalanceLinkState = {
+  error?: string;
+  link?: { url: string; description: string; amountPence: number };
+  // Set when the link was emailed: who to.
+  sentTo?: string;
+};
 
 // "Create payment": a one-off link for what's still owed on this booking. The
 // amount is worked out on the server, so it can't be set from the browser.
@@ -77,5 +84,40 @@ export async function createBalanceLinkAction(slug: string, bookingId: string): 
   } catch (error) {
     console.error("Creating a booking payment link failed", error);
     return { error: "Couldn't create the link. Try again." };
+  }
+}
+
+// "Email payment link": the link for what's still owed (the live one if it
+// was already made), emailed to the booking's customer. The address comes
+// from the booking, not the browser.
+export async function emailBalanceLinkAction(slug: string, bookingId: string): Promise<BalanceLinkState> {
+  const { tenant, can, user } = await requireTenant(slug);
+  if (!can("money")) return { error: "Your access level doesn't include payment links." };
+  if (!z.uuid().safeParse(bookingId).success) return { error: "That booking wasn't found." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("customer:customers(email)")
+    .eq("tenant_id", tenant.id)
+    .eq("id", bookingId)
+    .maybeSingle();
+  if (error) {
+    console.error("Loading a booking's customer failed", error);
+    return { error: "Couldn't send the link. Try again." };
+  }
+  const to = (data?.customer as unknown as { email: string | null } | null)?.email;
+  if (!to) return { error: "This customer has no email address." };
+
+  try {
+    const result = await createBookingBalanceLink(tenant.id, user.id, bookingId, { reuse: true });
+    if (!result.ok) return { error: result.message };
+    const sent = await emailPaymentLink(tenant.id, result.link.id, to);
+    refresh();
+    if (!sent.ok) return { error: sent.message, link: result.link };
+    return { link: result.link, sentTo: to };
+  } catch (error) {
+    console.error("Emailing a booking payment link failed", error);
+    return { error: "Couldn't send the link. Try again." };
   }
 }

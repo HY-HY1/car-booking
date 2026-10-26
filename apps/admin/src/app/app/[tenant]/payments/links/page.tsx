@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { formatPence } from "@leadgen/core/booking/config";
 import { balanceDuePence } from "@leadgen/core/stripe/payment-rules";
 import { CopyText } from "@/components/platform/copy-text";
-import { DeactivateLink, PaymentLinkForm, type BookingChoice } from "@/components/dashboard/payment-link-form";
+import { DeactivateLink, EmailLinkToggle, PaymentLinkForm, type BookingChoice } from "@/components/dashboard/payment-link-form";
 import { requireTenant } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { OwnersOnly } from "../notices";
@@ -15,8 +15,20 @@ type BookingRow = {
   price_pence: number;
   deposit_pence: number;
   deposit_status: string;
-  customer: { name: string } | null;
+  customer: { name: string; email: string | null } | null;
   service: { name: string } | null;
+};
+
+type LinkRow = {
+  id: string;
+  url: string;
+  description: string;
+  amount_pence: number;
+  single_use: boolean;
+  active: boolean;
+  created_at: string;
+  emailed_at: string | null;
+  booking: { customer: { email: string | null } | null } | null;
 };
 
 export default async function PaymentLinksPage({ params }: PageProps<"/app/[tenant]/payments/links">) {
@@ -32,13 +44,13 @@ export default async function PaymentLinksPage({ params }: PageProps<"/app/[tena
   const [links, bookings, payments] = await Promise.all([
     supabase
       .from("payment_links")
-      .select("id, url, description, amount_pence, single_use, active, created_at")
+      .select("id, url, description, amount_pence, single_use, active, created_at, emailed_at, booking:bookings(customer:customers(email))")
       .eq("tenant_id", tenant.id)
       .order("created_at", { ascending: false })
       .limit(50),
     supabase
       .from("bookings")
-      .select("id, starts_at, price_pence, deposit_pence, deposit_status, customer:customers(name), service:services(name)")
+      .select("id, starts_at, price_pence, deposit_pence, deposit_status, customer:customers(name, email), service:services(name)")
       .eq("tenant_id", tenant.id)
       .in("status", ["confirmed", "completed"])
       .gte("ends_at", since)
@@ -63,6 +75,7 @@ export default async function PaymentLinksPage({ params }: PageProps<"/app/[tena
         label: `${b.customer?.name ?? "Customer"}, ${service}, ${when}`,
         balancePence,
         description: `Balance: ${service}, ${when}`,
+        customerEmail: b.customer?.email ?? null,
       };
     });
 
@@ -85,13 +98,20 @@ export default async function PaymentLinksPage({ params }: PageProps<"/app/[tena
           <p className="text-sm text-muted-foreground">No links yet.</p>
         ) : (
           <ul className="divide-y rounded-xl border">
-            {links.data.map((l) => (
+            {(links.data as unknown as LinkRow[]).map((l) => (
               <li key={l.id} className="grid gap-2 px-4 py-3 text-sm">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="font-medium">{l.description}</span>
                   <span>{formatPence(l.amount_pence)}</span>
                   <span className="text-xs text-muted-foreground">
-                    {[l.single_use ? "One-off" : "Reusable", l.active ? "Active" : "Switched off", formatDay(l.created_at)].join(" · ")}
+                    {[
+                      l.single_use ? "One-off" : "Reusable",
+                      l.active ? "Active" : "Switched off",
+                      formatDay(l.created_at),
+                      l.emailed_at && `Emailed ${formatDay(l.emailed_at)}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </span>
                   {l.active && (
                     <div className="ml-auto">
@@ -100,6 +120,11 @@ export default async function PaymentLinksPage({ params }: PageProps<"/app/[tena
                   )}
                 </div>
                 {l.active && <CopyText value={l.url} label="payment link" />}
+                {l.active && (
+                  <div>
+                    <EmailLinkToggle slug={slug} id={l.id} defaultEmail={l.booking?.customer?.email ?? undefined} />
+                  </div>
+                )}
               </li>
             ))}
           </ul>
