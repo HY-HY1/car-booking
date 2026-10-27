@@ -2,7 +2,9 @@
 
 import { refresh } from "next/cache";
 import { z } from "zod";
-import { allowedStatusChanges } from "@leadgen/core/booking/diary";
+import { allowedStatusChanges, diaryRange } from "@leadgen/core/booking/diary";
+import { driveSource, driveTimes, type DriveSource } from "@leadgen/core/booking/drive-times";
+import { planRoute, type RouteStop } from "@leadgen/core/booking/route-plan";
 import { addDays, isIsoDate, zonedTimeToUtc } from "@leadgen/core/booking/time";
 import { notifyBookingCancelled } from "@leadgen/core/email/notify";
 import { requireTenant } from "@/lib/auth";
@@ -221,4 +223,112 @@ export async function removeBlockedTime(slug: string, id: string): Promise<{ err
   }
   refresh();
   return {};
+}
+
+// ------------------------------------------------------------- route planner
+
+// Arrive this long before each job starts.
+const ROUTE_MARGIN_MINS = 10;
+
+export type RouteView = {
+  home: string | null;
+  source: DriveSource;
+  marginMins: number;
+  late: boolean;
+  stops: { id: string; address: string; start: string; end: string; customer: string | null; service: string | null }[];
+  legs: {
+    fromId: string | null;
+    toId: string | null;
+    driveMins: number | null;
+    leaveBy: string;
+    arriveBy: string;
+    spareMins: number | null;
+  }[];
+};
+
+// One van's jobs on one day as a route, from its start postcode and back.
+// Worked out when asked for, not on every diary load: each drive is a call
+// to Google. The business comes from the URL's membership check.
+export async function planRouteAction(
+  slug: string,
+  date: string,
+  resourceId: string,
+): Promise<{ route?: RouteView; message?: string }> {
+  const { tenant, can } = await requireTenant(slug);
+  if (!can("diary.view")) return { message: "Your access level doesn't include the diary." };
+  if (!isIsoDate(date) || !z.uuid().safeParse(resourceId).success) return { message: "Pick a day and a van." };
+
+  const supabase = await createClient();
+  const settings = await supabase
+    .from("booking_settings")
+    .select("timezone, base_postcode")
+    .eq("tenant_id", tenant.id)
+    .maybeSingle();
+  if (settings.error) throw settings.error;
+  const timeZone = settings.data?.timezone ?? DEFAULT_TIMEZONE;
+  const home = settings.data?.base_postcode ?? null;
+  const range = diaryRange([date], timeZone);
+
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("id, status, starts_at, ends_at, hold_expires_at, address_line, postcode, customer:customers(name), service:services(name)")
+    .eq("tenant_id", tenant.id)
+    .eq("resource_id", resourceId)
+    .in("status", ["held", "requested", "confirmed", "completed"])
+    .lt("starts_at", range.end.toISOString())
+    .gt("ends_at", range.start.toISOString())
+    .order("starts_at");
+  if (error) throw error;
+
+  type Row = {
+    id: string;
+    status: string;
+    starts_at: string;
+    ends_at: string;
+    hold_expires_at: string | null;
+    address_line: string | null;
+    postcode: string;
+    customer: { name: string } | null;
+    service: { name: string } | null;
+  };
+  const now = Date.now();
+  const stops: RouteStop[] = (data as unknown as Row[])
+    // A hold that's run out is an abandoned checkout, not a job.
+    .filter((b) => b.status !== "held" || (b.hold_expires_at && new Date(b.hold_expires_at).getTime() > now))
+    .map((b) => ({
+      id: b.id,
+      address: [b.address_line, b.postcode].filter(Boolean).join(", "),
+      postcode: b.postcode,
+      start: new Date(b.starts_at),
+      end: new Date(b.ends_at),
+      customer: b.customer?.name ?? null,
+      service: b.service?.name ?? null,
+    }));
+  if (stops.length === 0) return { message: "Nothing booked for this van on this day." };
+
+  try {
+    const postcodes = new Map(stops.map((s) => [s.address, s.postcode]));
+    if (home) postcodes.set(home, home);
+    const plan = await planRoute({ home, stops, marginMins: ROUTE_MARGIN_MINS, driveMins: await driveTimes(postcodes) });
+    return {
+      route: {
+        home,
+        source: driveSource(),
+        marginMins: ROUTE_MARGIN_MINS,
+        late: plan.late,
+        stops: plan.stops.map((s) => ({
+          id: s.id,
+          address: s.address,
+          start: s.start.toISOString(),
+          end: s.end.toISOString(),
+          customer: s.customer,
+          service: s.service,
+        })),
+        legs: plan.legs.map((l) => ({ ...l, leaveBy: l.leaveBy.toISOString(), arriveBy: l.arriveBy.toISOString() })),
+      },
+    };
+  } catch (err) {
+    console.error("Planning a route failed", err);
+    return { message: "Couldn't work out the route just now. Try again in a minute." };
+  }
 }

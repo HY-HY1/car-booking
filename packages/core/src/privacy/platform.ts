@@ -45,6 +45,11 @@ export const SUBPROCESSORS: Subprocessor[] = [
     data: "Name, email address and booking details in each message",
   },
   {
+    name: "Google (Maps)",
+    does: "Drive times between jobs for the business's day route",
+    data: "Job addresses and postcodes, with no names or contact details",
+  },
+  {
     name: "postcodes.io",
     does: "Postcode lookups for service area and travel time",
     data: "Postcodes only, with no name or contact details",

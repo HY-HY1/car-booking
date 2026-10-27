@@ -24,6 +24,7 @@ import {
 } from "@/components/dashboard/diary/diary-grid";
 import { JobPanel, type PanelJob } from "@/components/dashboard/diary/job-panel";
 import { RemoveTimeOff } from "@/components/dashboard/diary/remove-time-off";
+import { RoutePlanner } from "@/components/dashboard/diary/route-planner";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { requireTenant } from "@/lib/auth";
 import { timeOffLabel, viewLabel } from "@/lib/diary-display";
@@ -222,6 +223,23 @@ export default async function DiaryPage({
         the estimated drive.
         {several && mergedColumn && " Pick a van above to see its drive times, or use the Day view for a column each."}
       </p>
+
+      {view === "day" && (
+        <details className="mt-6 rounded-xl border p-4">
+          <summary className="cursor-pointer text-sm font-medium">Route planner</summary>
+          <p className="mt-2 mb-4 text-sm text-muted-foreground">
+            The day&apos;s drive, van by van: when to leave home and each job to get to the next one on time, with
+            links to open each leg in Waze or Google Maps.
+          </p>
+          <RoutePlanner
+            key={`${date}-${chosen?.id ?? ""}`}
+            slug={slug}
+            date={date}
+            timeZone={timeZone}
+            vans={shown.filter((r) => (chosen ? r.id === chosen.id : travelling.some((b) => b.resource_id === r.id)))}
+          />
+        </details>
+      )}
 
       {selected && (
         <JobPanel
