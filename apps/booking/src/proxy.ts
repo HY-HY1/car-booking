@@ -52,8 +52,11 @@ export async function proxy(request: NextRequest) {
   if (host.surface === "tenant") {
     if (isReservedSlug(host.slug)) return notFound(request);
     // One address per business, so search engines don't see the pages twice.
+    // Not while the site runs locally: tenantUrl keeps links on localhost
+    // then, so the "canonical" address would be this one and loop.
     const customDomain = await customDomainFor(host.slug);
-    if (customDomain) return NextResponse.redirect(tenantUrl(host.slug, pathname + search, { customDomain }), 301);
+    const canonical = tenantUrl(host.slug, pathname + search, { customDomain });
+    if (customDomain && canonical.startsWith("https://")) return NextResponse.redirect(canonical, 301);
     return toTenant(request, host.slug, pathname);
   }
   if (host.surface === "custom") {
