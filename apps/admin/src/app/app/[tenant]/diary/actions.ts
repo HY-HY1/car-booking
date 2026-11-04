@@ -6,6 +6,7 @@ import { allowedStatusChanges, diaryRange } from "@leadgen/core/booking/diary";
 import { driveSource, driveTimes, type DriveSource } from "@leadgen/core/booking/drive-times";
 import { planRoute, type RouteStop } from "@leadgen/core/booking/route-plan";
 import { addDays, isIsoDate, zonedTimeToUtc } from "@leadgen/core/booking/time";
+import { syncBookingEvent } from "@leadgen/core/calendar/sync";
 import { notifyBookingCancelled } from "@leadgen/core/email/notify";
 import { requireTenant } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -80,6 +81,7 @@ export async function setBookingStatusAction(
   if (!updated?.length) return { error: "This booking has changed since you opened it. Reload the diary." };
 
   if (status.data === "cancelled") await notifyBookingCancelled(tenant.id, bookingId, { by: user.email ?? null });
+  await syncBookingEvent(tenant.id, bookingId);
   refresh();
   return {};
 }

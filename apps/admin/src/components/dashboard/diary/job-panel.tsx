@@ -47,6 +47,7 @@ export function JobPanel({
   closeHref,
   setStatus,
   canManage,
+  calendarNote,
 }: {
   job: PanelJob;
   slug: string;
@@ -55,6 +56,8 @@ export function JobPanel({
   setStatus: (next: string) => Promise<{ error?: string }>;
   // Approving, cancelling and putting back jobs (not technicians).
   canManage: boolean;
+  // Something to know about this job's Google Calendar event.
+  calendarNote?: string | null;
 }) {
   const quote = quoteOf(b.quote_snapshot);
   const access = accessRowsOf(b.access_notes);
@@ -91,6 +94,12 @@ export function JobPanel({
           </Link>
         </div>
       </header>
+
+      {calendarNote && (
+        <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:bg-amber-950/60 dark:text-amber-100">
+          {calendarNote}
+        </p>
+      )}
 
       <div className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 lg:grid-cols-3">
         <Section title="Customer">

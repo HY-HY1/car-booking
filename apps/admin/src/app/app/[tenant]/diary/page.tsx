@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { z } from "zod";
 import { bufferFor, resourceSchema, weeklyHoursSchema } from "@leadgen/core/booking/config";
 import {
@@ -29,6 +30,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { requireTenant } from "@/lib/auth";
 import { timeOffLabel, viewLabel } from "@/lib/diary-display";
 import { createClient } from "@/lib/supabase/server";
+import { appUrl } from "@/lib/urls";
 import { addBlockedTime, removeBlockedTime, setBookingStatusAction } from "./actions";
 
 export const metadata: Metadata = { title: "Diary" };
@@ -53,7 +55,7 @@ export default async function DiaryPage({
       .maybeSingle(),
     supabase
       .from("resources")
-      .select("id, name, location_types, weekly_hours, sort_order, active")
+      .select("id, name, location_types, weekly_hours, sort_order, active, calendar_id")
       .eq("tenant_id", tenant.id)
       .order("sort_order")
       .order("created_at"),
@@ -70,7 +72,9 @@ export default async function DiaryPage({
     travel_buffer_mins: settingsResult.data?.travel_buffer_mins ?? 30,
     unit_buffer_mins: settingsResult.data?.unit_buffer_mins ?? 0,
   };
-  const resources = z.array(resourceSchema.extend({ active: z.boolean() })).parse(resourcesResult.data);
+  const resources = z
+    .array(resourceSchema.extend({ active: z.boolean(), calendar_id: z.string().nullable() }))
+    .parse(resourcesResult.data);
   const nameOf = new Map(resources.map((r) => [r.id, r.name]));
 
   const now = new Date();
@@ -80,7 +84,7 @@ export default async function DiaryPage({
   const days = diaryDays(view, date);
   const range = diaryRange(days, timeZone);
 
-  const [bookingsResult, blockedResult] = await Promise.all([
+  const [bookingsResult, blockedResult, calendarResult, busyResult] = await Promise.all([
     supabase
       .from("bookings")
       .select(
@@ -100,9 +104,22 @@ export default async function DiaryPage({
       .gt("ends_at", range.start.toISOString())
       .order("starts_at")
       .limit(200),
+    supabase.from("calendar_connections").select("default_calendar_id, status").eq("tenant_id", tenant.id).maybeSingle(),
+    supabase
+      .from("calendar_busy")
+      .select("calendar_id, event_id, starts_at, ends_at")
+      .eq("tenant_id", tenant.id)
+      .lt("starts_at", range.end.toISOString())
+      .gt("ends_at", range.start.toISOString())
+      .order("starts_at")
+      .limit(500),
   ]);
   if (bookingsResult.error) throw bookingsResult.error;
   if (blockedResult.error) throw blockedResult.error;
+  // Google Calendar is extra: if it can't be read, the diary still shows.
+  if (calendarResult.error || busyResult.error) console.error("Diary calendar read failed", calendarResult.error ?? busyResult.error);
+  const calendar = calendarResult.error || busyResult.error ? null : calendarResult.data;
+  const busyRows = busyResult.data ?? [];
 
   // A hold whose time has run out is an abandoned checkout, not a job.
   const bookings = (bookingsResult.data as unknown as DiaryBooking[]).filter(
@@ -122,6 +139,21 @@ export default async function DiaryPage({
   const used = new Set([...bookings.map((b) => b.resource_id), ...blocks.flatMap((b) => (b.resourceId ? [b.resourceId] : []))]);
   const shown = resources.filter((r) => r.active || used.has(r.id));
   const several = shown.length > 1;
+
+  // Busy in Google Calendar: for the vans using that calendar, or the whole
+  // business when every van shown uses it.
+  const calendarOf = (r: (typeof resources)[number]) => r.calendar_id ?? calendar?.default_calendar_id;
+  const googleBlocks: GridBlock[] = calendar
+    ? busyRows.flatMap((b): GridBlock[] => {
+        const users = shown.filter((r) => calendarOf(r) === b.calendar_id);
+        const block = { start: b.starts_at, end: b.ends_at, reason: "Busy in Google Calendar", google: true };
+        if (users.length === 0) return [];
+        if (users.length === shown.length) {
+          return [{ ...block, id: `g-${b.calendar_id}-${b.event_id}`, resourceId: null, resourceName: null }];
+        }
+        return users.map((r) => ({ ...block, id: `g-${b.calendar_id}-${b.event_id}-${r.id}`, resourceId: r.id, resourceName: r.name }));
+      })
+    : [];
   const chosen = typeof sp.resource === "string" ? shown.find((r) => r.id === sp.resource) : undefined;
 
   const columns: GridColumn[] =
@@ -183,6 +215,16 @@ export default async function DiaryPage({
   const selectedParam = typeof sp.job === "string" ? sp.job : undefined;
   const selectedRow = bookings.find((b) => b.id === selectedParam);
   const selected = selectedRow && { ...selectedRow, resourceName: several ? (nameOf.get(selectedRow.resource_id) ?? null) : null };
+  const selectedEvent =
+    selected && calendar
+      ? await supabase
+          .from("calendar_events")
+          .select("sync_error, changed_in_google_at")
+          .eq("tenant_id", tenant.id)
+          .eq("booking_id", selected.id)
+          .maybeSingle()
+      : null;
+  if (selectedEvent?.error) console.error("Diary calendar event read failed", selectedEvent.error);
 
   const label = viewLabel(view, days, today);
   const period = view === "week" ? "this week" : "this day";
@@ -194,6 +236,17 @@ export default async function DiaryPage({
         title="Diary"
         description={`Your jobs by day${several ? ", van by van," : ""} including travel time between mobile jobs. Click a job for the details.`}
       />
+
+      {calendar?.status === "needs_reconnect" && (
+        <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:bg-amber-950/60 dark:text-amber-100">
+          Google Calendar needs reconnecting: new jobs aren&apos;t going into it and its busy times aren&apos;t updating.{" "}
+          {can("settings.edit") && (
+            <Link href={appUrl(`/${slug}/settings/integrations`)} className="font-medium underline underline-offset-2">
+              Reconnect it
+            </Link>
+          )}
+        </p>
+      )}
 
       <DiaryControls slug={slug} view={view} date={date} today={today} label={label} resource={chosen?.id} />
       {several && (
@@ -208,7 +261,7 @@ export default async function DiaryPage({
         now={now}
         timeZone={timeZone}
         jobs={jobs}
-        blocks={blocks}
+        blocks={[...blocks, ...googleBlocks]}
         legs={drawnLegs}
         selectedId={selected?.id}
         showResource={several && mergedColumn}
@@ -219,8 +272,8 @@ export default async function DiaryPage({
         {counted === 0
           ? `Nothing booked ${period}. Jobs appear here as customers book.`
           : `${counted} ${counted === 1 ? "job" : "jobs"} ${period}.`}{" "}
-        Dashed amber is a slot held while the customer pays; hatched is time off; the grey strip between jobs is
-        the estimated drive.
+        Dashed amber is a slot held while the customer pays; hatched is time off
+        {calendar && " or busy in Google Calendar"}; the grey strip between jobs is the estimated drive.
         {several && mergedColumn && " Pick a van above to see its drive times, or use the Day view for a column each."}
       </p>
 
@@ -249,6 +302,7 @@ export default async function DiaryPage({
           closeHref={diaryHref(slug, view, date, undefined, chosen?.id)}
           setStatus={setBookingStatusAction.bind(null, slug, selected.id)}
           canManage={can("bookings.manage")}
+          calendarNote={calendarNoteOf(selectedEvent?.data ?? null, timeZone)}
         />
       )}
 
@@ -286,4 +340,16 @@ export default async function DiaryPage({
       </section>
     </>
   );
+}
+
+// The job's Google Calendar event, if anything about it needs saying.
+function calendarNoteOf(event: { sync_error: string | null; changed_in_google_at: string | null } | null, timeZone: string) {
+  if (event?.sync_error) return "Couldn't put this job in Google Calendar yet. We'll keep trying.";
+  if (event?.changed_in_google_at) {
+    const when = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone }).format(
+      new Date(event.changed_in_google_at),
+    );
+    return `This job's event was moved or deleted in Google Calendar (${when}) and has been put back. Change bookings here, not in Google.`;
+  }
+  return null;
 }

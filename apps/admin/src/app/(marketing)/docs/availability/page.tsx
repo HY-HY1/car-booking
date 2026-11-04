@@ -111,6 +111,33 @@ export default function Availability() {
         customers. Unlike a job, it doesn&apos;t need a travel gap either side.
       </p>
 
+      <h2 id="google-calendar">Google Calendar</h2>
+      <p>
+        Connect your Google Calendar under <Place>Settings → Integrations</Place> and it works both ways:
+      </p>
+      <ul>
+        <li>
+          Every booking goes into your calendar as soon as it&apos;s secured, with the customer&apos;s name, phone,
+          address, car and notes, and a link back to the booking. Approving, cancelling or marking it done updates the
+          event; a cancelled job&apos;s event is removed.
+        </li>
+        <li>
+          Anything that makes you busy in Google, like a dentist appointment, blocks that time for customers just like
+          blocked-out time. Events shown as &quot;Free&quot; (the default for all-day events) don&apos;t block anything,
+          and only the time is read, never what the event is.
+        </li>
+      </ul>
+      <p>
+        Your jobs go into your main calendar unless you pick another. With more than one van, each can have its own
+        calendar (one per driver, say), and then only that calendar&apos;s busy times block it.
+      </p>
+      <Callout>
+        <p>
+          Change bookings here, not in Google. If a job&apos;s event is moved or deleted in Google Calendar, it&apos;s
+          put back and the job is marked in the <Place>Calendar</Place>, so a customer is never moved without being told.
+        </p>
+      </Callout>
+
       <h2 id="coverage">Coverage area</h2>
       <p>Choose how far you&apos;ll travel for mobile jobs. Customers outside it can&apos;t book a job at their address.</p>
       <SimpleTable

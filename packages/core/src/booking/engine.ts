@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { calendarBusyByResource, syncBookingEvent } from "../calendar/sync";
 import { normalizePhone, normalizePostcode } from "../customer-fields";
 import { notifyBookingSecured } from "../email/notify";
 import { attachPhotos, MAX_PHOTOS } from "../photos";
@@ -291,6 +292,8 @@ function jobPostcode(settings: BookingSettings, req: { locationType: string; pos
 // as busy periods. Travel is measured from each job to `postcode`; the gap
 // kept depends on whether both jobs are at the shop. Time off for the whole
 // business goes in every resource's list, time off for one only in its own.
+// Busy times in Google Calendar count as time off for the vans using that
+// calendar.
 async function loadBusyByResource(
   db: SupabaseClient,
   tenantId: string,
@@ -301,7 +304,7 @@ async function loadBusyByResource(
   postcode: string,
   locationType: LocationType,
 ): Promise<Map<string, BusyPeriod[]>> {
-  const [bookings, blocked] = await Promise.all([
+  const [bookings, blocked, calendarBusy] = await Promise.all([
     db
       .from("bookings")
       .select("starts_at, ends_at, postcode, status, hold_expires_at, resource_id, location_type")
@@ -315,6 +318,13 @@ async function loadBusyByResource(
       .eq("tenant_id", tenantId)
       .lt("starts_at", to.toISOString())
       .gt("ends_at", from.toISOString()),
+    calendarBusyByResource(
+      db,
+      tenantId,
+      resources.map((r) => r.id),
+      from,
+      to,
+    ),
   ]);
   if (bookings.error) throw bookings.error;
   if (blocked.error) throw blocked.error;
@@ -343,6 +353,9 @@ async function loadBusyByResource(
     const period: BusyPeriod = { kind: "blocked", start: new Date(b.starts_at), end: new Date(b.ends_at) };
     if (b.resource_id) busy.get(b.resource_id)?.push(period);
     else for (const list of busy.values()) list.push(period);
+  }
+  for (const [resourceId, periods] of calendarBusy) {
+    for (const p of periods) busy.get(resourceId)?.push({ kind: "blocked", start: p.start, end: p.end });
   }
   return busy;
 }
@@ -822,6 +835,7 @@ export async function confirmBooking(
     if (lead.error) throw lead.error;
   }
   await notifyBookingSecured(tenantId, data.id);
+  await syncBookingEvent(tenantId, data.id);
   return { ok: true, bookingId: data.id, status };
 }
 

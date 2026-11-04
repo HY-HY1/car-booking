@@ -85,6 +85,7 @@ export function vercelConfig(env) {
       { path: "/api/jobs/cleanup-photos", schedule: "0 3 * * *" },
       { path: "/api/jobs/retention", schedule: "0 4 * * 1" },
       { path: "/api/jobs/emails", schedule: "0 7 * * *" },
+      { path: "/api/jobs/calendar", schedule: "30 5 * * *" },
     ],
   };
 }

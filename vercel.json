@@ -110,6 +110,10 @@
     {
       "path": "/api/jobs/emails",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/jobs/calendar",
+      "schedule": "30 5 * * *"
     }
   ]
 }

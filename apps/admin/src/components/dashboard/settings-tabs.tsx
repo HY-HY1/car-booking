@@ -24,7 +24,7 @@ export function SettingsTabs({ slug, role }: { slug: string; role: Role }) {
     { path: `${base}/privacy`, label: "Privacy & data", permission: view },
     { path: `${base}/team`, label: "Team & access", permission: view },
     { path: `${base}/billing`, label: "Billing", permission: view },
-    { path: `${base}/integrations`, label: "Integrations", permission: "api" },
+    { path: `${base}/integrations`, label: "Integrations", permission: "settings.edit" },
   ];
 
   return (

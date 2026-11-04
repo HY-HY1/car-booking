@@ -1,5 +1,6 @@
 import "server-only";
 import { securedStatus } from "../booking/engine";
+import { syncBookingEvent } from "../calendar/sync";
 import { notifyBookingSecured } from "../email/notify";
 import { createAdminClient } from "../supabase/admin";
 import { raiseAlert } from "./alerts";
@@ -85,6 +86,8 @@ export async function confirmPaidBooking(paid: PaidSession): Promise<"confirmed"
   if (booking.status === "confirmed" || booking.status === "requested") {
     const { error } = await db.from("bookings").update(paidFields).eq("tenant_id", tenantId).eq("id", booking.id);
     if (error) throw error;
+    // The event shows the deposit as paid.
+    await syncBookingEvent(tenantId, booking.id);
     return "already_confirmed";
   }
 
@@ -109,6 +112,7 @@ export async function confirmPaidBooking(paid: PaidSession): Promise<"confirmed"
       if (lead.error) throw lead.error;
     }
     await notifyBookingSecured(tenantId, booking.id);
+    await syncBookingEvent(tenantId, booking.id);
     return "confirmed";
   }
 

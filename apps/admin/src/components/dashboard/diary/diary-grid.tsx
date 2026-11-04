@@ -43,6 +43,8 @@ export type GridBlock = {
   // Null = the whole business is off.
   resourceId: string | null;
   resourceName: string | null;
+  // Busy in Google Calendar rather than time off set here.
+  google?: boolean;
 };
 
 export type GridLeg = TravelLeg & { resourceId: string };
@@ -231,7 +233,7 @@ export function DiaryGrid({
                       backgroundImage:
                         "repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in oklch, currentColor 14%, transparent) 6px 7px)",
                     }}
-                    title={`Time off${block.resourceName ? ` (${block.resourceName})` : ""}${block.reason ? `: ${block.reason}` : ""}`}
+                    title={`${block.google ? "Busy in Google Calendar" : "Time off"}${block.resourceName ? ` (${block.resourceName})` : ""}${block.reason && !block.google ? `: ${block.reason}` : ""}`}
                   >
                     <span className="font-medium">{label}</span>
                   </div>

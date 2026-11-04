@@ -1,4 +1,5 @@
 import "server-only";
+import { syncBookingEvent } from "../calendar/sync";
 import { notifyBookingDeclined, notifyBookingSecured } from "../email/notify";
 import { createAdminClient } from "../supabase/admin";
 import { refundDeposit } from "../stripe/payments";
@@ -25,6 +26,7 @@ export async function approveBooking(tenantId: string, bookingId: string) {
   }
   // The business approved it, so only the customer needs telling.
   await notifyBookingSecured(tenantId, bookingId, { alertOwner: false });
+  await syncBookingEvent(tenantId, bookingId);
   return { ok: true as const };
 }
 
@@ -46,6 +48,7 @@ export async function declineBooking(tenantId: string, bookingId: string, reason
   // Refund first, so the email can say the deposit is on its way back.
   const refund = data.deposit_status === "paid" ? await refundDeposit(tenantId, bookingId) : null;
   await notifyBookingDeclined(tenantId, bookingId);
+  await syncBookingEvent(tenantId, bookingId);
   if (refund && !refund.ok) {
     return {
       ok: true as const,

@@ -50,6 +50,11 @@ export const SUBPROCESSORS: Subprocessor[] = [
     data: "Job addresses and postcodes, with no names or contact details",
   },
   {
+    name: "Google (Calendar)",
+    does: "Puts jobs in the business's own Google Calendar, and reads when it's busy, if the business connects one",
+    data: "Each job's customer name, phone, email, address, car and notes. Only the times of the business's other events are read",
+  },
+  {
     name: "postcodes.io",
     does: "Postcode lookups for service area and travel time",
     data: "Postcodes only, with no name or contact details",

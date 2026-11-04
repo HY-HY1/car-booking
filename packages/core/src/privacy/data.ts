@@ -1,4 +1,5 @@
 import "server-only";
+import { syncCustomerEvents } from "../calendar/sync";
 import { PHOTO_BUCKET } from "../photos";
 import { createAdminClient } from "../supabase/admin";
 import type { MarketingChannel, PublicRequest } from "./rules";
@@ -27,6 +28,8 @@ export async function eraseCustomer(tenantId: string, customerId: string): Promi
 
   const { data, error } = await db.rpc("anonymise_customer", { p_tenant: tenantId, p_customer: customerId });
   if (error) throw error;
+  // Their name, phone and address come out of the business's Google Calendar too.
+  if (data === "anonymised") await syncCustomerEvents(tenantId, customerId);
   return data as EraseResult;
 }
 
