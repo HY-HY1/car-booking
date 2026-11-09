@@ -50,7 +50,15 @@ export function balanceDuePence(booking: { price_pence: number; deposit_pence: n
 }
 
 export type PaymentStatus = "paid" | "pending" | "refunded" | "partially_refunded" | "disputed" | "failed";
-export type PaymentSource = "deposit" | "payment_link" | "other";
+// Cash and bank transfers are recorded by the business by hand
+// (booking/offline-payments.ts); the rest are Stripe charges.
+export const OFFLINE_METHODS = ["cash", "bank_transfer"] as const;
+export type OfflineMethod = (typeof OFFLINE_METHODS)[number];
+export type PaymentSource = "deposit" | "payment_link" | "other" | OfflineMethod;
+
+export function isOffline(source: PaymentSource): source is OfflineMethod {
+  return (OFFLINE_METHODS as readonly string[]).includes(source);
+}
 
 // The parts of a Stripe Charge the Payments tab reads.
 export type ChargeLike = {
@@ -84,6 +92,8 @@ export type PaymentRow = {
   receiptUrl: string | null;
   paymentIntentId: string | null;
   bookingId: string | null;
+  // What the business wrote against a cash payment or bank transfer.
+  note?: string | null;
 };
 
 export function paymentStatus(charge: Pick<ChargeLike, "status" | "disputed" | "refunded" | "amount_refunded">): PaymentStatus {
@@ -113,6 +123,52 @@ export function toPaymentRow(charge: ChargeLike): PaymentRow {
     paymentIntentId: typeof charge.payment_intent === "string" ? charge.payment_intent : (charge.payment_intent?.id ?? null),
     bookingId,
   };
+}
+
+// ---------------------------------------------------------------- outside Stripe
+
+// "Record payment" on a booking: cash, or a bank transfer. Any amount from 1p:
+// a tip or a fee on top of the price is still money taken.
+export const offlinePaymentSchema = z.object({
+  method: z.enum(OFFLINE_METHODS, "Pick how they paid."),
+  amountPence: z
+    .string()
+    .transform((v, ctx) => {
+      const pence = parsePounds(v);
+      if (pence === null || pence <= 0) {
+        ctx.addIssue({ code: "custom", message: "Enter an amount like 45 or 45.50." });
+        return z.NEVER;
+      }
+      return pence;
+    })
+    .pipe(z.number().max(MAX_LINK_PENCE, "That's over £10,000. Check the amount.")),
+  note: z
+    .string()
+    .trim()
+    .max(200, "Keep the note under 200 characters.")
+    .default("")
+    .transform((v) => v || null),
+});
+export type OfflinePayment = z.output<typeof offlinePaymentSchema>;
+
+// Bookings a payment can be recorded against: any that's been booked. A hold
+// is mid-way through the customer's own checkout, and an expired one never was.
+export function takesOfflinePayment(status: string) {
+  return status !== "held" && status !== "expired";
+}
+
+// What the deposit should say once money taken outside Stripe has been
+// recorded or removed. Only a deposit not paid through Stripe is touched:
+// payments that cover it mark it paid, and removing them puts it back to
+// owed. A Stripe deposit, a refunded or waived one, and a booking with no
+// deposit are left as they are.
+export function depositStatusAfterOffline(
+  booking: { deposit_pence: number; deposit_status: string; stripe_payment_intent_id: string | null },
+  offlinePence: number,
+): string {
+  if (booking.deposit_pence <= 0 || booking.stripe_payment_intent_id) return booking.deposit_status;
+  if (booking.deposit_status !== "pending" && booking.deposit_status !== "paid") return booking.deposit_status;
+  return offlinePence >= booking.deposit_pence ? "paid" : "pending";
 }
 
 // Bookings that can still have money taken against them. A hold is mid-way

@@ -39,16 +39,17 @@ export type IncomeSummary = {
 
 // Only payments that went through count: pending ones aren't money yet, and
 // failed attempts never were. A charge is placed by when it was taken.
-export function summariseIncome(charges: ChargeLike[], range: PeriodRange): IncomeSummary {
+// `offline` is cash and bank transfers the business recorded by hand
+// (booking/offline-payments.ts), already as rows.
+export function summariseIncome(charges: ChargeLike[], range: PeriodRange, offline: PaymentRow[] = []): IncomeSummary {
   const current = empty();
   const previous = empty();
   const perBucket = range.buckets.map(() => 0);
-  const bySource: Record<PaymentSource, number> = { deposit: 0, payment_link: 0, other: 0 };
+  const bySource: Record<PaymentSource, number> = { deposit: 0, payment_link: 0, other: 0, cash: 0, bank_transfer: 0 };
   const inCurrent: PaymentRow[] = [];
 
-  for (const charge of charges) {
-    if (charge.status !== "succeeded") continue;
-    const row = toPaymentRow(charge);
+  const rows = [...charges.filter((c) => c.status === "succeeded").map(toPaymentRow), ...offline];
+  for (const row of rows) {
     const at = new Date(row.createdAt);
 
     if (at >= range.start && at < range.end) {

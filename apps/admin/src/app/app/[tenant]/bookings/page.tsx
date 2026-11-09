@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { paidByBooking } from "@leadgen/core/stripe/ledger";
 import { BookingsTable, type BookingTableRow } from "@/components/dashboard/bookings-table";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { buttonVariants } from "@/components/ui/button";
 import { requireTenant } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { appUrl } from "@/lib/urls";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Bookings" };
 
@@ -18,7 +21,7 @@ export default async function BookingsPage({
   searchParams,
 }: PageProps<"/app/[tenant]/bookings">) {
   const { tenant: slug } = await params;
-  const { tenant } = await requireTenant(slug);
+  const { tenant, can } = await requireTenant(slug);
   const sp = await searchParams;
   const view: View = sp.view === "past" || sp.view === "all" ? sp.view : "upcoming";
 
@@ -51,10 +54,15 @@ export default async function BookingsPage({
 
   return (
     <>
-      <PageHeader
-        title="Bookings"
-        description="Held, confirmed, completed, cancelled and no-show jobs, with deposit status. Click a row for the details."
-      />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <PageHeader title="Bookings" />
+        {can("bookings.manage") && (
+          <Link href={appUrl(`/${slug}/bookings/new`)} className={buttonVariants({ size: "lg" })}>
+            <Plus />
+            Add booking
+          </Link>
+        )}
+      </div>
 
       <nav className="mb-4 flex gap-1">
         {(Object.keys(VIEWS) as View[]).map((v) => (
@@ -73,11 +81,11 @@ export default async function BookingsPage({
       </nav>
 
       {bookings.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+        <EmptyState>
           {view === "upcoming"
             ? "No upcoming bookings. They'll appear here as customers book through your booking page."
             : "No bookings to show."}
-        </div>
+        </EmptyState>
       ) : (
         <BookingsTable rows={bookings} slug={slug} />
       )}

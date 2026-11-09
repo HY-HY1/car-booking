@@ -3,21 +3,24 @@ import type Stripe from "stripe";
 import { createAdminClient } from "../supabase/admin";
 import { getTenantPayments } from "./accounts";
 import { getStripe } from "./client";
-import { paymentStatus, toPaymentRow, type ChargeLike, type PaymentRow } from "./payment-rules";
+import { paymentStatus, toPaymentRow, type ChargeLike, type PaymentRow, type PaymentSource } from "./payment-rules";
 
 // The record of what has been paid on each booking (booking_payments). Stripe
 // is the source of truth; this is a copy that's kept current three ways: the
 // webhook writes a payment the moment it happens, a booking page re-reads
-// Stripe and fills in anything missing, and refunds update the amount.
+// Stripe and fills in anything missing, and refunds update the amount. Cash
+// and bank transfers are the exception: the business records them here by
+// hand (booking/offline-payments.ts).
 
 type LedgerRow = {
   stripe_charge_id: string;
   stripe_payment_intent_id: string | null;
-  kind: "deposit" | "payment_link" | "other";
+  kind: PaymentSource;
   amount_pence: number;
   refunded_pence: number;
   receipt_url: string | null;
   paid_at: string;
+  note: string | null;
 };
 
 function toLedgerRow(tenantId: string, bookingId: string, p: PaymentRow) {
@@ -51,6 +54,7 @@ function fromLedgerRow(r: LedgerRow): PaymentRow {
     receiptUrl: r.receipt_url,
     paymentIntentId: r.stripe_payment_intent_id,
     bookingId: null,
+    note: r.note,
   };
 }
 
@@ -180,7 +184,7 @@ export async function loadBookingPayments(tenantId: string, bookingId: string): 
 
   const stored = await db
     .from("booking_payments")
-    .select("stripe_charge_id, stripe_payment_intent_id, kind, amount_pence, refunded_pence, receipt_url, paid_at")
+    .select("stripe_charge_id, stripe_payment_intent_id, kind, amount_pence, refunded_pence, receipt_url, paid_at, note")
     .eq("tenant_id", tenantId)
     .eq("booking_id", bookingId);
   const rows = stored.error ? null : (stored.data as LedgerRow[]).map(fromLedgerRow);

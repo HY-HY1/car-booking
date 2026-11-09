@@ -33,7 +33,34 @@ export default function Dashboard() {
         <li>The estimated drive between one mobile job and the next is shown in the gap.</li>
         <li>
           Click a job to see its details and mark it <strong>completed</strong>, a <strong>no-show</strong> or{" "}
-          <strong>cancelled</strong>. Put it back if you change your mind.
+          <strong>cancelled</strong>. Put it back if you change your mind, or switch done and no-show if you picked the
+          wrong one. The same buttons are on the booking&apos;s own page.
+        </li>
+        <li>
+          On a phone the diary is a list of the day&apos;s jobs, each with buttons to call, text or navigate to the
+          customer.
+        </li>
+        <li>
+          Drag a job to move it to another time, day or van, or use <Place>Change date or time</Place> on the job. You
+          can email the customer the new time as you do it. Confirmed jobs and requests can be moved; you can go outside
+          your hours or into time off, but not on top of another job on the same van.
+        </li>
+        <li>Click an empty slot to add a booking at that time.</li>
+        <li>
+          A booking awaiting its deposit can be <strong>confirmed</strong> by hand, if they&apos;ve paid you
+          another way or you&apos;ll take the deposit later. They get their confirmation email, and the deposit stays
+          owed.
+        </li>
+        <li>
+          <Place>Add booking</Place> puts in a booking you&apos;ve taken yourself, on the phone or in person. Pick the
+          customer, service, car size, extras, where and when; the price comes from your price list, and you can change
+          the price, the length and the deposit. You can book outside your hours or in time off, but not on top of
+          another job on the same van. <Place>Book again</Place> on a customer&apos;s page fills in their details.
+        </li>
+        <li>
+          When a booking&apos;s deposit is still owed, <Place>Email deposit request</Place> sends the customer a
+          button to pay it by card from their booking page (Stripe has to be connected). Once they pay, the deposit
+          shows as paid.
         </li>
         <li>
           <Place>Block out time</Place> stops customers booking a stretch of time, for the whole business or one van.
@@ -43,16 +70,21 @@ export default function Dashboard() {
       <h3>Bookings</h3>
       <p>
         Every booking, with its status and deposit. Open one to see everything the customer told you, their photos, the
-        price breakdown and the payment, and to refund the deposit. A booking is one of:
+        price breakdown and the payment, and to refund the deposit. Paid in cash or by bank transfer?{" "}
+        <Place>Record payment</Place> adds it to the booking: it counts towards what&apos;s paid and towards your
+        income, and if it covers a deposit that wasn&apos;t paid online, the deposit shows as paid. One added by mistake
+        can be removed.
+        A booking is one of:
       </p>
       <SimpleTable
         head={["Status", "Meaning"]}
         rows={[
-          ["Held", "The customer is paying the deposit right now. The time is reserved for a short while."],
+          ["Awaiting deposit", "The customer is paying the deposit right now. The time is reserved for a short while."],
           ["Confirmed", "Booked. It's in your calendar."],
           ["Completed", "You've done the job."],
           ["No-show", "The customer wasn't there or didn't bring the car."],
-          ["Cancelled", "Called off, by you or the customer."],
+          ["Awaiting approval", "Waiting for you to approve it, if you approve each booking yourself."],
+          ["Cancelled", "Called off, by you or the customer. The booking shows which, and when."],
         ]}
       />
 

@@ -75,7 +75,9 @@ export default function Payments() {
       <h2>Refunding a deposit</h2>
       <p>
         Open the booking from <Place>Bookings</Place> and choose <Place>Refund deposit</Place>. It asks you to confirm
-        first. The full deposit goes back to the customer&apos;s card, usually within 5 to 10 working days.
+        first. The full deposit goes back to the customer&apos;s card, usually within 5 to 10 working days. If you&apos;re
+        cancelling the job, <Place>Cancel job</Place> offers the refund as part of cancelling, and starts on what your
+        cancellation policy says.
       </p>
       <Callout tone="warning">
         <p>

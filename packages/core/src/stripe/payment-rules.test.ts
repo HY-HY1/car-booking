@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  depositStatusAfterOffline,
+  offlinePaymentSchema,
+  takesOfflinePayment,
   balanceDuePence,
   paymentLinkSchema,
   paymentStatus,
@@ -166,5 +169,45 @@ describe("paymentSummary", () => {
 
   it("treats a free booking as nothing to pay", () => {
     expect(paymentSummary({ price_pence: 0, deposit_pence: 0, deposit_status: "none" }, []).fullyPaid).toBe(true);
+  });
+});
+
+describe("payments outside Stripe", () => {
+  it("reads how they paid, the amount and the note", () => {
+    expect(offlinePaymentSchema.parse({ method: "cash", amountPence: "£45.50", note: " Balance " })).toEqual({
+      method: "cash",
+      amountPence: 4550,
+      note: "Balance",
+    });
+    expect(offlinePaymentSchema.parse({ method: "bank_transfer", amountPence: "20" })).toEqual({
+      method: "bank_transfer",
+      amountPence: 2000,
+      note: null,
+    });
+    expect(offlinePaymentSchema.safeParse({ method: "cheque", amountPence: "20" }).success).toBe(false);
+    expect(offlinePaymentSchema.safeParse({ method: "cash", amountPence: "0" }).success).toBe(false);
+    expect(offlinePaymentSchema.safeParse({ method: "cash", amountPence: "abc" }).success).toBe(false);
+    expect(offlinePaymentSchema.safeParse({ method: "cash", amountPence: "20000" }).success).toBe(false);
+  });
+
+  it("is taken on any booking that's been booked", () => {
+    expect(takesOfflinePayment("confirmed")).toBe(true);
+    expect(takesOfflinePayment("completed")).toBe(true);
+    expect(takesOfflinePayment("cancelled")).toBe(true);
+    expect(takesOfflinePayment("held")).toBe(false);
+    expect(takesOfflinePayment("expired")).toBe(false);
+  });
+
+  it("settles a deposit not paid online, and unsettles it when the payment is taken off", () => {
+    const owed = { deposit_pence: 2000, deposit_status: "pending", stripe_payment_intent_id: null };
+    expect(depositStatusAfterOffline(owed, 1500)).toBe("pending");
+    expect(depositStatusAfterOffline(owed, 2000)).toBe("paid");
+    expect(depositStatusAfterOffline({ ...owed, deposit_status: "paid" }, 0)).toBe("pending");
+  });
+
+  it("leaves Stripe deposits, refunds and no deposit alone", () => {
+    expect(depositStatusAfterOffline({ deposit_pence: 2000, deposit_status: "paid", stripe_payment_intent_id: "pi_1" }, 0)).toBe("paid");
+    expect(depositStatusAfterOffline({ deposit_pence: 2000, deposit_status: "refunded", stripe_payment_intent_id: null }, 5000)).toBe("refunded");
+    expect(depositStatusAfterOffline({ deposit_pence: 0, deposit_status: "none", stripe_payment_intent_id: null }, 5000)).toBe("none");
   });
 });

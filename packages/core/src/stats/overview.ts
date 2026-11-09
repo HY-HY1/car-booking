@@ -1,4 +1,5 @@
 import "server-only";
+import { offlinePaymentsBetween } from "../booking/offline-payments";
 import { createAdminClient } from "../supabase/admin";
 import { getTenantPayments } from "../stripe/accounts";
 import { getStripe } from "../stripe/client";
@@ -8,8 +9,8 @@ import { bucketIndex, periodRange, type Period } from "./periods";
 
 // The numbers on the overview page. Bookings, leads and customers come from
 // our database; income comes from the business's own Stripe account, so it
-// includes payments that never went through a booking. Everything is placed
-// in periods in the business's own time zone.
+// includes payments that never went through a booking, plus cash and bank
+// transfers recorded on bookings. Everything is placed in periods in the business's own time zone.
 
 export type Metric = { value: number; previous: number };
 
@@ -213,16 +214,20 @@ export async function getOverview(
   const rate = (rows: { status: string }[]) =>
     rows.length ? Math.round((rows.filter((l) => l.status === "booked").length / rows.length) * 100) : null;
 
-  // Income, from Stripe.
+  // Income, from Stripe and the cash and bank transfers recorded on bookings.
+  // A business that doesn't use Stripe still sees it.
   let income: IncomeState = { state: "hidden" };
   let incomePerBucket: number[] | null = null;
   if (payments) {
-    if (!payments.accountId) {
+    const offline = await offlinePaymentsBetween(tenantId, range.compareStart, range.end);
+    if (!payments.accountId && offline.length === 0) {
       income = { state: "not_connected" };
     } else {
       try {
-        const { charges, truncated } = await chargesBetween(payments.accountId, range.compareStart, range.end);
-        const s = summariseIncome(charges, range);
+        const { charges, truncated } = payments.accountId
+          ? await chargesBetween(payments.accountId, range.compareStart, range.end)
+          : { charges: [], truncated: false };
+        const s = summariseIncome(charges, range, offline);
         incomePerBucket = s.perBucket;
         income = { state: "ok", current: s.current, previous: s.previous, bySource: s.bySource, recent: s.recent, truncated };
       } catch (error) {

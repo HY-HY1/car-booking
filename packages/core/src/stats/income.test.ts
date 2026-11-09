@@ -80,8 +80,33 @@ describe("summariseIncome", () => {
       ],
       week,
     );
-    expect(s.bySource).toEqual({ deposit: 3000, payment_link: 7000, other: 500 });
+    expect(s.bySource).toEqual({ deposit: 3000, payment_link: 7000, other: 500, cash: 0, bank_transfer: 0 });
     expect(s.recent.map((r) => r.amountPence)).toEqual([500, 7000, 3000]);
+  });
+
+  it("counts cash and bank transfers recorded by hand, with no fee", () => {
+    const cash = {
+      id: "manual_1",
+      createdAt: "2026-10-13T12:00:00Z",
+      amountPence: 4500,
+      refundedPence: 0,
+      feePence: 0,
+      netPence: 4500,
+      status: "paid" as const,
+      source: "cash" as const,
+      description: null,
+      customerName: null,
+      customerEmail: null,
+      receiptUrl: null,
+      paymentIntentId: null,
+      bookingId: null,
+    };
+    const transfer = { ...cash, id: "manual_2", createdAt: "2026-10-12T12:00:00Z", amountPence: 2000, source: "bank_transfer" as const };
+    const s = summariseIncome([charge("2026-10-12T10:00:00Z", { amount: 1000 })], week, [cash, transfer]);
+    expect(s.current.incomePence).toBe(7500);
+    expect(s.bySource.cash).toBe(4500);
+    expect(s.bySource.bank_transfer).toBe(2000);
+    expect(s.recent[0].id).toBe("manual_1");
   });
 
   it("copes with a charge whose fee isn't known yet", () => {
