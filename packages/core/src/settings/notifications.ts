@@ -13,6 +13,7 @@ export const TEMPLATE_FIELDS = {
   time: "Start time, e.g. 9:30am",
   address: "Where the job is",
   booking_link: "Link to the booking page",
+  manage_link: "The customer's link to change or cancel this booking (confirmation and reminder only)",
   review_link: "Your review link",
 } as const;
 export type TemplateField = keyof typeof TEMPLATE_FIELDS;
@@ -129,5 +130,6 @@ export const SAMPLE_VALUES: Record<TemplateField, string> = {
   time: "9:30am",
   address: "12 High Street, BS1 4DJ",
   booking_link: "https://book.example.co.uk",
+  manage_link: "https://book.example.co.uk/manage/…",
   review_link: "https://g.page/r/example/review",
 };

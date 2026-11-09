@@ -26,6 +26,11 @@ export const cancellationPolicySchema = z.object({
   late_fee: lateFeeSchema,
   // Anything else the owner wants customers to know.
   note: z.string().trim().max(500).optional(),
+  // Customers can cancel and move their booking themselves, from the link in
+  // their emails, within the cut-offs (booking/manage-rules.ts).
+  self_service: z.boolean().default(true),
+  // How many times a customer can move one booking; unset = no limit.
+  max_reschedules: z.number().int().min(1).max(10).optional(),
 });
 export type CancellationPolicy = z.infer<typeof cancellationPolicySchema>;
 
@@ -34,6 +39,7 @@ export const DEFAULT_POLICY: CancellationPolicy = {
   reschedule_cutoff_hours: 24,
   refund_before_cutoff: "full",
   late_fee: { type: "deposit" },
+  self_service: true,
 };
 
 // The stored json, or null when no policy has been set (or it's unreadable).
@@ -54,10 +60,18 @@ export function policyLines(policy: CancellationPolicy, takesDeposit: boolean): 
   const cancel = formatNotice(policy.cutoff_hours);
   const move = formatNotice(policy.reschedule_cutoff_hours);
 
+  const online = policy.self_service ? " online" : "";
   if (policy.cutoff_hours === policy.reschedule_cutoff_hours) {
-    lines.push(`You can cancel or change your booking up to ${cancel} the appointment.`);
+    lines.push(`You can cancel or change your booking${online} up to ${cancel} the appointment.`);
   } else {
-    lines.push(`You can cancel up to ${cancel} the appointment, and change the time up to ${move}.`);
+    lines.push(`You can cancel${online} up to ${cancel} the appointment, and change the time up to ${move}.`);
+  }
+  if (policy.max_reschedules) {
+    lines.push(
+      policy.max_reschedules === 1
+        ? "You can change the time once."
+        : `You can change the time up to ${policy.max_reschedules} times.`,
+    );
   }
 
   if (takesDeposit) {

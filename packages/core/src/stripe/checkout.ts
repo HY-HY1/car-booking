@@ -20,6 +20,10 @@ export type DepositCheckoutInput = {
   // sends the customer back to, paid or not.
   confirmedUrl: string;
   platformFeePence?: number;
+  // A retry gets the same session back. Default: one per booking, as a hold
+  // has one checkout; a deposit asked for later (booking/manage.ts) passes
+  // its own, so a customer coming back later gets a fresh session.
+  idempotencyKey?: string;
 };
 
 export async function createDepositCheckout(input: DepositCheckoutInput) {
@@ -60,7 +64,7 @@ export async function createDepositCheckout(input: DepositCheckoutInput) {
       // Makes it a direct charge on the detailer's account.
       stripeAccount: input.stripeAccountId,
       // A retry for the same booking gets the same session back.
-      idempotencyKey: `checkout-${input.bookingId}`,
+      idempotencyKey: input.idempotencyKey ?? `checkout-${input.bookingId}`,
     },
   );
   if (!session.url) throw new Error("Stripe returned a Checkout Session without a URL");

@@ -1,8 +1,12 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
+import { formatPence } from "../booking/config";
+import { manageBookingUrl } from "../booking/manage-link";
+import { depositOwed, refundLine } from "../booking/manage-rules";
 import { signUnsubscribeToken } from "../privacy/rules";
 import { notificationsOf, renderTemplate, type NotificationSettings, type TemplateField } from "../settings/notifications";
+import type { RefundAdvice } from "../settings/policy";
 import { createAdminClient } from "../supabase/admin";
 import { isCustomHostname } from "../tenants";
 import { adminUrl, appUrl, tenantUrl } from "../urls";
@@ -12,7 +16,10 @@ import { loadBookingPayments } from "../stripe/ledger";
 import { paymentSummary } from "../stripe/payment-rules";
 import {
   cancelled,
+  cancelledByCustomer,
+  customerFooter,
   declined,
+  depositRequest,
   firstName,
   formatClock,
   formatDay,
@@ -24,10 +31,12 @@ import {
   ownerNewBooking,
   ownerNewLead,
   ownerPaymentProblem,
+  ownerRescheduled,
   paymentReceived,
   paymentRequest,
   renderEmail,
   requestReceived,
+  rescheduled,
   type BookingFacts,
   type Composed,
   type OwnerFacts,
@@ -58,12 +67,15 @@ export type EmailKind =
   | "review_request"
   | "payment_link"
   | "payment_received"
+  | "rescheduled"
+  | "deposit_request"
   | "owner_new_booking"
   | "owner_cancellation"
   | "owner_new_lead"
   | "owner_dispute"
   | "owner_late_refund"
-  | "owner_payment_problem";
+  | "owner_payment_problem"
+  | "owner_rescheduled";
 
 async function quietly(label: string, fn: () => Promise<unknown>) {
   try {
@@ -167,12 +179,16 @@ type BookingContext = {
   depositPence: number;
   depositStatus: string;
   declineReason: string | null;
+  // Times the customer has moved it, and when last: a moved booking gets a
+  // new reminder, unless it was moved to within the reminder window.
+  rescheduleCount: number;
+  rescheduledAt: Date | null;
   service: string;
   customer: { id: string; name: string; email: string | null; phone: string | null; emailMarketing: boolean };
 };
 
 const BOOKING_FIELDS =
-  "id, tenant_id, status, starts_at, ends_at, created_at, address_line, postcode, price_pence, deposit_pence, deposit_status, decline_reason, customer:customers(id, name, email, phone, email_marketing), service:services(name)";
+  "id, tenant_id, status, starts_at, ends_at, created_at, address_line, postcode, price_pence, deposit_pence, deposit_status, decline_reason, reschedule_count, rescheduled_at, customer:customers(id, name, email, phone, email_marketing), service:services(name)";
 
 type BookingRow = {
   id: string;
@@ -187,6 +203,8 @@ type BookingRow = {
   deposit_pence: number;
   deposit_status: string;
   decline_reason: string | null;
+  reschedule_count: number;
+  rescheduled_at: string | null;
   customer: { id: string; name: string; email: string | null; phone: string | null; email_marketing: boolean } | null;
   service: { name: string } | null;
 };
@@ -204,6 +222,8 @@ function toBooking(row: BookingRow): BookingContext | null {
     depositPence: row.deposit_pence,
     depositStatus: row.deposit_status,
     declineReason: row.decline_reason,
+    rescheduleCount: row.reschedule_count,
+    rescheduledAt: row.rescheduled_at ? new Date(row.rescheduled_at) : null,
     service: row.service?.name ?? "your booking",
     customer: {
       id: row.customer.id,
@@ -233,7 +253,9 @@ function bookingFacts(t: TenantContext, b: BookingContext): BookingFacts {
   };
 }
 
-function templateValues(t: TenantContext, b: BookingContext): Record<TemplateField, string> {
+// `manageLink`: the customer's link to cancel or move this booking, where the
+// message has one.
+function templateValues(t: TenantContext, b: BookingContext, manageLink = ""): Record<TemplateField, string> {
   const f = bookingFacts(t, b);
   return {
     customer_name: firstName(f.customerName),
@@ -243,6 +265,7 @@ function templateValues(t: TenantContext, b: BookingContext): Record<TemplateFie
     time: f.time,
     address: f.address,
     booking_link: f.bookingLink,
+    manage_link: manageLink,
     review_link: t.settings.messages.review_request.review_url ?? "",
   };
 }
@@ -305,16 +328,10 @@ async function send(db: Db, t: TenantContext, m: Message): Promise<"sent" | "fai
 
   const footer =
     audience === "customer"
-      ? [
-          `${t.name}${t.contactEmail ? ` · ${t.contactEmail}` : ""}`,
-          m.marketing
-            ? `You're getting this because you booked with ${t.name} and said they could email you.`
-            : m.kind === "payment_link"
-              ? `You're getting this because ${t.name} sent you a payment request.`
-              : m.kind === "payment_received"
-                ? `You're getting this because you made a payment to ${t.name}.`
-              : `You're getting this because you made a booking with ${t.name}.`,
-        ]
+      ? customerFooter(
+          t,
+          m.marketing ? "marketing" : m.kind === "payment_link" ? "payment_link" : m.kind === "payment_received" ? "payment_received" : "booking",
+        )
       : [`Alerts for ${t.name}. Change which ones you get: ${dashboardUrl(t.slug, "/settings/notifications")}`];
   const { text, html } = renderEmail({
     heading: audience === "customer" ? t.name : m.content.subject,
@@ -359,6 +376,10 @@ function customerAddress(t: TenantContext, b: BookingContext) {
   return t.settings.channels.email ? b.customer.email : null;
 }
 
+function manageButton(url: string | null) {
+  return url ? { label: "Manage your booking", url } : undefined;
+}
+
 // ---------------------------------------------------------------- booking events
 
 // A hold became a booking: confirmed, or a request the business approves.
@@ -374,16 +395,18 @@ export async function notifyBookingSecured(tenantId: string, bookingId: string, 
     const to = customerAddress(t, b);
     const confirmation = t.settings.messages.confirmation;
     if (to && (requested || confirmation.enabled)) {
-      const values = templateValues(t, b);
+      const manage = await manageBookingUrl(t, b.id);
+      const values = templateValues(t, b, manage ?? "");
+      const content: Composed = requested
+        ? requestReceived(bookingFacts(t, b))
+        : { subject: renderTemplate(confirmation.subject, values), body: renderTemplate(confirmation.body, values) };
       await send(db, t, {
         kind: requested ? "request_received" : "confirmation",
         dedupeKey: `${requested ? "request_received" : "confirmation"}:${b.id}`,
         bookingId: b.id,
         customerId: b.customer.id,
         to,
-        content: requested
-          ? requestReceived(bookingFacts(t, b))
-          : { subject: renderTemplate(confirmation.subject, values), body: renderTemplate(confirmation.body, values) },
+        content: { ...content, button: manageButton(manage) },
       });
     }
 
@@ -429,7 +452,7 @@ export async function notifyBookingDeclined(tenantId: string, bookingId: string)
 
 // Someone at the business cancelled a booking. `by` is their login email:
 // the business isn't alerted about a cancellation its alert address made.
-export async function notifyBookingCancelled(tenantId: string, bookingId: string, opts: { by: string | null }) {
+export async function notifyBookingCancelled(tenantId: string, bookingId: string, opts: { by: string | null; refundedPence?: number }) {
   await quietly("booking cancelled", async () => {
     const db = createAdminClient();
     const [t, b] = await Promise.all([loadTenant(db, tenantId), loadBooking(db, tenantId, bookingId)]);
@@ -443,7 +466,7 @@ export async function notifyBookingCancelled(tenantId: string, bookingId: string
         bookingId: b.id,
         customerId: b.customer.id,
         to,
-        content: cancelled(bookingFacts(t, b), { depositPaid: b.depositStatus === "paid" }),
+        content: cancelled(bookingFacts(t, b), { depositPaid: b.depositStatus === "paid", refundedPence: opts.refundedPence }),
       });
     }
 
@@ -458,6 +481,151 @@ export async function notifyBookingCancelled(tenantId: string, bookingId: string
       content: ownerCancellation(ownerFacts(t, b), { by: opts.by }),
     });
   });
+}
+
+// The customer cancelled their own booking (booking/manage.ts). `advice` is
+// what the policy says to refund: the business makes the refund, so it's
+// told even with cancellation alerts off when there's money to give back.
+export async function notifyCustomerCancelled(tenantId: string, bookingId: string, opts: { advice: RefundAdvice | null }) {
+  await quietly("customer cancelled", async () => {
+    const db = createAdminClient();
+    const [t, b] = await Promise.all([loadTenant(db, tenantId), loadBooking(db, tenantId, bookingId)]);
+    if (!t || !b || b.status !== "cancelled") return;
+    const paid = b.depositStatus === "paid" ? b.depositPence : 0;
+
+    const to = customerAddress(t, b);
+    if (to) {
+      await send(db, t, {
+        kind: "cancelled",
+        dedupeKey: `cancelled:${b.id}`,
+        bookingId: b.id,
+        customerId: b.customer.id,
+        to,
+        content: cancelledByCustomer(bookingFacts(t, b), {
+          refund: refundLine(opts.advice, paid),
+          refunding: (opts.advice?.refundPence ?? 0) > 0,
+        }),
+      });
+    }
+
+    const refundDue = (opts.advice?.refundPence ?? 0) > 0;
+    if (!t.settings.alerts.cancellation && !refundDue) return;
+    const owner = await t.alertEmail();
+    if (!owner) return;
+    const refund = opts.advice
+      ? `${opts.advice.reason} ${refundDue ? `Refund ${formatPence(opts.advice.refundPence)} from the booking's page.` : ""}`.trim()
+      : paid > 0
+        ? `They paid a ${formatPence(paid)} deposit. You haven't set what happens to deposits, so it's your call: refund it from the booking's page.`
+        : undefined;
+    await send(db, t, {
+      kind: "owner_cancellation",
+      dedupeKey: `owner_cancellation:${b.id}`,
+      bookingId: b.id,
+      to: owner,
+      content: ownerCancellation(ownerFacts(t, b), { by: "the customer", refund }),
+    });
+  });
+}
+
+// The customer moved their own booking; `from` is where it was.
+export async function notifyCustomerRescheduled(tenantId: string, bookingId: string, opts: { from: string }) {
+  await quietly("customer rescheduled", async () => {
+    const db = createAdminClient();
+    const [t, b] = await Promise.all([loadTenant(db, tenantId), loadBooking(db, tenantId, bookingId)]);
+    if (!t || !b) return;
+    const from = new Date(opts.from);
+    const was = { fromDate: formatDay(from, t.timezone), fromTime: formatClock(from, t.timezone) };
+    // One of each per move.
+    const move = `${b.id}:${b.rescheduleCount}`;
+
+    const to = customerAddress(t, b);
+    if (to) {
+      await send(db, t, {
+        kind: "rescheduled",
+        dedupeKey: `rescheduled:${move}`,
+        bookingId: b.id,
+        customerId: b.customer.id,
+        to,
+        content: rescheduled(bookingFacts(t, b), { ...was, manageUrl: await manageBookingUrl(t, b.id) }),
+      });
+    }
+
+    if (!t.settings.alerts.cancellation) return;
+    const owner = await t.alertEmail();
+    if (!owner) return;
+    await send(db, t, {
+      kind: "owner_rescheduled",
+      dedupeKey: `owner_rescheduled:${move}`,
+      bookingId: b.id,
+      to: owner,
+      content: ownerRescheduled(ownerFacts(t, b), was),
+    });
+  });
+}
+
+// The business moved the booking from the diary. Just the customer: whoever
+// moved it knows.
+export async function notifyBookingMoved(tenantId: string, bookingId: string, opts: { from: string }) {
+  await quietly("booking moved", async () => {
+    const db = createAdminClient();
+    const [t, b] = await Promise.all([loadTenant(db, tenantId), loadBooking(db, tenantId, bookingId)]);
+    if (!t || !b) return;
+    const to = customerAddress(t, b);
+    if (!to) return;
+    const from = new Date(opts.from);
+    await send(db, t, {
+      kind: "rescheduled",
+      dedupeKey: `rescheduled:${b.id}:${b.rescheduledAt?.getTime()}`,
+      bookingId: b.id,
+      customerId: b.customer.id,
+      to,
+      content: rescheduled(bookingFacts(t, b), {
+        fromDate: formatDay(from, t.timezone),
+        fromTime: formatClock(from, t.timezone),
+        manageUrl: await manageBookingUrl(t, b.id),
+      }),
+    });
+  });
+}
+
+// "Email deposit request" on a booking (and on adding one): asks the customer
+// to pay the deposit from their booking page. Reports back, as the business
+// pressed a button; each press sends again.
+export async function emailDepositRequest(
+  tenantId: string,
+  bookingId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const db = createAdminClient();
+    const [t, b, stripe] = await Promise.all([
+      loadTenant(db, tenantId),
+      loadBooking(db, tenantId, bookingId),
+      db.from("tenants").select("stripe_ready").eq("id", tenantId).single(),
+    ]);
+    if (stripe.error) throw stripe.error;
+    if (!t || !b) return { ok: false, message: "That booking wasn't found." };
+    if (!depositOwed(b)) return { ok: false, message: "There's no deposit to pay on this booking." };
+    if (!stripe.data.stripe_ready) return { ok: false, message: "Connect Stripe under Settings → Payments to take deposits online." };
+    if (!b.customer.email) return { ok: false, message: "Add the customer's email address first." };
+    if (!t.senderAddress && process.env.RESEND_API_KEY) {
+      return { ok: false, message: "Set up your email address under Settings → Notifications first, so it comes from you." };
+    }
+    const payUrl = await manageBookingUrl(t, b.id);
+    if (!payUrl) return { ok: false, message: "Customer booking links aren't set up yet (BOOKING_LINK_SECRET)." };
+
+    const result = await send(db, t, {
+      kind: "deposit_request",
+      dedupeKey: `deposit_request:${b.id}:${crypto.randomUUID()}`,
+      bookingId: b.id,
+      customerId: b.customer.id,
+      to: b.customer.email,
+      content: depositRequest(bookingFacts(t, b), { depositPence: b.depositPence, payUrl }),
+    });
+    return result === "sent" ? { ok: true } : { ok: false, message: "The email couldn't be sent. Try again in a minute." };
+  } catch (error) {
+    console.error("[email] emailing a deposit request failed", error);
+    return { ok: false, message: "The email couldn't be sent. Try again in a minute." };
+  }
 }
 
 // ---------------------------------------------------------------- Stripe
@@ -574,11 +742,14 @@ export async function runScheduledEmails(now = new Date()) {
     for (let i = 0; i < ids.length; i += 200) {
       const { data, error } = await db
         .from("email_log")
-        .select(`kind, ${column}`)
+        .select(`kind, dedupe_key, ${column}`)
         .in(column, ids.slice(i, i + 200))
         .in("kind", kinds);
       if (error) throw error;
-      for (const row of data as unknown as Record<string, string>[]) done.add(`${row.kind}:${row[column]}`);
+      for (const row of data as unknown as Record<string, string>[]) {
+        done.add(`${row.kind}:${row[column]}`);
+        done.add(row.dedupe_key);
+      }
     }
     return done;
   }
@@ -595,23 +766,30 @@ export async function runScheduledEmails(now = new Date()) {
     if (error) throw error;
     const rows = data as unknown as BookingRow[];
     const done = await alreadySent("booking_id", rows.map((r) => r.id), ["reminder"]);
+    // A booking that's been moved, by anyone, is reminded again about its new time.
+    const reminderKey = (id: string, movedAt: string | null) => (movedAt ? `reminder:${id}:${movedAt}` : `reminder:${id}`);
     for (const row of rows) {
-      if (done.has(`reminder:${row.id}`)) continue;
+      if (done.has(reminderKey(row.id, row.rescheduled_at))) continue;
       const t = await tenantOf(row.tenant_id);
       const b = toBooking(row);
       const reminder = t?.settings.messages.reminder;
-      if (!t || !b || !reminder?.enabled || !reminderDue(b, reminder.hours_before, now)) continue;
+      if (!t || !b || !reminder?.enabled || !reminderDue({ startsAt: b.startsAt, createdAt: b.rescheduledAt ?? b.createdAt }, reminder.hours_before, now)) continue;
       const to = customerAddress(t, b);
       if (!to) continue;
-      const values = templateValues(t, b);
+      const manage = await manageBookingUrl(t, b.id);
+      const values = templateValues(t, b, manage ?? "");
       await tally(() =>
         send(db, t, {
           kind: "reminder",
-          dedupeKey: `reminder:${b.id}`,
+          dedupeKey: reminderKey(row.id, row.rescheduled_at),
           bookingId: b.id,
           customerId: b.customer.id,
           to,
-          content: { subject: renderTemplate(reminder.subject, values), body: renderTemplate(reminder.body, values) },
+          content: {
+            subject: renderTemplate(reminder.subject, values),
+            body: renderTemplate(reminder.body, values),
+            button: manageButton(manage),
+          },
         }),
       );
     }

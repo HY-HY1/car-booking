@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { hmac, verifyHmac } from "../signing";
 
 // Pure rules for UK GDPR handling: what a data request looks like, when it's
 // due, and the signed links used to unsubscribe. Nothing here touches the
@@ -64,18 +65,6 @@ export const privacySettingsSchema = z.object({
 
 export type MarketingChannel = "email" | "sms" | "whatsapp";
 
-async function hmac(secret: string, payload: string) {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
-  return Buffer.from(sig).toString("base64url");
-}
-
 export async function signUnsubscribeToken(secret: string, customerId: string, channel: MarketingChannel) {
   const payload = `${customerId}.${channel}`;
   return `${payload}.${await hmac(secret, payload)}`;
@@ -89,9 +78,5 @@ export async function verifyUnsubscribeToken(
   if (rest.length || !customerId || !channel || !sig) return null;
   if (!/^[0-9a-f-]{36}$/i.test(customerId)) return null;
   if (channel !== "email" && channel !== "sms" && channel !== "whatsapp") return null;
-  const expected = await hmac(secret, `${customerId}.${channel}`);
-  if (expected.length !== sig.length) return null;
-  let diff = 0;
-  for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ sig.charCodeAt(i);
-  return diff === 0 ? { customerId, channel } : null;
+  return (await verifyHmac(secret, `${customerId}.${channel}`, sig)) ? { customerId, channel } : null;
 }

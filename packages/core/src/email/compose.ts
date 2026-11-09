@@ -100,6 +100,19 @@ ${buttonHtml}</table>
   return { text, html };
 }
 
+// The small print under an email to a customer: who it's from and why they got it.
+export type EmailReason = "booking" | "marketing" | "payment_link" | "payment_received";
+
+export function customerFooter(business: { name: string; contactEmail?: string | null }, reason: EmailReason) {
+  const why = {
+    booking: `You're getting this because you made a booking with ${business.name}.`,
+    marketing: `You're getting this because you booked with ${business.name} and said they could email you.`,
+    payment_link: `You're getting this because ${business.name} sent you a payment request.`,
+    payment_received: `You're getting this because you made a payment to ${business.name}.`,
+  };
+  return [`${business.name}${business.contactEmail ? ` · ${business.contactEmail}` : ""}`, why[reason]];
+}
+
 // ---------------------------------------------------------------- customer messages owners can't edit
 
 export type BookingFacts = {
@@ -135,11 +148,47 @@ export function declined(f: BookingFacts, opts: { reason: string | null; refunde
   };
 }
 
-export function cancelled(f: BookingFacts, opts: { depositPaid: boolean }): Composed {
-  const deposit = opts.depositPaid ? "\n\nIf you paid a deposit, we'll be in touch about it." : "";
+export function cancelled(f: BookingFacts, opts: { depositPaid: boolean; refundedPence?: number }): Composed {
+  const deposit = opts.refundedPence
+    ? `\n\nWe've refunded ${formatPence(opts.refundedPence)} of your deposit. It can take 5 to 10 days to reach your account.`
+    : opts.depositPaid
+      ? "\n\nIf you paid a deposit, we'll be in touch about it."
+      : "";
   return {
     subject: `Your booking on ${f.date} has been cancelled`,
     body: `Hi ${firstName(f.customerName)},\n\nYour booking for ${f.service} on ${f.date} at ${f.time} has been cancelled.${deposit}\n\nIf this isn't what you expected, just reply to this email. To book another time: ${f.bookingLink}\n\n${signOff(f)}`,
+  };
+}
+
+// The customer cancelled it themselves (booking/manage.ts). `refund` is what
+// the policy says happens to their deposit (manage-rules.ts refundLine);
+// `refunding` when some of it is going back.
+export function cancelledByCustomer(f: BookingFacts, opts: { refund: string | null; refunding: boolean }): Composed {
+  const when = opts.refunding ? ` ${f.businessName} will send it shortly; it can take 5 to 10 days to reach your account.` : "";
+  const refund = opts.refund ? `\n\n${opts.refund}${when}` : "";
+  return {
+    subject: `You've cancelled your booking on ${f.date}`,
+    body: `Hi ${firstName(f.customerName)},\n\nYour booking for ${f.service} on ${f.date} at ${f.time} is cancelled.${refund}\n\nIf you'd like to book another time: ${f.bookingLink}\n\n${signOff(f)}`,
+  };
+}
+
+// The business asks for the deposit on a booking it's made or confirmed
+// itself. The button opens the customer's booking page, which starts a
+// fresh Stripe checkout each time, so the link never expires.
+export function depositRequest(f: BookingFacts, opts: { depositPence: number; payUrl: string }): Composed {
+  return {
+    subject: `Deposit for your booking on ${f.date}`,
+    body: `Hi ${firstName(f.customerName)},\n\nYou're booked in for ${f.service} on ${f.date} at ${f.time}. To secure it, please pay the ${formatPence(opts.depositPence)} deposit.\n\nWhere: ${f.address}\n\n${signOff(f)}`,
+    button: { label: `Pay ${formatPence(opts.depositPence)} deposit`, url: opts.payUrl },
+  };
+}
+
+// The customer moved it themselves. `from` is the old day and time.
+export function rescheduled(f: BookingFacts, opts: { fromDate: string; fromTime: string; manageUrl: string | null }): Composed {
+  return {
+    subject: `Your booking has moved to ${f.date} at ${f.time}`,
+    body: `Hi ${firstName(f.customerName)},\n\nYour booking for ${f.service} is now on ${f.date} at ${f.time} (it was ${opts.fromDate} at ${opts.fromTime}).\n\nWhere: ${f.address}\n\n${signOff(f)}`,
+    button: opts.manageUrl ? { label: "Manage your booking", url: opts.manageUrl } : undefined,
   };
 }
 
@@ -246,11 +295,21 @@ export function ownerNewBooking(f: OwnerFacts, opts: { needsApproval: boolean; p
       };
 }
 
-export function ownerCancellation(f: OwnerFacts, opts: { by: string | null }): Composed {
+// `refund`: the customer cancelled it themselves and paid a deposit, so the
+// owner is told what the policy says to give back (they refund it).
+export function ownerCancellation(f: OwnerFacts, opts: { by: string | null; refund?: string }): Composed {
   const by = opts.by ? ` by ${opts.by}` : "";
+  const refund = opts.refund ? `\n\n${opts.refund}` : "";
   return {
     subject: `Cancelled: ${jobLine(f)}`,
-    body: `${f.customerName}'s booking for ${jobLine(f)} was cancelled${by}. The time is free again.\n\n${contactLines(f)}\n\nView the booking: ${f.link}`,
+    body: `${f.customerName}'s booking for ${jobLine(f)} was cancelled${by}. The time is free again.${refund}\n\n${contactLines(f)}\n\nView the booking: ${f.link}`,
+  };
+}
+
+export function ownerRescheduled(f: OwnerFacts, opts: { fromDate: string; fromTime: string }): Composed {
+  return {
+    subject: `Moved: ${jobLine(f)}`,
+    body: `${f.customerName} has moved their booking from ${opts.fromDate} at ${opts.fromTime} to ${f.date} at ${f.time}. The old time is free again.\n\n${contactLines(f)}\n\nView the booking: ${f.link}`,
   };
 }
 

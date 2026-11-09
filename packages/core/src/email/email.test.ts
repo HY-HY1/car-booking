@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  cancelled,
   cleanSenderName,
+  customerFooter,
   declined,
   formatClock,
   formatDay,
@@ -86,6 +88,15 @@ describe("layout", () => {
 });
 
 describe("messages", () => {
+  it("says who an email is from and why they got it", () => {
+    expect(customerFooter({ name: "Shine", contactEmail: "hi@shine.co.uk" }, "booking")).toEqual([
+      "Shine · hi@shine.co.uk",
+      "You're getting this because you made a booking with Shine.",
+    ]);
+    expect(customerFooter({ name: "Shine" }, "marketing")[0]).toBe("Shine");
+    expect(customerFooter({ name: "Shine" }, "marketing")[1]).toContain("said they could email you");
+  });
+
   it("thanks a customer for a payment, with the receipt and what's left", () => {
     const base = {
       customerName: "Sam Jones",
@@ -136,6 +147,9 @@ describe("messages", () => {
   it("mentions the refund only when there was one", () => {
     expect(declined(facts, { reason: null, refundedPence: 2500 }).body).toContain("deposit of £25 has been refunded");
     expect(declined(facts, { reason: "We're away that week.", refundedPence: null }).body).not.toContain("refunded");
+    expect(cancelled(facts, { depositPaid: false, refundedPence: 1500 }).body).toContain("refunded £15 of your deposit");
+    expect(cancelled(facts, { depositPaid: true, refundedPence: 0 }).body).toContain("we'll be in touch");
+    expect(cancelled(facts, { depositPaid: false }).body).not.toContain("deposit");
   });
 
   it("asks the owner to approve a request", () => {

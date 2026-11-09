@@ -55,19 +55,37 @@ describe("cancellation policy", () => {
 
   it("describes itself to customers", () => {
     expect(policyLines(DEFAULT_POLICY, true)).toEqual([
-      "You can cancel or change your booking up to 24 hours before the appointment.",
+      "You can cancel or change your booking online up to 24 hours before the appointment.",
       "Cancel in time and your deposit is refunded in full.",
       "Cancel later than that, or miss the appointment, and the deposit is kept.",
     ]);
-    expect(policyLines({ ...DEFAULT_POLICY, cutoff_hours: 48, reschedule_cutoff_hours: 24 }, false)).toEqual([
+    expect(policyLines({ ...DEFAULT_POLICY, cutoff_hours: 48, reschedule_cutoff_hours: 24, self_service: false }, false)).toEqual([
       "You can cancel up to 2 days before the appointment, and change the time up to 24 hours before.",
+    ]);
+    expect(policyLines({ ...DEFAULT_POLICY, max_reschedules: 2 }, false)).toEqual([
+      "You can cancel or change your booking online up to 24 hours before the appointment.",
+      "You can change the time up to 2 times.",
     ]);
   });
 
   it("keeps the refund rules when the cut-offs are saved, and the reverse", () => {
     const current: CancellationPolicy = { ...DEFAULT_POLICY, late_fee: { type: "none" } };
-    const cut = parsePolicyForm({ policy_enabled: "on", cutoff_hours: "48", reschedule_cutoff_hours: "12", note: "" }, current);
-    expect(cut.success && cut.data).toEqual({ ...current, cutoff_hours: 48, reschedule_cutoff_hours: 12, note: undefined });
+    const cut = parsePolicyForm(
+      { policy_enabled: "on", cutoff_hours: "48", reschedule_cutoff_hours: "12", note: "", self_service: "on", max_reschedules: "2" },
+      current,
+    );
+    expect(cut.success && cut.data).toEqual({
+      ...current,
+      cutoff_hours: 48,
+      reschedule_cutoff_hours: 12,
+      note: undefined,
+      self_service: true,
+      max_reschedules: 2,
+    });
+
+    const offline = parsePolicyForm({ policy_enabled: "on", cutoff_hours: "48", reschedule_cutoff_hours: "12", note: "" }, current);
+    expect(offline.success && offline.data).toMatchObject({ self_service: false, max_reschedules: undefined });
+    expect(parsePolicyForm({ policy_enabled: "on", cutoff_hours: "48", reschedule_cutoff_hours: "12", max_reschedules: "0" }, current).success).toBe(false);
 
     const off = parsePolicyForm({ cutoff_hours: "48", reschedule_cutoff_hours: "12", note: "" }, current);
     expect(off.success && off.data).toEqual({});
