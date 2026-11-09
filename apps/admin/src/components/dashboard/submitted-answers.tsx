@@ -1,8 +1,9 @@
 import type { SubmittedGroup } from "@/lib/booking-display";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // Everything the customer typed or ticked on the booking page, in groups.
 export function SubmittedAnswers({ groups }: { groups: SubmittedGroup[] }) {
-  if (groups.length === 0) return <p className="text-muted-foreground">Nothing else was submitted.</p>;
+  if (groups.length === 0) return <EmptyState compact>Nothing else was submitted.</EmptyState>;
   return (
     <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
       {groups.map((g) => (

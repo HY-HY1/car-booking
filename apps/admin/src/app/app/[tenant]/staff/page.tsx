@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { z } from "zod";
 import { serviceAreaSchema } from "@leadgen/core/booking/config";
-import { ComingSoon, PageHeader } from "@/components/dashboard/page-header";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { NewStaff, StaffEditor, type StaffMember } from "@/components/dashboard/staff-forms";
 import { requireTenant } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { deleteStaff, saveStaff } from "./actions";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Staff / Techs" };
 
@@ -48,10 +49,7 @@ export default async function StaffPage({ params }: PageProps<"/app/[tenant]/sta
   ]);
 
   const header = (
-    <PageHeader
-      title="Staff / Techs"
-      description="Your team. Link each person to the van or bay they work from and the coverage territory they cover."
-    />
+    <PageHeader title="Staff / Techs" />
   );
 
   // PGRST205 / 42P01: the staff table isn't in the database yet (migration not pushed).
@@ -59,9 +57,9 @@ export default async function StaffPage({ params }: PageProps<"/app/[tenant]/sta
     return (
       <>
         {header}
-        <ComingSoon>
+        <EmptyState>
           The staff table hasn&apos;t been created yet. Run <code>supabase db push</code> to add it.
-        </ComingSoon>
+        </EmptyState>
       </>
     );
   }
@@ -86,9 +84,7 @@ export default async function StaffPage({ params }: PageProps<"/app/[tenant]/sta
         <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">Only the business owner can change the team.</p>
       )}
       {staff.length === 0 ? (
-        <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-          No one added yet.{readOnly ? "" : " Add yourself and your crew below."}
-        </p>
+        <EmptyState>No one added yet.{readOnly ? "" : " Add yourself and your crew below."}</EmptyState>
       ) : (
         <p className="text-sm text-muted-foreground">
           {active} working with you{staff.length > active && `, ${staff.length - active} switched off`}.

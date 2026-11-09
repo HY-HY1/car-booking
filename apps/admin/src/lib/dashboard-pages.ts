@@ -29,7 +29,7 @@ export const DASHBOARD_PAGES: DashboardPage[] = [
   { label: "Settings", href: "/settings", keywords: "business name contact phone vat time zone trade", permission: "settings.view" },
   { label: "Booking page settings", href: "/settings/booking-page", keywords: "branding logo colour cover domain embed website button", permission: "settings.view" },
   { label: "Booking settings", href: "/settings/booking", keywords: "hours availability van unit approval photos questions cancellation policy", permission: "settings.view" },
-  { label: "AI assistant", href: "/settings/assistant", keywords: "ai agent follow up hand off tone", permission: "settings.view" },
+  { label: "AI assistant (coming soon)", href: "/settings/assistant", keywords: "ai agent follow up hand off tone", permission: "settings.view" },
   { label: "Payment settings", href: "/settings/payments", keywords: "stripe deposit refund payouts", permission: "settings.view" },
   { label: "Notifications", href: "/settings/notifications", keywords: "email sms reminder confirmation review alerts templates", permission: "settings.view" },
   { label: "Privacy settings", href: "/settings/privacy", keywords: "gdpr data export erase retention consent delete account", permission: "settings.view" },

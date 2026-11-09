@@ -3,12 +3,15 @@
 import { useState, useTransition } from "react";
 import { KeyRound } from "lucide-react";
 import type { ApiKeyRow } from "@leadgen/core/api/keys";
-import { formatDate } from "@leadgen/core/customer-fields";
+import { formatDate } from "@leadgen/core/dates";
 import type { CreateKeyState } from "@/app/app/[tenant]/settings/api/actions";
 import { CopyText } from "@/components/platform/copy-text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "@/components/ui/toast";
+import { askToConfirm } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // Settings → API: make a key (shown once), see which keys exist and when they
 // were last used, and revoke them.
@@ -23,7 +26,6 @@ export function ApiKeys({
   revokeAction: (id: string) => Promise<{ error?: string }>;
 }) {
   const [created, setCreated] = useState<CreateKeyState>({});
-  const [revokeError, setRevokeError] = useState<string>();
   const [pending, startTransition] = useTransition();
 
   return (
@@ -44,7 +46,7 @@ export function ApiKeys({
         <Label htmlFor="api-key-name">New key</Label>
         <div className="flex gap-2">
           <Input id="api-key-name" name="name" maxLength={60} placeholder="Main website" required />
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" size="lg" disabled={pending}>
             {pending ? "Creating…" : "Create key"}
           </Button>
         </div>
@@ -60,7 +62,7 @@ export function ApiKeys({
       )}
 
       {keys.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No keys yet.</p>
+        <EmptyState compact>No keys yet.</EmptyState>
       ) : (
         <ul className="divide-y rounded-xl border">
           {keys.map((k) => (
@@ -83,9 +85,19 @@ export function ApiKeys({
                   variant="outline"
                   size="sm"
                   disabled={pending}
-                  onClick={() => {
-                    if (!confirm(`Revoke "${k.name}"? Anything using it will stop getting your product data.`)) return;
-                    startTransition(async () => setRevokeError((await revokeAction(k.id)).error));
+                  onClick={async () => {
+                    const confirmed = await askToConfirm({
+                      title: `Revoke "${k.name}"?`,
+                      description: "Anything using it will stop getting your product data.",
+                      confirmLabel: "Revoke key",
+                      destructive: true,
+                    });
+                    if (!confirmed) return;
+                    startTransition(async () => {
+                      const { error } = await revokeAction(k.id);
+                      if (error) toast.error(error);
+                      else toast.success("Key revoked");
+                    });
                   }}
                 >
                   Revoke
@@ -95,7 +107,6 @@ export function ApiKeys({
           ))}
         </ul>
       )}
-      {revokeError && <p className="text-sm text-destructive">{revokeError}</p>}
     </div>
   );
 }

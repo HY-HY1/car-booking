@@ -1,22 +1,23 @@
 import Link from "next/link";
 import { appUrl } from "@/lib/urls";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export function OwnersOnly() {
   return (
-    <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+    <EmptyState>
       Payments are only visible to the business owner.
-    </div>
+    </EmptyState>
   );
 }
 
 export function StripeNotConnected({ slug }: { slug: string }) {
   return (
-    <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+    <EmptyState>
       Stripe isn&apos;t connected yet.{" "}
       <Link href={appUrl(`/${slug}/settings/payments`)} className="underline underline-offset-4">
         Connect it under Settings
       </Link>{" "}
       to see payments and create payment links.
-    </div>
+    </EmptyState>
   );
 }

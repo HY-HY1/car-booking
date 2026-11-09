@@ -8,6 +8,7 @@ import { MAX_TERRITORIES, type Territory } from "@leadgen/core/booking/config";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/toast";
 
 // Coverage Area: a map of circles, one per territory. Drag a circle to move
 // it, drag the handle on its edge to resize it. The first is the default
@@ -329,7 +330,10 @@ export function CoverageMap({
               startTransition(async () => {
                 const result = await action(territories.map((t) => ({ ...t, name: t.name.trim() })));
                 setState(result);
-                if (result.saved) setSavedJson(JSON.stringify(territories));
+                if (result.saved) {
+                  setSavedJson(JSON.stringify(territories));
+                  toast.success("Saved. Customers see this now.");
+                }
               })
             }
           >
@@ -338,8 +342,6 @@ export function CoverageMap({
           <p role="status" className="text-sm">
             {state.message ? (
               <span className="text-destructive">{state.message}</span>
-            ) : state.saved && !dirty ? (
-              <span className="text-muted-foreground">Saved. Customers see this now.</span>
             ) : dirty ? (
               <span className="text-muted-foreground">Not saved yet.</span>
             ) : null}

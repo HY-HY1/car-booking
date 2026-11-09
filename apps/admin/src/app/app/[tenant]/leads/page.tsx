@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Camera } from "lucide-react";
 import { formatPence } from "@leadgen/core/booking/config";
-import { formatDate, formatPhone } from "@leadgen/core/customer-fields";
+import { formatPhone } from "@leadgen/core/customer-fields";
+import { formatDate } from "@leadgen/core/dates";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { appUrl } from "@/lib/urls";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Leads" };
 
@@ -55,10 +57,7 @@ export default async function LeadsPage({
 
   return (
     <>
-      <PageHeader
-        title="Leads"
-        description="Everyone who asked for a quote, from new through quoted to booked or lost."
-      />
+      <PageHeader title="Leads" />
 
       <nav className="mb-4 flex gap-1">
         {(Object.keys(FILTERS) as Filter[]).map((f) => (
@@ -77,11 +76,11 @@ export default async function LeadsPage({
       </nav>
 
       {leads.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+        <EmptyState>
           {filter === "open"
             ? "No open leads. Anyone who leaves the booking flow after giving their details will show up here."
             : "Nothing here yet."}
-        </div>
+        </EmptyState>
       ) : (
         <div className="overflow-x-auto rounded-xl border">
           <table className="w-full text-sm">

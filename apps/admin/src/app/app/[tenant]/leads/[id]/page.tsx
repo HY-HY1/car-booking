@@ -14,6 +14,7 @@ import { BOOKING_SOURCE, quoteOf, submittedGroups } from "@/lib/booking-display"
 import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { appUrl } from "@/lib/urls";
+import { formatDateTime } from "@leadgen/core/dates";
 
 export const metadata: Metadata = { title: "Lead" };
 
@@ -71,9 +72,7 @@ export default async function LeadPage({ params }: PageProps<"/app/[tenant]/lead
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {STATUS[lead.status] ?? lead.status} · {BOOKING_SOURCE[lead.source] ?? lead.source} · received{" "}
-          {new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(
-            new Date(lead.created_at),
-          )}
+          {formatDateTime(lead.created_at)}
         </p>
       </header>
 

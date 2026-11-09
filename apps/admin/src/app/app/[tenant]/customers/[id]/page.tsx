@@ -1,20 +1,23 @@
 import type { Metadata } from "next";
-import { Download } from "lucide-react";
+import Link from "next/link";
+import { CalendarPlus, Download } from "lucide-react";
 import { notFound } from "next/navigation";
 import { CustomerForm } from "@/components/dashboard/customer-form";
 import { DeleteCustomerButton } from "@/components/dashboard/delete-customer-button";
 import { PhotoGallery } from "@/components/dashboard/photo-gallery";
-import { BackLink, ComingSoon, PageHeader } from "@/components/dashboard/page-header";
+import { BackLink, PageHeader } from "@/components/dashboard/page-header";
+import { buttonVariants } from "@/components/ui/button";
 import { requireAccess } from "@/lib/auth";
 import {
   CUSTOMER_SOURCES,
   MARKETING_BASES,
-  formatDate,
 } from "@leadgen/core/customer-fields";
+import { formatDate } from "@leadgen/core/dates";
 import { getCustomer } from "@/lib/customers";
 import { listCustomerPhotos } from "@/lib/photos";
 import { deleteCustomer, deletePhoto, updateCustomer } from "../actions";
 import { appUrl } from "@/lib/urls";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Customer" };
 
@@ -34,10 +37,21 @@ export default async function CustomerPage({
   return (
     <>
       <BackLink href={appUrl(`/${slug}/customers`)}>Customers</BackLink>
-      <PageHeader
-        title={customer.name}
-        description={`Added ${formatDate(customer.created_at)} · ${source}`}
-      />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <PageHeader
+          title={customer.name}
+          description={`Added ${formatDate(customer.created_at)} · ${source}`}
+        />
+        {can("bookings.manage") && !customer.anonymised_at && (
+          <Link
+            href={appUrl(`/${slug}/bookings/new?customer=${customer.id}`)}
+            className={buttonVariants({ variant: "outline", size: "lg" })}
+          >
+            <CalendarPlus />
+            Book again
+          </Link>
+        )}
+      </div>
       {customer.anonymised_at && (
         <p className="mb-6 rounded-lg border bg-muted/50 p-3 text-sm">
           This customer&apos;s details were erased on {formatDate(customer.anonymised_at)}. Their past
@@ -71,7 +85,7 @@ export default async function CustomerPage({
             Photos
           </h2>
           <p className="mb-4 text-sm text-muted-foreground">
-            Taken by the customer when booking. Click one to see it full size.
+            Taken by the customer when booking.
           </p>
           {photos.length ? (
             <PhotoGallery
@@ -88,9 +102,9 @@ export default async function CustomerPage({
           <h2 id="history-heading" className="mb-4 font-medium">
             Vehicles and bookings
           </h2>
-          <ComingSoon>
+          <EmptyState>
             Their vehicles and past jobs will show here.
-          </ComingSoon>
+          </EmptyState>
         </section>
 
         {can("customers.delete") && !customer.anonymised_at && (

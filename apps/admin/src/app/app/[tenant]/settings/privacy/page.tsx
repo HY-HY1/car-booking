@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { daysUntilDue, isOpen, REQUEST_KINDS, REQUEST_STATUSES } from "@leadgen/core/privacy/rules";
-import { formatDate } from "@leadgen/core/customer-fields";
+import { formatDate } from "@leadgen/core/dates";
 import { closureDate } from "@leadgen/core/settings/account";
 import { CloseAccount, PrivacyExtrasForm } from "@/components/dashboard/settings/privacy-forms";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Check, Field, SaveForm, fieldClass } from "@/components/dashboard/form-kit";
+import { Check, Field, SaveForm, } from "@/components/dashboard/form-kit";
 import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -19,6 +19,8 @@ import {
   updateRequest,
 } from "./actions";
 import { appUrl, marketingUrl } from "@/lib/urls";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 export const metadata: Metadata = { title: "Privacy" };
 
@@ -139,12 +141,12 @@ export default async function PrivacyPage({ params }: PageProps<"/app/[tenant]/s
                 {(errors) => (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="Type" name="kind" error={errors.kind}>
-                      <select name="kind" defaultValue="" className={fieldClass + " h-8"}>
+                      <Select name="kind" defaultValue="">
                         <option value="" disabled>Choose…</option>
                         {Object.entries(REQUEST_KINDS).map(([k, label]) => (
                           <option key={k} value={k}>{label}</option>
                         ))}
-                      </select>
+                      </Select>
                     </Field>
                     <Field label="Their name" name="name" error={errors.name}>
                       <Input name="name" />
@@ -153,7 +155,7 @@ export default async function PrivacyPage({ params }: PageProps<"/app/[tenant]/s
                       <Input name="email" type="email" />
                     </Field>
                     <Field label="Details" name="details" error={errors.details}>
-                      <textarea name="details" rows={2} className={fieldClass} />
+                      <Textarea name="details" rows={2} />
                     </Field>
                   </div>
                 )}
@@ -268,17 +270,17 @@ function RequestCard({ slug, r }: { slug: string; r: RequestRow }) {
         {() => (
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Status" name="status">
-              <select name="status" defaultValue={r.status} className={fieldClass + " h-8"}>
+              <Select name="status" defaultValue={r.status}>
                 {Object.entries(REQUEST_STATUSES).map(([k, label]) => (
                   <option key={k} value={k}>{label}</option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <div className="flex items-end pb-1.5">
               <Check name="identity_checked" label="I've checked who they are" defaultChecked={r.identity_checked} />
             </div>
             <Field label="What you did" name="outcome_notes" className="sm:col-span-2">
-              <textarea name="outcome_notes" rows={2} defaultValue={r.outcome_notes ?? ""} className={fieldClass} />
+              <Textarea name="outcome_notes" rows={2} defaultValue={r.outcome_notes ?? ""} />
             </Field>
           </div>
         )}

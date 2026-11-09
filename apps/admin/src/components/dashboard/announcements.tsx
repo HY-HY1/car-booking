@@ -6,6 +6,7 @@ import { requireTenant } from "@/lib/auth";
 import { loadSetup } from "@/lib/setup";
 import { createClient } from "@/lib/supabase/server";
 import { appUrl } from "@/lib/urls";
+import { formatShortDate } from "@leadgen/core/dates";
 
 // The announcement bar across the top of every dashboard page. Nothing is
 // stored: each line is worked out from the business's current state (setup
@@ -97,7 +98,7 @@ export async function Announcements({ params }: { params: Promise<{ tenant: stri
     if (closing.error) throw closing.error;
     // Things that need doing go before everything else.
     if (closing.data.deletion_requested_at && can("account.close")) {
-      const when = closureDate(closing.data.deletion_requested_at).toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+      const when = formatShortDate(closureDate(closing.data.deletion_requested_at));
       items.unshift({
         key: "closing",
         icon: icon(TriangleAlert),

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ROLES } from "@leadgen/core/team/access";
 import { EmailForm, PasswordForm, ProfileForm } from "@/components/dashboard/settings/account-forms";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireTenant } from "@/lib/auth";
@@ -59,9 +60,11 @@ export default async function AccountPage({ params }: PageProps<"/app/[tenant]/s
 
       <Card>
         <CardHeader>
-          <CardTitle>Two-factor login</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            Two-factor login <Badge tone="info">Coming soon</Badge>
+          </CardTitle>
           <CardDescription>
-            A code from an authenticator app each time you sign in, so a stolen password isn&apos;t enough. Coming soon.
+            A code from an authenticator app each time you sign in, so a stolen password isn&apos;t enough.
           </CardDescription>
         </CardHeader>
       </Card>

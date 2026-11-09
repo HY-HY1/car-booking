@@ -3,12 +3,13 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { bookingSettingsSchema, type Territory } from "@leadgen/core/booking/config";
 import { coordsFor, lookupPostcodes } from "@leadgen/core/booking/geo";
-import { ComingSoon, PageHeader } from "@/components/dashboard/page-header";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { CoverageMap } from "@/components/dashboard/coverage-map";
 import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { saveCoverage } from "./actions";
 import { appUrl } from "@/lib/urls";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Coverage area" };
 
@@ -25,7 +26,7 @@ export default async function CoveragePage({ params }: PageProps<"/app/[tenant]/
   const header = (
     <PageHeader
       title="Coverage area"
-      description="Drag a circle to move it and its edge to resize it. Customers outside every territory can't book a mobile job."
+      description="Customers outside every territory can't book a mobile job."
     />
   );
 
@@ -33,7 +34,7 @@ export default async function CoveragePage({ params }: PageProps<"/app/[tenant]/
     return (
       <>
         {header}
-        <ComingSoon>Booking isn&apos;t set up for this business yet.</ComingSoon>
+        <EmptyState>Booking isn&apos;t set up for this business yet.</EmptyState>
       </>
     );
   }
@@ -46,13 +47,13 @@ export default async function CoveragePage({ params }: PageProps<"/app/[tenant]/
     return (
       <>
         {header}
-        <ComingSoon>
+        <EmptyState>
           {postcode ? `We couldn't find ${postcode} on the map. Check it in ` : "Add where your vans start from in "}
           <Link href={appUrl(`/${slug}/settings/booking`)} className="underline">
             Settings → Booking
           </Link>
           .
-        </ComingSoon>
+        </EmptyState>
       </>
     );
   }

@@ -2,9 +2,8 @@
 
 import { useActionState } from "react";
 import { REQUEST_KINDS } from "@leadgen/core/privacy/rules";
+import { Field, Input, Select, Textarea } from "@/components/ui/fields";
 import { submitRequestAction, type RequestState } from "./actions";
-
-const input = "h-11 w-full rounded-xl border bg-white px-3 text-base";
 
 export function RequestForm() {
   const [state, action, pending] = useActionState<RequestState, FormData>(submitRequestAction, {});
@@ -18,35 +17,25 @@ export function RequestForm() {
     );
   }
 
-  const err = (k: string) => state.errors?.[k] && <span className="text-sm text-red-600">{state.errors[k]}</span>;
-
   return (
     <form action={action} className="mt-6 grid gap-4">
-      <label className="grid gap-1 text-sm font-medium">
-        What would you like to do?
-        <select name="kind" required defaultValue="" className={input}>
+      <Field label="What would you like to do?" error={state.errors?.kind}>
+        <Select name="kind" required defaultValue="">
           <option value="" disabled>Choose…</option>
           {Object.entries(REQUEST_KINDS).map(([value, label]) => (
             <option key={value} value={value}>{label}</option>
           ))}
-        </select>
-        {err("kind")}
-      </label>
-      <label className="grid gap-1 text-sm font-medium">
-        Your name
-        <input name="name" required autoComplete="name" className={input} />
-        {err("name")}
-      </label>
-      <label className="grid gap-1 text-sm font-medium">
-        The email you booked with
-        <input name="email" type="email" required autoComplete="email" className={input} />
-        {err("email")}
-      </label>
-      <label className="grid gap-1 text-sm font-medium">
-        Anything else we should know (optional)
-        <textarea name="details" rows={4} maxLength={2000} className="w-full rounded-xl border bg-white p-3 text-base" />
-        {err("details")}
-      </label>
+        </Select>
+      </Field>
+      <Field label="Your name" error={state.errors?.name}>
+        <Input name="name" required autoComplete="name" />
+      </Field>
+      <Field label="The email you booked with" error={state.errors?.email}>
+        <Input name="email" type="email" required autoComplete="email" />
+      </Field>
+      <Field label="Anything else we should know (optional)" error={state.errors?.details}>
+        <Textarea name="details" rows={4} maxLength={2000} />
+      </Field>
       {/* Honeypot: hidden from people, filled in by bots. */}
       <div aria-hidden className="absolute -left-[9999px]">
         <label>Website<input name="website" tabIndex={-1} autoComplete="off" /></label>

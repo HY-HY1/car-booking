@@ -1,6 +1,6 @@
 "use server";
 
-import { formatDate } from "@leadgen/core/customer-fields";
+import { formatDate } from "@leadgen/core/dates";
 import { requireTenant } from "@/lib/auth";
 import { searchDashboard } from "@/lib/search";
 import { appUrl } from "@/lib/urls";

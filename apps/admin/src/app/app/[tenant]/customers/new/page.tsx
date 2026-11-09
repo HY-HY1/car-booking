@@ -16,10 +16,7 @@ export default async function NewCustomerPage({
   return (
     <>
       <BackLink href={appUrl(`/${slug}/customers`)}>Customers</BackLink>
-      <PageHeader
-        title="Add customer"
-        description="Customers from the booking page are added automatically. Use this for phone or walk-in enquiries."
-      />
+      <PageHeader title="Add customer" />
       <CustomerForm
         action={createCustomer.bind(null, slug)}
         submitLabel="Add customer"

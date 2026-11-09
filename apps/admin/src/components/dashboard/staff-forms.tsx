@@ -3,8 +3,9 @@
 import { formatPhone } from "@leadgen/core/customer-fields";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import { AddRow, Check, DeleteButton, Field, Row, SaveForm, fieldClass, type Action } from "./form-kit";
+import { AddRow, Check, DeleteButton, Field, Row, SaveForm, type Action } from "./form-kit";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 // Staff / Techs: the team list. Each person opens to edit; "Add a person"
 // opens the same fields.
@@ -74,7 +75,7 @@ export function NewStaff({ action, choices, readOnly }: { action: Action; choice
   );
 }
 
-function Select({
+function ChoiceSelect({
   name,
   value,
   options,
@@ -86,14 +87,14 @@ function Select({
   none: string;
 }) {
   return (
-    <select name={name} defaultValue={value ?? ""} className={cn(fieldClass, "h-8")}>
+    <Select name={name} defaultValue={value ?? ""}>
       <option value="">{none}</option>
       {options.map((o) => (
         <option key={o.id} value={o.id}>
           {o.name}
         </option>
       ))}
-    </select>
+    </Select>
   );
 }
 
@@ -124,20 +125,19 @@ function StaffFields({
         <Field label="Email" name="email" error={errors.email}>
           <Input name="email" type="email" autoComplete="off" defaultValue={member?.email ?? ""} />
         </Field>
-        <Field label="Usual van or bay" name="resource_id" error={errors.resource_id}>
-          <Select name="resource_id" value={van} options={choices.resources} none="Not assigned" />
+        <Field label="Usually works from" name="resource_id" error={errors.resource_id}>
+          <ChoiceSelect name="resource_id" value={van} options={choices.resources} none="Not assigned" />
         </Field>
         <Field label="Coverage territory" name="territory_id" error={errors.territory_id}>
-          <Select name="territory_id" value={territory} options={choices.territories} none="Not assigned" />
+          <ChoiceSelect name="territory_id" value={territory} options={choices.territories} none="Not assigned" />
         </Field>
       </div>
       <Field label="Notes" name="notes" error={errors.notes}>
-        <textarea
+        <Textarea
           name="notes"
           rows={3}
           maxLength={1000}
           defaultValue={member?.notes ?? ""}
-          className={cn(fieldClass, "min-h-16 py-1.5")}
         />
       </Field>
       <div className="flex flex-wrap items-center gap-4">

@@ -6,6 +6,8 @@ import { DeactivateLink, EmailLinkToggle, PaymentLinkForm, type BookingChoice } 
 import { requireTenant } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { OwnersOnly } from "../notices";
+import { formatDate, formatShortDate } from "@leadgen/core/dates";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Payment links" };
 
@@ -67,9 +69,7 @@ export default async function PaymentLinksPage({ params }: PageProps<"/app/[tena
     .filter(({ balancePence }) => balancePence > 0)
     .map(({ b, balancePence }) => {
       const service = b.service?.name ?? "Booking";
-      const when = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "Europe/London" }).format(
-        new Date(b.starts_at),
-      );
+      const when = formatShortDate(b.starts_at);
       return {
         id: b.id,
         label: `${b.customer?.name ?? "Customer"}, ${service}, ${when}`,
@@ -87,15 +87,13 @@ export default async function PaymentLinksPage({ params }: PageProps<"/app/[tena
           <PaymentLinkForm slug={slug} bookings={choices} />
         </section>
       ) : (
-        <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-          Payment links need Stripe connected and set up. Finish it under Settings → Payments.
-        </p>
+        <EmptyState>Payment links need Stripe connected and set up. Finish it under Settings → Payments.</EmptyState>
       )}
 
       <section className="grid gap-3">
         <h2 className="text-lg font-semibold">Your links</h2>
         {links.data.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No links yet.</p>
+          <EmptyState compact>No links yet.</EmptyState>
         ) : (
           <ul className="divide-y rounded-xl border">
             {(links.data as unknown as LinkRow[]).map((l) => (
@@ -107,8 +105,8 @@ export default async function PaymentLinksPage({ params }: PageProps<"/app/[tena
                     {[
                       l.single_use ? "One-off" : "Reusable",
                       l.active ? "Active" : "Switched off",
-                      formatDay(l.created_at),
-                      l.emailed_at && `Emailed ${formatDay(l.emailed_at)}`,
+                      formatDate(l.created_at),
+                      l.emailed_at && `Emailed ${formatDate(l.emailed_at)}`,
                     ]
                       .filter(Boolean)
                       .join(" · ")}
@@ -131,11 +129,5 @@ export default async function PaymentLinksPage({ params }: PageProps<"/app/[tena
         )}
       </section>
     </div>
-  );
-}
-
-function formatDay(iso: string) {
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/London" }).format(
-    new Date(iso),
   );
 }

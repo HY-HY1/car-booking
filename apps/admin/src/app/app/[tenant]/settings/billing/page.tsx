@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireAccess } from "@/lib/auth";
 import { manageSubscriptionAction } from "./actions";
+import { formatDate } from "@leadgen/core/dates";
 
 export const metadata: Metadata = { title: "Billing" };
 
@@ -17,9 +18,6 @@ const STATUS_LABELS: Record<string, string> = {
   incomplete_expired: "Expired",
   awaiting_checkout: "Not started",
 };
-
-const date = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
 export default async function BillingPage({
   params,
@@ -58,9 +56,9 @@ export default async function BillingPage({
     ["Status", STATUS_LABELS[billing.status] ?? billing.status],
   ];
   if (details?.priceLabel) rows.push(["Plan", details.priceLabel]);
-  if (billing.status === "trialing" && trialEnd) rows.push(["Trial ends", date(trialEnd)]);
+  if (billing.status === "trialing" && trialEnd) rows.push(["Trial ends", formatDate(trialEnd)]);
   if (details?.periodEnd && billing.status !== "trialing") {
-    rows.push([details.cancelsAtPeriodEnd ? "Access until" : "Next payment", date(details.periodEnd)]);
+    rows.push([details.cancelsAtPeriodEnd ? "Access until" : "Next payment", formatDate(details.periodEnd)]);
   }
 
   return (

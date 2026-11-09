@@ -8,10 +8,7 @@ export default async function PaymentsLayout({
   const { tenant: slug } = await params;
   return (
     <>
-      <PageHeader
-        title="Payments"
-        description="Every payment taken through your Stripe account, and links to take new ones."
-      />
+      <PageHeader title="Payments" />
       <PaymentsTabs slug={slug} />
       {children}
     </>

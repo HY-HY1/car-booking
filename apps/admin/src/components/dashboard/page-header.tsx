@@ -18,15 +18,6 @@ export function PageHeader({
   );
 }
 
-// Placeholder for sections that land in a later build step.
-export function ComingSoon({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-      {children}
-    </div>
-  );
-}
-
 export function BackLink({
   href,
   children,

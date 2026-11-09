@@ -5,9 +5,11 @@ import { formatPence } from "@leadgen/core/booking/config";
 import { listPayments, type PaymentWithBooking } from "@leadgen/core/stripe/payment-list";
 import { requireTenant } from "@/lib/auth";
 import { PAYMENT_SOURCE, PAYMENT_STATUS } from "@/lib/payment-labels";
-import { cn } from "@/lib/utils";
 import { OwnersOnly, StripeNotConnected } from "./notices";
 import { appUrl } from "@/lib/urls";
+import { formatDateTime } from "@leadgen/core/dates";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Payments" };
 
@@ -27,7 +29,7 @@ export default async function PaymentsPage({
 
   if (page.payments.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+      <EmptyState>
         {after ? "No more payments." : "No payments yet. They appear here as soon as a customer pays."}
         {after && (
           <>
@@ -37,7 +39,7 @@ export default async function PaymentsPage({
             </Link>
           </>
         )}
-      </div>
+      </EmptyState>
     );
   }
 
@@ -86,7 +88,7 @@ function PaymentRow({ p, slug }: { p: PaymentWithBooking; slug: string }) {
   const name = p.booking?.customerName ?? p.customerName;
   return (
     <tr className="align-top hover:bg-muted/30">
-      <td className="px-4 py-3 whitespace-nowrap">{formatWhen(p.createdAt)}</td>
+      <td className="px-4 py-3 whitespace-nowrap">{formatDateTime(p.createdAt)}</td>
       <td className="px-4 py-3">
         <span className="font-medium">{name ?? "—"}</span>
         {p.customerEmail && <span className="block text-xs text-muted-foreground">{p.customerEmail}</span>}
@@ -98,7 +100,7 @@ function PaymentRow({ p, slug }: { p: PaymentWithBooking; slug: string }) {
             href={appUrl(`/${slug}/bookings/${p.booking.id}`)}
             className="block text-xs text-muted-foreground underline-offset-4 hover:underline"
           >
-            {[p.booking.serviceName, formatWhen(p.booking.startsAt)].filter(Boolean).join(", ")}
+            {[p.booking.serviceName, formatDateTime(p.booking.startsAt)].filter(Boolean).join(", ")}
           </Link>
         ) : (
           p.description && <span className="block text-xs text-muted-foreground">{p.description}</span>
@@ -116,7 +118,7 @@ function PaymentRow({ p, slug }: { p: PaymentWithBooking; slug: string }) {
         )}
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
-        <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", status.tone)}>{status.label}</span>
+        <Badge tone={status.tone}>{status.label}</Badge>
       </td>
       <td className="px-4 py-3">
         {p.receiptUrl && (
@@ -133,15 +135,4 @@ function PaymentRow({ p, slug }: { p: PaymentWithBooking; slug: string }) {
       </td>
     </tr>
   );
-}
-
-function formatWhen(iso: string) {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "Europe/London",
-  }).format(new Date(iso));
 }

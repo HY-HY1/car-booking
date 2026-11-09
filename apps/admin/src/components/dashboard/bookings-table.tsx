@@ -10,6 +10,7 @@ import {
   accessRowsOf,
   BOOKING_SOURCE,
   BOOKING_STATUS,
+  BOOKING_STATUS_TONE,
   DEPOSIT_STATUS,
   quoteOf,
   SIZE_NAME,
@@ -19,6 +20,8 @@ import { ConditionNote } from "@/components/dashboard/condition-note";
 import { SubmittedAnswers } from "@/components/dashboard/submitted-answers";
 import { cn } from "@/lib/utils";
 import { appUrl } from "@/lib/urls";
+import { formatDayTime, formatTime } from "@leadgen/core/dates";
+import { Badge } from "@/components/ui/badge";
 
 // The bookings list. Each row opens to show everything about the booking
 // without leaving the page; the full page (with refunds) is one link away.
@@ -104,7 +107,7 @@ export function BookingsTable({ rows, slug }: { rows: BookingTableRow[]; slug: s
                         <ChevronRight className={cn("size-4 transition-transform", open && "rotate-90")} />
                       </button>
                       <span>
-                        {formatWhen(b.starts_at)}
+                        {formatDayTime(b.starts_at)}
                         <span className="text-muted-foreground"> to {formatTime(b.ends_at)}</span>
                       </span>
                     </div>
@@ -145,7 +148,9 @@ export function BookingsTable({ rows, slug }: { rows: BookingTableRow[]; slug: s
                     {formatPence(b.price_pence)}
                     <span className="block text-xs text-muted-foreground">{paymentLine(b)}</span>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap">{BOOKING_STATUS[b.status] ?? b.status}</td>
+                  <td className="px-4 py-3">
+                    <Badge tone={BOOKING_STATUS_TONE[b.status]}>{BOOKING_STATUS[b.status] ?? b.status}</Badge>
+                  </td>
                 </tr>
                 {open && (
                   <tr id={detailsId} className="bg-muted/20">
@@ -258,7 +263,7 @@ function Details({ b, slug }: { b: BookingTableRow; slug: string }) {
 
       <Section title="Booked">
         <p className="text-muted-foreground">
-          {formatWhen(b.created_at)} · {BOOKING_SOURCE[b.source] ?? b.source}
+          {formatDayTime(b.created_at)} · {BOOKING_SOURCE[b.source] ?? b.source}
         </p>
       </Section>
 
@@ -296,23 +301,4 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       {children}
     </section>
   );
-}
-
-function formatWhen(iso: string) {
-  return new Intl.DateTimeFormat("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "Europe/London",
-  }).format(new Date(iso));
-}
-
-function formatTime(iso: string) {
-  return new Intl.DateTimeFormat("en-GB", {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "Europe/London",
-  }).format(new Date(iso));
 }

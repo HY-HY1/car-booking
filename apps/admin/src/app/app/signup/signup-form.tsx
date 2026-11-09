@@ -4,13 +4,14 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, ChevronRight } from "lucide-react";
 import { signupSchema } from "@leadgen/core/billing/rules";
-import { Field } from "@/components/platform/field";
+import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { signUpAction, type SignUpState } from "./actions";
 import { PaymentStep } from "./payment-step";
 import { appUrl, marketingUrl } from "@/lib/urls";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Three stages. The first two are one form whose fields stay mounted (the
 // other stage is just hidden); each is checked with the same schema the server
@@ -207,18 +208,16 @@ export function SignUpForm({ alreadySignedIn }: { alreadySignedIn: boolean }) {
         </div>
 
         <div hidden={step !== 1} className="grid gap-1">
-          <label className="flex items-start gap-3 text-sm">
-            <input
-              type="checkbox"
-              name="terms"
-              checked={agreed}
-              onChange={(e) => {
-                setAgreed(e.target.checked);
-                setErrors((x) => Object.fromEntries(Object.entries(x).filter(([k]) => k !== "terms")));
-              }}
-              aria-invalid={Boolean(errors.terms) || undefined}
-              className="mt-0.5 size-4"
-            />
+          <Checkbox
+            labelClassName="gap-3"
+            name="terms"
+            checked={agreed}
+            onChange={(e) => {
+              setAgreed(e.target.checked);
+              setErrors((x) => Object.fromEntries(Object.entries(x).filter(([k]) => k !== "terms")));
+            }}
+            aria-invalid={Boolean(errors.terms) || undefined}
+          >
             <span>
               I agree to the{" "}
               <a href={marketingUrl("/legal/terms")} target="_blank" rel="noopener" className="underline">Terms of Service</a> and the{" "}
@@ -226,7 +225,7 @@ export function SignUpForm({ alreadySignedIn }: { alreadySignedIn: boolean }) {
               read the{" "}
               <a href={marketingUrl("/legal/privacy")} target="_blank" rel="noopener" className="underline">Privacy Policy</a>.
             </span>
-          </label>
+          </Checkbox>
           {errors.terms && <p role="alert" className="text-sm text-destructive">{errors.terms}</p>}
         </div>
 

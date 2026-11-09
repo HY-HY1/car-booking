@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import type { SetupStep, SetupStepKey } from "@leadgen/core/onboarding/steps";
-import { ComingSoon, PageHeader } from "@/components/dashboard/page-header";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { CopyText } from "@/components/platform/copy-text";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { loadSetup } from "@/lib/setup";
 import { cn } from "@/lib/utils";
 import { connectStripeAction } from "../settings/actions";
 import { appUrl, tenantUrl } from "@/lib/urls";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Get set up" };
 
@@ -26,7 +27,7 @@ export default async function SetupPage({ params }: PageProps<"/app/[tenant]/set
     return (
       <>
         <PageHeader title="Get set up" />
-        <ComingSoon>Booking isn&apos;t set up for this business yet.</ComingSoon>
+        <EmptyState>Booking isn&apos;t set up for this business yet.</EmptyState>
       </>
     );
   }

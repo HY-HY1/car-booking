@@ -7,6 +7,8 @@ import { isCustomHostname } from "@leadgen/core/tenants";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { requirePlatformAdmin } from "@/lib/platform";
 import { adminUrl, tenantUrl } from "@/lib/urls";
+import { formatDate, formatShortDate } from "@leadgen/core/dates";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Businesses" };
 
@@ -32,7 +34,7 @@ function planLabel(b: BusinessSummary) {
   if (!b.subscriptionStatus) return <span className="text-muted-foreground">Billed by hand</span>;
   if (b.subscriptionStatus === "trialing") {
     const ends = b.trialEndsAt
-      ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(new Date(b.trialEndsAt))
+      ? formatShortDate(b.trialEndsAt)
       : null;
     return ends ? `Trial, ends ${ends}` : "Trial";
   }
@@ -42,7 +44,7 @@ function planLabel(b: BusinessSummary) {
 export default function PlatformPage() {
   return (
     <>
-      <PageHeader title="Businesses" description="Every business on the platform. Add a new one to onboard it." />
+      <PageHeader title="Businesses" />
       <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
         <Businesses />
       </Suspense>
@@ -56,13 +58,13 @@ async function Businesses() {
 
   if (businesses.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+      <EmptyState>
         No businesses yet.{" "}
         <Link href={adminUrl("/new")} className="underline underline-offset-4">
           Add the first one
         </Link>
         .
-      </div>
+      </EmptyState>
     );
   }
 
@@ -95,9 +97,7 @@ async function Businesses() {
                   {b.deletionRequestedAt && (
                     <span className="mt-1 block text-xs font-medium text-destructive">
                       Asked to delete on{" "}
-                      {new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(
-                        new Date(b.deletionRequestedAt),
-                      )}
+                      {formatDate(b.deletionRequestedAt)}
                       ; delete after 30 days
                     </span>
                   )}

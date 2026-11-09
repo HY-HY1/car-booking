@@ -8,11 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { requireAccess } from "@/lib/auth";
 import { addMemberAction } from "./actions";
 import { appUrl } from "@/lib/urls";
+import { formatDate } from "@leadgen/core/dates";
 
 export const metadata: Metadata = { title: "Team & access" };
 
 const lastSeen = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : null;
+  iso ? formatDate(iso) : null;
 
 export default async function TeamAccessPage({ params }: PageProps<"/app/[tenant]/settings/team">) {
   const { tenant: slug } = await params;

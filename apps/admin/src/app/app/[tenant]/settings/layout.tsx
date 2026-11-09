@@ -10,10 +10,7 @@ export default async function SettingsLayout({
   const { role } = await requireTenant(slug);
   return (
     <>
-      <PageHeader
-        title="Settings"
-        description="Your account, your business, your booking page and how bookings, payments and messages work."
-      />
+      <PageHeader title="Settings" />
       <SettingsTabs slug={slug} role={role} />
       {children}
     </>

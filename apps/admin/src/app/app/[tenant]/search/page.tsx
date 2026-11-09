@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { formatDate, formatPhone } from "@leadgen/core/customer-fields";
+import { formatPhone } from "@leadgen/core/customer-fields";
+import { formatDate } from "@leadgen/core/dates";
 import { DashboardSearch } from "@/components/dashboard/dashboard-search";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { requireAccess } from "@/lib/auth";
 import { searchDashboard } from "@/lib/search";
 import { appUrl } from "@/lib/urls";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Search" };
 
@@ -21,15 +23,15 @@ export default async function SearchPage({ params, searchParams }: PageProps<"/a
 
   return (
     <>
-      <PageHeader title="Search" description="Find customers by name, email, phone or postcode, and their bookings and leads." />
+      <PageHeader title="Search" />
       <DashboardSearch slug={slug} role={role} defaultValue={q} />
 
       {q.length < 2 ? (
         <p className="text-sm text-muted-foreground">Type at least two characters to search.</p>
       ) : empty ? (
-        <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+        <EmptyState>
           Nothing matches &ldquo;{q}&rdquo;.
-        </div>
+        </EmptyState>
       ) : (
         <div className="grid gap-6">
           {r.customers.length > 0 && (

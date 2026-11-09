@@ -12,8 +12,9 @@ import { SetupNudge } from "@/components/dashboard/setup-nudge";
 import { StatTile } from "@/components/dashboard/overview/stat-tile";
 import { requireTenant } from "@/lib/auth";
 import { PAYMENT_SOURCE, PAYMENT_STATUS } from "@/lib/payment-labels";
-import { cn } from "@/lib/utils";
 import { appUrl } from "@/lib/urls";
+import { formatDayTime } from "@leadgen/core/dates";
+import { Badge } from "@/components/ui/badge";
 
 export const metadata: Metadata = { title: "Overview" };
 
@@ -36,7 +37,7 @@ export default async function OverviewPage({
 
   return (
     <>
-      <PageHeader title="Overview" description={`How ${tenant.name} is doing.`} />
+      <PageHeader title="Overview" />
       {can("customers.view") && <DashboardSearch slug={slug} role={role} />}
       {isOwner && (
         <Suspense>
@@ -139,7 +140,7 @@ export default async function OverviewPage({
               {o.upcoming.map((u) => (
                 <li key={u.id}>
                   <Link href={appUrl(`/${slug}/bookings/${u.id}`)} className="grid gap-0.5 py-2 text-sm hover:bg-muted/40">
-                    <span className="font-medium">{formatWhen(u.startsAt, o.timezone)}</span>
+                    <span className="font-medium">{formatDayTime(u.startsAt, o.timezone)}</span>
                     <span className="text-muted-foreground">{[u.service, u.customer].filter(Boolean).join(" · ")}</span>
                   </Link>
                 </li>
@@ -171,7 +172,7 @@ export default async function OverviewPage({
           {ok ? (
             <>
               <ul className="grid gap-2 text-sm">
-                {(["deposit", "payment_link", "other"] as const).map((src) => (
+                {(["deposit", "payment_link", "other", "cash", "bank_transfer"] as const).map((src) => (
                   <li key={src} className="flex justify-between gap-3">
                     <span>{PAYMENT_SOURCE[src]}</span>
                     <span className="text-muted-foreground">{pounds(ok.bySource[src])}</span>
@@ -184,14 +185,12 @@ export default async function OverviewPage({
                     <li key={p.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                       <span className="min-w-0">
                         <span className="block truncate">{p.customerName ?? PAYMENT_SOURCE[p.source]}</span>
-                        <span className="block text-xs text-muted-foreground">{formatWhen(p.createdAt, o.timezone)}</span>
+                        <span className="block text-xs text-muted-foreground">{formatDayTime(p.createdAt, o.timezone)}</span>
                       </span>
                       <span className="flex shrink-0 items-center gap-2">
                         {pounds(p.amountPence)}
                         {p.status !== "paid" && (
-                          <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", PAYMENT_STATUS[p.status].tone)}>
-                            {PAYMENT_STATUS[p.status].label}
-                          </span>
+                          <Badge tone={PAYMENT_STATUS[p.status].tone}>{PAYMENT_STATUS[p.status].label}</Badge>
                         )}
                       </span>
                     </li>
@@ -241,15 +240,4 @@ function incomeMessage(income: IncomeState, slug: string): { text: string; href?
   }
   if (income.state === "error") return { text: "Couldn't load income from Stripe just now. Reload to try again." };
   return { text: "" };
-}
-
-function formatWhen(iso: string, timeZone: string) {
-  return new Intl.DateTimeFormat("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone,
-  }).format(new Date(iso));
 }

@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
+import { askToConfirm } from "@/components/ui/confirm-dialog";
 
 export function DeleteCustomerButton({
   name,
@@ -12,27 +14,30 @@ export function DeleteCustomerButton({
   action: () => Promise<{ error?: string }>;
 }) {
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string>();
 
   return (
-    <div className="grid gap-2">
-      <Button
-        type="button"
-        variant="destructive"
-        disabled={pending}
-        className="justify-self-start"
-        onClick={() => {
-          if (!confirm(`Erase ${name}'s personal details? This can't be undone.`)) return;
-          startTransition(async () => {
-            const result = await action();
-            setError(result?.error);
-          });
-        }}
-      >
-        <Trash2 />
-        {pending ? "Erasing…" : "Erase customer"}
-      </Button>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-    </div>
+    <Button
+      type="button"
+      variant="destructive"
+      disabled={pending}
+      className="justify-self-start"
+      onClick={async () => {
+        const confirmed = await askToConfirm({
+          title: `Erase ${name}'s personal details?`,
+          description: "This can't be undone.",
+          confirmLabel: "Erase customer",
+          destructive: true,
+        });
+        if (!confirmed) return;
+        startTransition(async () => {
+          // On success the action moves on to the customer's page, which says so.
+          const result = await action();
+          if (result?.error) toast.error(result.error);
+        });
+      }}
+    >
+      <Trash2 />
+      {pending ? "Erasing…" : "Erase customer"}
+    </Button>
   );
 }

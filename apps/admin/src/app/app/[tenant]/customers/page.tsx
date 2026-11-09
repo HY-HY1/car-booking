@@ -6,10 +6,12 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { requireAccess } from "@/lib/auth";
-import { formatDate, formatPhone } from "@leadgen/core/customer-fields";
+import { formatPhone } from "@leadgen/core/customer-fields";
+import { formatDate } from "@leadgen/core/dates";
 import { PAGE_SIZE, listCustomers } from "@/lib/customers";
 import { cn } from "@/lib/utils";
 import { appUrl } from "@/lib/urls";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Customers" };
 
@@ -33,10 +35,7 @@ export default async function CustomersPage({
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <PageHeader
-          title="Customers"
-          description="Everyone who has booked or enquired, with their marketing preferences."
-        />
+        <PageHeader title="Customers" />
         <Link href={`${base}/new`} className={buttonVariants({ size: "lg" })}>
           <Plus />
           Add customer
@@ -56,7 +55,7 @@ export default async function CustomersPage({
       </Form>
 
       {customers.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+        <EmptyState>
           {q ? (
             <>No customers match &ldquo;{q}&rdquo;.</>
           ) : (
@@ -69,7 +68,7 @@ export default async function CustomersPage({
               .
             </>
           )}
-        </div>
+        </EmptyState>
       ) : (
         <div className="overflow-x-auto rounded-xl border">
           <table className="w-full text-sm">
