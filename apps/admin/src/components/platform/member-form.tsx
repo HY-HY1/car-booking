@@ -5,7 +5,7 @@ import { addMemberAction, type AddMemberState } from "@/app/admin/[slug]/actions
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyText } from "./copy-text";
-import { selectClass } from "./field";
+import { Select } from "@/components/ui/select";
 
 export function MemberForm({ slug }: { slug: string }) {
   const [state, formAction, pending] = useActionState<AddMemberState, FormData>(addMemberAction.bind(null, slug), {});
@@ -19,12 +19,12 @@ export function MemberForm({ slug }: { slug: string }) {
           </label>
           <Input id="member-email" name="email" type="email" placeholder="name@example.com" required />
         </div>
-        <select name="role" defaultValue="owner" aria-label="Role" className={`${selectClass} w-28`}>
+        <Select name="role" defaultValue="owner" aria-label="Role" className="w-28">
           <option value="owner">Owner</option>
           <option value="manager">Manager</option>
           <option value="staff">Office</option>
           <option value="technician">Technician</option>
-        </select>
+        </Select>
         <Button type="submit" disabled={pending}>
           {pending ? "Adding…" : "Add"}
         </Button>

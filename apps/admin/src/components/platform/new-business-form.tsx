@@ -8,8 +8,10 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CopyText } from "./copy-text";
-import { Field, selectClass } from "./field";
+import { Field } from "@/components/ui/field";
 import { adminUrl, tenantUrl } from "@/lib/urls";
+import { Select } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export function NewBusinessForm() {
   const [state, formAction, pending] = useActionState<NewBusinessState, FormData>(createBusinessAction, {});
@@ -63,10 +65,10 @@ export function NewBusinessForm() {
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <Field label="Main colour" name="primaryColor" error={e.primaryColor}>
-            <Input id="primaryColor" name="primaryColor" type="color" defaultValue={v.primaryColor ?? "#18181b"} className="h-9 p-1" />
+            <Input id="primaryColor" name="primaryColor" type="color" defaultValue={v.primaryColor ?? "#18181b"} className="p-1" />
           </Field>
           <Field label="Accent colour" name="accentColor" error={e.accentColor}>
-            <Input id="accentColor" name="accentColor" type="color" defaultValue={v.accentColor ?? "#3b82f6"} className="h-9 p-1" />
+            <Input id="accentColor" name="accentColor" type="color" defaultValue={v.accentColor ?? "#3b82f6"} className="p-1" />
           </Field>
           <div className="sm:col-span-2">
             <Field label="Tagline (optional)" name="tagline" error={e.tagline}>
@@ -84,13 +86,13 @@ export function NewBusinessForm() {
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Field label="Opening hours" name="hours" error={e.hours}>
-              <select id="hours" name="hours" defaultValue={v.hours ?? "weekdays"} className={selectClass}>
+              <Select id="hours" name="hours" defaultValue={v.hours ?? "weekdays"}>
                 {Object.entries(HOURS_PRESETS).map(([key, label]) => (
                   <option key={key} value={key}>
                     {label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
           </div>
           <Field label="Base postcode (optional)" name="basePostcode" error={e.basePostcode} hint="Where the van starts from.">
@@ -103,14 +105,12 @@ export function NewBusinessForm() {
             <Input id="depositPercent" name="depositPercent" inputMode="decimal" defaultValue={v.depositPercent ?? "25"} />
           </Field>
           <div className="grid content-start gap-3 text-sm sm:pt-6">
-            <label className="flex items-start gap-2">
-              <input type="checkbox" name="starterServices" defaultChecked={state.values ? v.starterServices === "on" : true} className="mt-0.5 size-4" />
+            <Checkbox name="starterServices" defaultChecked={state.values ? v.starterServices === "on" : true}>
               <span>Add placeholder services (a wash and a full valet) so the page isn&apos;t empty</span>
-            </label>
-            <label className="flex items-start gap-2">
-              <input type="checkbox" name="addMe" defaultChecked={state.values ? v.addMe === "on" : true} className="mt-0.5 size-4" />
+            </Checkbox>
+            <Checkbox name="addMe" defaultChecked={state.values ? v.addMe === "on" : true}>
               <span>Add me as an owner too, so I can open their dashboard</span>
-            </label>
+            </Checkbox>
           </div>
         </CardContent>
       </Card>

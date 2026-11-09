@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { HISTORY_GUARD_SCRIPT } from "@/lib/history-guard";
 import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         {/* Light or dark before the first paint, so the page never flashes (lib/theme.ts). */}
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: HISTORY_GUARD_SCRIPT }} />
       </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

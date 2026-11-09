@@ -4,9 +4,14 @@ import { useActionState } from "react";
 import { addDomainAction, type AddDomainState } from "@/app/admin/[slug]/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/toast";
 
 export function DomainForm({ slug }: { slug: string }) {
-  const [state, formAction, pending] = useActionState<AddDomainState, FormData>(addDomainAction.bind(null, slug), {});
+  const [state, formAction, pending] = useActionState<AddDomainState, FormData>(async (prev, formData) => {
+    const next = await addDomainAction(slug, prev, formData);
+    if (next.added) toast.success(`Added ${next.added}`, "Mark it verified once its DNS is set up.");
+    return next;
+  }, {});
 
   return (
     <div className="grid gap-2">
@@ -17,7 +22,7 @@ export function DomainForm({ slug }: { slug: string }) {
           </label>
           <Input id="new-hostname" name="hostname" placeholder="book.theirsite.co.uk" required />
         </div>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" size="lg" disabled={pending}>
           {pending ? "Adding…" : "Add"}
         </Button>
       </form>
@@ -26,7 +31,6 @@ export function DomainForm({ slug }: { slug: string }) {
           {state.error}
         </p>
       )}
-      {state.added && <p className="text-sm">Added {state.added}. Mark it verified once its DNS is set up.</p>}
     </div>
   );
 }

@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
+import { controlClass } from "@/components/ui/fields";
+import { cn } from "@/lib/cn";
 
 // A type-to-filter dropdown, like Autotrader's make and model pickers.
 // Typing "merc" finds Mercedes-Benz, "id3" finds ID.3. Follows the ARIA
@@ -128,7 +130,7 @@ export function SearchSelect({
               setQuery("");
             }
           }}
-          className="w-full rounded-xl border border-neutral-300 bg-white py-2.5 pr-10 pl-3 text-base outline-none placeholder:text-neutral-400 focus:border-brand focus:ring-2 focus:ring-brand/30 disabled:bg-neutral-100 disabled:text-neutral-400"
+          className={cn(controlClass, "pr-10 disabled:bg-neutral-100 disabled:text-neutral-400")}
         />
         <ChevronDown
           aria-hidden

@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { LogOut } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Toaster } from "@/components/ui/toast";
 import { requirePlatformAdmin } from "@/lib/platform";
 import { signOut } from "@/app/app/actions";
 import { adminUrl, appUrl } from "@/lib/urls";
@@ -14,6 +15,7 @@ export default function PlatformLayout({ children }: LayoutProps<"/admin">) {
         <Header />
       </Suspense>
       <main className="mx-auto w-full max-w-5xl min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
+      <Toaster />
     </div>
   );
 }
