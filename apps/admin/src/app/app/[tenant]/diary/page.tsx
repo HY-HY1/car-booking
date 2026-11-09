@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
+import { userAgent } from "next/server";
+import { Plus } from "lucide-react";
 import { z } from "zod";
 import { bufferFor, resourceSchema, weeklyHoursSchema } from "@leadgen/core/booking/config";
 import {
@@ -14,8 +17,10 @@ import {
 } from "@leadgen/core/booking/diary";
 import { coordsFor, lookupPostcodes } from "@leadgen/core/booking/geo";
 import { localDate } from "@leadgen/core/booking/time";
+import { policyOf, refundAdvice } from "@leadgen/core/settings/policy";
 import { BlockTimeForm } from "@/components/dashboard/diary/block-time-form";
-import { DiaryControls, diaryHref, ResourceFilter } from "@/components/dashboard/diary/diary-controls";
+import { DiaryAgenda } from "@/components/dashboard/diary/diary-agenda";
+import { DayStrip, DiaryControls, diaryHref, ResourceFilter } from "@/components/dashboard/diary/diary-controls";
 import {
   DiaryGrid,
   type GridBlock,
@@ -23,15 +28,19 @@ import {
   type GridJob,
   type GridLeg,
 } from "@/components/dashboard/diary/diary-grid";
+import { DiaryLegend } from "@/components/dashboard/diary/diary-legend";
 import { JobPanel, type PanelJob } from "@/components/dashboard/diary/job-panel";
 import { RemoveTimeOff } from "@/components/dashboard/diary/remove-time-off";
 import { RoutePlanner } from "@/components/dashboard/diary/route-planner";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { buttonVariants } from "@/components/ui/button";
 import { requireTenant } from "@/lib/auth";
 import { timeOffLabel, viewLabel } from "@/lib/diary-display";
+import { listJobPhotos } from "@/lib/photos";
 import { createClient } from "@/lib/supabase/server";
 import { appUrl } from "@/lib/urls";
-import { addBlockedTime, removeBlockedTime, setBookingStatusAction } from "./actions";
+import { addBlockedTime, moveBookingAction, removeBlockedTime, setBookingStatusAction } from "./actions";
+import { formatDayTime } from "@leadgen/core/dates";
 
 export const metadata: Metadata = { title: "Diary" };
 
@@ -47,10 +56,10 @@ export default async function DiaryPage({
 
   // RLS limits every read to this business.
   const supabase = await createClient();
-  const [settingsResult, resourcesResult] = await Promise.all([
+  const [settingsResult, resourcesResult, stripeResult] = await Promise.all([
     supabase
       .from("booking_settings")
-      .select("timezone, weekly_hours, unit_weekly_hours, travel_buffer_mins, unit_buffer_mins")
+      .select("timezone, weekly_hours, unit_weekly_hours, travel_buffer_mins, unit_buffer_mins, cancellation_policy")
       .eq("tenant_id", tenant.id)
       .maybeSingle(),
     supabase
@@ -59,9 +68,11 @@ export default async function DiaryPage({
       .eq("tenant_id", tenant.id)
       .order("sort_order")
       .order("created_at"),
+    supabase.from("tenants").select("stripe_ready").eq("id", tenant.id).single(),
   ]);
   if (settingsResult.error) throw settingsResult.error;
   if (resourcesResult.error) throw resourcesResult.error;
+  if (stripeResult.error) throw stripeResult.error;
 
   const timeZone = settingsResult.data?.timezone ?? "Europe/London";
   const hoursSettings = {
@@ -79,7 +90,9 @@ export default async function DiaryPage({
 
   const now = new Date();
   const today = localDate(now, timeZone);
-  const view = parseView(sp.view);
+  // Nothing asked for: a phone opens on today, anything bigger on the week.
+  const { device } = userAgent({ headers: await headers() });
+  const view = parseView(sp.view ?? (device.type === "mobile" ? "day" : "week"));
   const date = parseDiaryDate(sp.date, today);
   const days = diaryDays(view, date);
   const range = diaryRange(days, timeZone);
@@ -88,7 +101,7 @@ export default async function DiaryPage({
     supabase
       .from("bookings")
       .select(
-        "id, status, starts_at, ends_at, hold_expires_at, resource_id, location_type, address_line, postcode, access_notes, customer_notes, quote_snapshot, price_pence, deposit_pence, deposit_status, customer:customers(id, name, email, phone), service:services(name), vehicle:vehicles(make, model, registration, size_class)",
+        "id, status, starts_at, ends_at, hold_expires_at, resource_id, location_type, address_line, postcode, access_notes, customer_notes, quote_snapshot, price_pence, deposit_pence, deposit_status, stripe_payment_intent_id, customer:customers(id, name, email, phone), service:services(name), vehicle:vehicles(make, model, registration, size_class)",
       )
       .eq("tenant_id", tenant.id)
       .in("status", [...DIARY_STATUSES])
@@ -188,6 +201,9 @@ export default async function DiaryPage({
     locationType: b.location_type,
     resourceId: b.resource_id,
     resourceName: nameOf.get(b.resource_id) ?? "",
+    phone: b.customer?.phone ?? null,
+    address: [b.address_line, b.postcode].filter(Boolean).join(", "),
+    hasEmail: Boolean(b.customer?.email),
   }));
 
   // Drive time between one job and the next, van by van: two vans' jobs are
@@ -225,6 +241,15 @@ export default async function DiaryPage({
           .maybeSingle()
       : null;
   if (selectedEvent?.error) console.error("Diary calendar event read failed", selectedEvent.error);
+  // Extra as well: the panel still opens if the photos can't be read.
+  const selectedPhotos = selected?.customer
+    ? await listJobPhotos(tenant.id, selected.id, selected.customer.id).catch((err) => {
+        console.error("Job photos read failed", err);
+        return [];
+      })
+    : [];
+  const canManage = can("bookings.manage");
+  const move = moveBookingAction.bind(null, slug);
 
   const label = viewLabel(view, days, today);
   const period = view === "week" ? "this week" : "this day";
@@ -232,10 +257,24 @@ export default async function DiaryPage({
 
   return (
     <>
-      <PageHeader
-        title="Diary"
-        description={`Your jobs by day${several ? ", van by van," : ""} including travel time between mobile jobs. Click a job for the details.`}
-      />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <PageHeader title="Diary" />
+        {canManage && (
+          <Link
+            href={appUrl(`/${slug}/bookings/new?date=${date}${chosen ? `&resource=${chosen.id}` : ""}`)}
+            className={buttonVariants({ size: "lg" })}
+          >
+            <Plus />
+            Add booking
+          </Link>
+        )}
+      </div>
+
+      {sp.deposit === "failed" && (
+        <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:bg-amber-950/60 dark:text-amber-100">
+          The booking is in, but the deposit request couldn&apos;t be emailed. Open the job to try again.
+        </p>
+      )}
 
       {calendar?.status === "needs_reconnect" && (
         <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:bg-amber-950/60 dark:text-amber-100">
@@ -249,6 +288,7 @@ export default async function DiaryPage({
       )}
 
       <DiaryControls slug={slug} view={view} date={date} today={today} label={label} resource={chosen?.id} />
+      {view === "day" && <DayStrip slug={slug} date={date} today={today} resource={chosen?.id} />}
       {several && (
         <ResourceFilter slug={slug} view={view} date={date} resources={shown} current={chosen?.id} />
       )}
@@ -266,33 +306,32 @@ export default async function DiaryPage({
         selectedId={selected?.id}
         showResource={several && mergedColumn}
         resourceFilter={chosen?.id}
+        moveJob={canManage ? move : undefined}
+        canAdd={canManage}
+      />
+      <DiaryAgenda
+        slug={slug}
+        view={view}
+        days={days}
+        today={today}
+        now={now}
+        timeZone={timeZone}
+        jobs={jobs}
+        blocks={[...blocks, ...googleBlocks]}
+        // One list holds every van, so only a single van's drives run in order.
+        legs={several && !chosen ? [] : legs}
+        selectedId={selected?.id}
+        showResource={several && !chosen}
+        resourceFilter={chosen?.id}
+        canAdd={canManage}
       />
 
-      <p className="mt-2 text-xs text-muted-foreground">
-        {counted === 0
-          ? `Nothing booked ${period}. Jobs appear here as customers book.`
-          : `${counted} ${counted === 1 ? "job" : "jobs"} ${period}.`}{" "}
-        Dashed amber is a slot held while the customer pays; hatched is time off
-        {calendar && " or busy in Google Calendar"}; the grey strip between jobs is the estimated drive.
-        {several && mergedColumn && " Pick a van above to see its drive times, or use the Day view for a column each."}
-      </p>
-
-      {view === "day" && (
-        <details className="mt-6 rounded-xl border p-4">
-          <summary className="cursor-pointer text-sm font-medium">Route planner</summary>
-          <p className="mt-2 mb-4 text-sm text-muted-foreground">
-            The day&apos;s drive, van by van: when to leave home and each job to get to the next one on time, with
-            links to open each leg in Waze or Google Maps.
-          </p>
-          <RoutePlanner
-            key={`${date}-${chosen?.id ?? ""}`}
-            slug={slug}
-            date={date}
-            timeZone={timeZone}
-            vans={shown.filter((r) => (chosen ? r.id === chosen.id : travelling.some((b) => b.resource_id === r.id)))}
-          />
-        </details>
-      )}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+        <p className="text-xs font-medium text-muted-foreground">
+          {counted === 0 ? `Nothing booked ${period}.` : `${counted} ${counted === 1 ? "job" : "jobs"} ${period}.`}
+        </p>
+        <DiaryLegend google={Boolean(calendar)} drive={drawnLegs.length > 0} />
+      </div>
 
       {selected && (
         <JobPanel
@@ -303,13 +342,57 @@ export default async function DiaryPage({
           setStatus={setBookingStatusAction.bind(null, slug, selected.id)}
           canManage={can("bookings.manage")}
           calendarNote={calendarNoteOf(selectedEvent?.data ?? null, timeZone)}
+          depositBlocked={stripeResult.data.stripe_ready ? undefined : "Connect Stripe under Settings → Payments to take deposits online."}
+          photos={selectedPhotos}
+          move={move}
+          refund={
+            can("money") && selected.deposit_status === "paid" && selected.stripe_payment_intent_id
+              ? {
+                  depositPence: selected.deposit_pence,
+                  advice: refundAdvice(
+                    policyOf(settingsResult.data?.cancellation_policy),
+                    { startsAt: selected.starts_at, depositPaidPence: selected.deposit_pence },
+                    now,
+                  ),
+                }
+              : undefined
+          }
+          moveResources={resources
+            .filter((r) => (r.active || r.id === selected.resource_id) && r.location_types.includes(selected.location_type))
+            .map((r) => ({ id: r.id, name: r.name }))}
         />
       )}
 
-      <section className="mt-8">
+      <div className="mt-8 grid items-start gap-8 lg:grid-cols-2">
+      <section aria-labelledby="route-heading">
+        <h2 id="route-heading" className="mb-3 font-medium">Route planner</h2>
+        <RoutePlanner
+          key={`${date}-${view}-${chosen?.id ?? ""}`}
+          slug={slug}
+          days={days}
+          initialDay={days.includes(today) ? today : days[0]}
+          timeZone={timeZone}
+          vans={shown.filter((r) => (chosen ? r.id === chosen.id : travelling.some((b) => b.resource_id === r.id)))}
+        />
+      </section>
+
+      <div className="grid gap-8">
+      <section aria-labelledby="block-heading">
+        <h2 id="block-heading" className="font-medium">Block out time</h2>
+        <p className="mt-1 mb-3 text-sm text-muted-foreground">
+          Customers can&apos;t book into it. Jobs already in that time stay on your diary.
+        </p>
+        <BlockTimeForm
+          action={addBlockedTime.bind(null, slug)}
+          defaultDate={date}
+          resources={resources.filter((r) => r.active)}
+        />
+      </section>
+
+      <section>
         <h2 className="text-sm font-medium">Time off {period}</h2>
         {blocks.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">None. Customers can book any time you&apos;re open.</p>
+          <p className="mt-2 text-sm text-muted-foreground">None.</p>
         ) : (
           <ul className="mt-2 divide-y rounded-xl border">
             {blocks.map((b) => (
@@ -324,20 +407,9 @@ export default async function DiaryPage({
             ))}
           </ul>
         )}
-
-        <details className="mt-4 rounded-xl border p-4">
-          <summary className="cursor-pointer text-sm font-medium">Block out time</summary>
-          <p className="mt-2 mb-4 text-sm text-muted-foreground">
-            A holiday, a day off, the van in for a service. Customers can&apos;t book into it. Jobs already in
-            that time stay on your diary.
-          </p>
-          <BlockTimeForm
-            action={addBlockedTime.bind(null, slug)}
-            defaultDate={date}
-            resources={resources.filter((r) => r.active)}
-          />
-        </details>
       </section>
+      </div>
+      </div>
     </>
   );
 }
@@ -346,9 +418,7 @@ export default async function DiaryPage({
 function calendarNoteOf(event: { sync_error: string | null; changed_in_google_at: string | null } | null, timeZone: string) {
   if (event?.sync_error) return "Couldn't put this job in Google Calendar yet. We'll keep trying.";
   if (event?.changed_in_google_at) {
-    const when = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone }).format(
-      new Date(event.changed_in_google_at),
-    );
+    const when = formatDayTime(event.changed_in_google_at, timeZone);
     return `This job's event was moved or deleted in Google Calendar (${when}) and has been put back. Change bookings here, not in Google.`;
   }
   return null;

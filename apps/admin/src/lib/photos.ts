@@ -24,21 +24,49 @@ export async function listCustomerPhotos(tenantId: string, customerId: string): 
     .eq("customer_id", customerId)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  if (!data.length) return [];
+  return withSignedUrls(data);
+}
 
+// The photos for one job: taken for this booking, or by this customer and not
+// tied to any booking. Newest first, and capped to keep the panel quick.
+export async function listJobPhotos(tenantId: string, bookingId: string, customerId: string): Promise<Photo[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("photos")
+    .select("id, storage_path, created_at, width, height, booking:bookings(id, starts_at)")
+    .eq("tenant_id", tenantId)
+    .or(`booking_id.eq.${bookingId},and(customer_id.eq.${customerId},booking_id.is.null)`)
+    .order("created_at", { ascending: false })
+    .limit(12);
+  if (error) throw error;
+  return withSignedUrls(data);
+}
+
+type PhotoRow = {
+  id: string;
+  storage_path: string;
+  created_at: string;
+  width: number | null;
+  height: number | null;
+  booking: unknown;
+};
+
+async function withSignedUrls(rows: PhotoRow[]): Promise<Photo[]> {
+  if (!rows.length) return [];
+  const supabase = await createClient();
   const signed = await supabase.storage
     .from(PHOTO_BUCKET)
-    .createSignedUrls(data.map((p) => p.storage_path), 3600);
+    .createSignedUrls(rows.map((p) => p.storage_path), 3600);
   if (signed.error) throw signed.error;
   const urls = new Map(signed.data.map((s) => [s.path, s.signedUrl]));
 
-  return data.map((p) => ({
+  return rows.map((p) => ({
     id: p.id,
     url: urls.get(p.storage_path) ?? null,
     created_at: p.created_at,
     width: p.width,
     height: p.height,
-    booking: p.booking as unknown as Photo["booking"],
+    booking: p.booking as Photo["booking"],
   }));
 }
 

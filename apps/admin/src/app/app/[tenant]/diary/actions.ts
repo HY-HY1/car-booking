@@ -4,10 +4,12 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 import { allowedStatusChanges, diaryRange } from "@leadgen/core/booking/diary";
 import { driveSource, driveTimes, type DriveSource } from "@leadgen/core/booking/drive-times";
+import { moveBooking, type MoveRequest } from "@leadgen/core/booking/move";
 import { planRoute, type RouteStop } from "@leadgen/core/booking/route-plan";
 import { addDays, isIsoDate, zonedTimeToUtc } from "@leadgen/core/booking/time";
 import { syncBookingEvent } from "@leadgen/core/calendar/sync";
-import { notifyBookingCancelled } from "@leadgen/core/email/notify";
+import { notifyBookingCancelled, notifyBookingSecured } from "@leadgen/core/email/notify";
+import { refundDeposit } from "@leadgen/core/stripe/payments";
 import { requireTenant } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -28,16 +30,19 @@ async function timezoneOf(tenantId: string) {
 
 const statusSchema = z.enum(["confirmed", "completed", "no_show", "cancelled"]);
 
-// Completed, no-show, cancelled, or put back. The booking is found within the
-// business from the URL's membership check; the change has to be one the
-// current status allows, and is only applied if the status hasn't moved since
-// the page was drawn. Money is untouched: a cancelled job's deposit is dealt
-// with on the booking's own page.
+// Completed, no-show, cancelled, put back, or a hold confirmed by hand. The
+// booking is found within the business from the URL's membership check; the
+// change has to be one the current status allows, and is only applied if the
+// status hasn't moved since the page was drawn. Money is untouched: a
+// cancelled job's deposit is only touched if the person cancelling chose to
+// give some back (`refundPence`), and a hold confirmed by hand keeps its
+// deposit owed (ask for it from the booking).
 export async function setBookingStatusAction(
   slug: string,
   bookingId: string,
   next: string,
-): Promise<{ error?: string }> {
+  refundPence = 0,
+): Promise<{ error?: string; warning?: string }> {
   const { tenant, user, can } = await requireTenant(slug);
   const status = statusSchema.safeParse(next);
   if (!status.success || !z.uuid().safeParse(bookingId).success) return { error: "That isn't a change we can make." };
@@ -47,11 +52,15 @@ export async function setBookingStatusAction(
   if (!manages && (status.data === "cancelled" || status.data === "confirmed")) {
     return { error: "Your access level doesn't include cancelling jobs. Ask the office." };
   }
+  if (refundPence !== 0) {
+    if (status.data !== "cancelled" || !Number.isInteger(refundPence) || refundPence < 0) return { error: "That isn't a change we can make." };
+    if (!can("money")) return { error: "Your access level doesn't include refunds." };
+  }
 
   const supabase = await createClient();
   const { data: booking, error: readError } = await supabase
     .from("bookings")
-    .select("status")
+    .select("status, lead_id")
     .eq("tenant_id", tenant.id)
     .eq("id", bookingId)
     .maybeSingle();
@@ -80,10 +89,44 @@ export async function setBookingStatusAction(
   }
   if (!updated?.length) return { error: "This booking has changed since you opened it. Reload the diary." };
 
-  if (status.data === "cancelled") await notifyBookingCancelled(tenant.id, bookingId, { by: user.email ?? null });
+  // The job is cancelled first, so no money moves on a job that stays booked.
+  // The refund goes before the email, so the email can say it's happened.
+  let warning: string | undefined;
+  let refundedPence = 0;
+  if (refundPence > 0) {
+    try {
+      const refund = await refundDeposit(tenant.id, bookingId, refundPence);
+      if (refund.ok) refundedPence = refundPence;
+      else warning = `Job cancelled, but the refund didn't go through. ${refund.message}`;
+    } catch (err) {
+      console.error("Refund while cancelling failed", err);
+      warning = "Job cancelled, but the refund didn't go through. Try again from the booking.";
+    }
+  }
+
+  if (status.data === "cancelled") await notifyBookingCancelled(tenant.id, bookingId, { by: user.email ?? null, refundedPence });
+  if (booking.status === "held" && status.data === "confirmed") {
+    // As if it had been paid for: the customer gets their confirmation, and
+    // the enquiry it came from counts as booked.
+    if (booking.lead_id) {
+      const lead = await supabase.from("leads").update({ status: "booked" }).eq("tenant_id", tenant.id).eq("id", booking.lead_id);
+      if (lead.error) console.error("Marking the lead booked failed", lead.error);
+    }
+    await notifyBookingSecured(tenant.id, bookingId, { alertOwner: false });
+  }
   await syncBookingEvent(tenant.id, bookingId);
   refresh();
-  return {};
+  return { warning };
+}
+
+// ------------------------------------------------------------- moving a job
+
+export async function moveBookingAction(slug: string, bookingId: string, move: MoveRequest): Promise<{ error?: string }> {
+  const { tenant, can } = await requireTenant(slug);
+  if (!can("bookings.manage")) return { error: "Your access level doesn't include moving jobs. Ask the office." };
+  const result = await moveBooking(tenant.id, bookingId, move);
+  if (!result.error) refresh();
+  return result;
 }
 
 // ------------------------------------------------------------- time off

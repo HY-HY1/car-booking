@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { DIARY_VIEWS, stepDate, type DiaryView } from "@leadgen/core/booking/diary";
+import { diaryDays, DIARY_VIEWS, stepDate, type DiaryView } from "@leadgen/core/booking/diary";
+import { shortDate } from "@/lib/diary-display";
 import { cn } from "@/lib/utils";
 import { appUrl } from "@/lib/urls";
 
@@ -31,7 +32,7 @@ export function DiaryControls({
   // The van picked in the week view, kept as you move around.
   resource?: string;
 }) {
-  const step = "grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground";
+  const step = "grid size-11 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground md:size-8";
   // Switching view keeps the date you're looking at.
   const href = (v: DiaryView, d: string) => diaryHref(slug, v, d, undefined, resource);
 
@@ -44,7 +45,7 @@ export function DiaryControls({
             href={href(v, date)}
             aria-current={v === view ? "page" : undefined}
             className={cn(
-              "rounded-lg px-3 py-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
+              "rounded-lg px-4 py-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground md:px-3 md:py-1",
               v === view && "bg-background text-foreground shadow-sm",
             )}
           >
@@ -63,12 +64,47 @@ export function DiaryControls({
         </Link>
         <Link
           href={href(view, today)}
-          className="ml-1 rounded-lg px-2 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="ml-1 rounded-lg px-2 py-3 text-sm text-muted-foreground hover:bg-muted hover:text-foreground md:py-1"
         >
           Today
         </Link>
       </div>
     </div>
+  );
+}
+
+// On a phone in the day view: the week around the day, to jump along it.
+export function DayStrip({
+  slug,
+  date,
+  today,
+  resource,
+}: {
+  slug: string;
+  date: string;
+  today: string;
+  resource?: string;
+}) {
+  return (
+    <nav aria-label="Days this week" className="mb-4 grid grid-cols-7 gap-1 md:hidden">
+      {diaryDays("week", date).map((day) => (
+        <Link
+          key={day}
+          href={diaryHref(slug, "day", day, undefined, resource)}
+          aria-current={day === date ? "date" : undefined}
+          aria-label={shortDate(day)}
+          className={cn(
+            "grid justify-items-center rounded-lg py-1.5 text-muted-foreground hover:bg-muted",
+            day === date && "bg-primary text-primary-foreground hover:bg-primary/90",
+          )}
+        >
+          <span className="text-[11px] uppercase">{shortDate(day).slice(0, 1)}</span>
+          <span className={cn("text-sm font-medium", day === today && day !== date && "text-foreground underline underline-offset-4")}>
+            {Number(day.slice(8))}
+          </span>
+        </Link>
+      ))}
+    </nav>
   );
 }
 
@@ -86,9 +122,9 @@ export function ResourceFilter({
   resources: { id: string; name: string }[];
   current?: string;
 }) {
-  const pill = "rounded-lg px-3 py-1 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground";
+  const pill = "rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground md:py-1";
   return (
-    <nav aria-label="Van or bay" className="mb-4 flex flex-wrap gap-1">
+    <nav aria-label="Whose diary to show" className="mb-4 flex flex-wrap gap-1">
       <Link
         href={diaryHref(slug, view, date)}
         aria-current={!current ? "page" : undefined}

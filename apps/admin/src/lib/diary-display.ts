@@ -6,6 +6,27 @@ import { localDate, localTime } from "@leadgen/core/booking/time";
 
 export const clock = (iso: string | Date, timeZone: string) => localTime(new Date(iso), timeZone);
 
+// A job's colour by status, in two halves: a phone card takes only the edge.
+export const JOB_EDGE: Record<string, string> = {
+  held: "border-amber-500 border-dashed",
+  requested: "border-violet-500 border-dashed",
+  confirmed: "border-emerald-600",
+  completed: "border-sky-600",
+  no_show: "border-red-600",
+};
+
+export const JOB_FILL: Record<string, string> = {
+  held: "bg-amber-100 dark:bg-amber-950/60 text-amber-950 dark:text-amber-100",
+  requested: "bg-violet-100 dark:bg-violet-950/60 text-violet-950 dark:text-violet-100",
+  confirmed: "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-100",
+  completed: "bg-sky-100 dark:bg-sky-950/60 text-sky-950 dark:text-sky-100",
+  no_show: "bg-red-100 dark:bg-red-950/60 text-red-950 dark:text-red-100",
+};
+
+// The diagonal lines on time off.
+export const HATCH =
+  "repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in oklch, currentColor 14%, transparent) 6px 7px)";
+
 const MONTHS_SHORT = new Intl.DateTimeFormat("en-GB", { month: "short", timeZone: "UTC" });
 const monthOf = (date: string) => MONTHS_SHORT.format(new Date(`${date}T12:00:00Z`));
 

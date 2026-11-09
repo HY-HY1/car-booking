@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   allowedStatusChanges,
   assignLanes,
+  canMoveJob,
+  clockOf,
   diaryDays,
   diaryRange,
+  dropStart,
   minuteOfDay,
+  occupiesTime,
+  overlaps,
   parseDiaryDate,
   parseView,
   placeOnDay,
@@ -13,10 +18,54 @@ import {
   travelLegs,
   unionHours,
   visibleHours,
+  withinHours,
 } from "./diary";
 
 const LONDON = "Europe/London";
 const at = (iso: string) => new Date(iso);
+
+describe("moving a job", () => {
+  const grid = { from: 8 * 60, to: 18 * 60 };
+
+  it("only moves jobs still to happen as booked", () => {
+    expect(["requested", "confirmed"].every(canMoveJob)).toBe(true);
+    expect(["held", "completed", "no_show", "cancelled", "expired"].some(canMoveJob)).toBe(false);
+  });
+
+  it("knows which statuses keep a van's time", () => {
+    expect(["held", "requested", "confirmed"].every(occupiesTime)).toBe(true);
+    expect(["completed", "no_show", "cancelled"].some(occupiesTime)).toBe(false);
+  });
+
+  it("keeps the point it was picked up by under the pointer, on the quarter hour", () => {
+    expect(dropStart(11 * 60 + 7, 30, 120, grid)).toBe(10 * 60 + 30);
+    expect(dropStart(11 * 60 + 8, 30, 120, grid)).toBe(10 * 60 + 45);
+  });
+
+  it("stays on the grid", () => {
+    expect(dropStart(6 * 60, 0, 120, grid)).toBe(grid.from);
+    expect(dropStart(23 * 60, 0, 120, grid)).toBe(16 * 60);
+    // A length that doesn't end on the snap is rounded back, not cut off.
+    expect(dropStart(23 * 60, 0, 100, grid)).toBe(16 * 60 + 15);
+  });
+
+  it("writes a minute as a time", () => {
+    expect(clockOf(9 * 60 + 5)).toBe("09:05");
+    expect(clockOf(14 * 60 + 30)).toBe("14:30");
+  });
+
+  it("lets jobs touch without overlapping", () => {
+    expect(overlaps({ start: 60, end: 120 }, { start: 120, end: 180 })).toBe(false);
+    expect(overlaps({ start: 60, end: 121 }, { start: 120, end: 180 })).toBe(true);
+  });
+
+  it("needs the whole job inside one opening window", () => {
+    const hours: [string, string][] = [["09:00", "12:00"], ["13:00", "17:00"]];
+    expect(withinHours(hours, { start: 9 * 60, end: 12 * 60 })).toBe(true);
+    expect(withinHours(hours, { start: 11 * 60, end: 14 * 60 })).toBe(false);
+    expect(withinHours([], { start: 9 * 60, end: 10 * 60 })).toBe(false);
+  });
+});
 
 describe("view and date from the address", () => {
   it("falls back to the week view and today", () => {
@@ -215,11 +264,14 @@ describe("allowedStatusChanges", () => {
   it("lets a confirmed job be completed, missed or cancelled", () => {
     expect(allowedStatusChanges("confirmed")).toEqual(["completed", "no_show", "cancelled"]);
   });
-  it("lets finished and cancelled jobs be put back", () => {
-    for (const s of ["completed", "no_show", "cancelled"]) expect(allowedStatusChanges(s)).toEqual(["confirmed"]);
+  it("lets finished and cancelled jobs be put back, and done and no-show be swapped", () => {
+    expect(allowedStatusChanges("completed")).toEqual(["no_show", "confirmed"]);
+    expect(allowedStatusChanges("no_show")).toEqual(["completed", "confirmed"]);
+    expect(allowedStatusChanges("cancelled")).toEqual(["confirmed"]);
   });
-  it("only lets a hold be dropped, and leaves expired holds alone", () => {
-    expect(allowedStatusChanges("held")).toEqual(["cancelled"]);
+  it("lets a hold be confirmed or dropped, and leaves expired holds and requests alone", () => {
+    expect(allowedStatusChanges("held")).toEqual(["confirmed", "cancelled"]);
+    expect(allowedStatusChanges("requested")).toEqual([]);
     expect(allowedStatusChanges("expired")).toEqual([]);
     expect(allowedStatusChanges("nonsense")).toEqual([]);
   });

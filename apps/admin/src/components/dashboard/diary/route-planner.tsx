@@ -4,35 +4,43 @@ import { useState, useTransition } from "react";
 import { Home, Navigation, Route, TriangleAlert } from "lucide-react";
 import { googleMapsDayUrl, googleMapsUrl, wazeUrl } from "@leadgen/core/booking/route-plan";
 import { planRouteAction, type RouteView } from "@/app/app/[tenant]/diary/actions";
-import { selectClass } from "@/components/platform/field";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { shortDate } from "@/lib/diary-display";
 import { cn } from "@/lib/utils";
+import { Select } from "@/components/ui/select";
+import { formatTime } from "@leadgen/core/dates";
+import { EmptyState } from "@/components/ui/empty-state";
 
-// Diary → Day → Route planner: one van's day from its start point and back,
+// Diary → Route planner: one van's day from its start point and back,
 // with when to leave each place. Nothing is worked out until it's asked for,
 // since each drive is a call to Google.
 
 export function RoutePlanner({
   slug,
-  date,
+  days,
+  initialDay,
   timeZone,
   vans,
 }: {
   slug: string;
-  date: string;
+  // The days in view: one, or a week to pick from.
+  days: string[];
+  initialDay: string;
   timeZone: string;
   // The vans with jobs on this day; the first is picked to start with.
   vans: { id: string; name: string }[];
 }) {
+  const [date, setDate] = useState(initialDay);
   const [van, setVan] = useState(vans[0]?.id ?? "");
   const [route, setRoute] = useState<RouteView>();
   const [message, setMessage] = useState<string>();
   const [pending, startTransition] = useTransition();
 
-  if (vans.length === 0) return <p className="text-sm text-muted-foreground">No jobs on this day to plan a route for.</p>;
+  if (vans.length === 0) {
+    return <EmptyState compact>No jobs {days.length > 1 ? "this week" : "on this day"} to plan a route for.</EmptyState>;
+  }
 
-  const clock = (iso: string) =>
-    new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone }).format(new Date(iso));
+  const clock = (iso: string) => formatTime(iso, timeZone);
   const plan = () =>
     startTransition(async () => {
       const result = await planRouteAction(slug, date, van);
@@ -52,29 +60,47 @@ export function RoutePlanner({
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center gap-2">
+        {days.length > 1 && (
+          <Select
+            aria-label="Day"
+            value={date}
+            onChange={(e) => {
+              setDate(e.target.value);
+              setRoute(undefined);
+              setMessage(undefined);
+            }}
+            className="w-auto"
+          >
+            {days.map((d) => (
+              <option key={d} value={d}>
+                {shortDate(d)}
+              </option>
+            ))}
+          </Select>
+        )}
         {vans.length > 1 && (
-          <select
+          <Select
             aria-label="Van"
             value={van}
             onChange={(e) => {
               setVan(e.target.value);
               setRoute(undefined);
             }}
-            className={cn(selectClass, "w-auto")}
+            className="w-auto"
           >
             {vans.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
               </option>
             ))}
-          </select>
+          </Select>
         )}
-        <Button type="button" onClick={plan} disabled={pending}>
+        <Button type="button" size="lg" onClick={plan} disabled={pending}>
           <Route />
           {pending ? "Working it out…" : route ? "Plan again" : "Plan the route"}
         </Button>
         {dayUrl && (
-          <a href={dayUrl} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline" })}>
+          <a href={dayUrl} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "lg" })}>
             <Navigation /> Whole day in Google Maps
           </a>
         )}

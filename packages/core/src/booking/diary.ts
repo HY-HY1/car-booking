@@ -196,19 +196,22 @@ export function travelLegs(
 
 export type BookingStatus = "held" | "requested" | "confirmed" | "completed" | "cancelled" | "no_show" | "expired";
 
-// What the owner can change a booking to from the diary. Completing, a
-// no-show or a cancellation can each be undone; getting there from a held
-// slot is only by paying, so a hold can only be dropped. A request is
-// approved or declined on its own (booking/approval.ts), as declining
-// refunds the deposit.
+// What the owner can change a booking to by hand, from the diary or the
+// booking's page. Completing, a no-show or a cancellation can each be undone,
+// and a job marked the wrong one of done or no-show can be switched. A hold
+// can be confirmed without waiting for the deposit (taken another way, or
+// asked for later), or dropped. A request is approved or declined on its own
+// (booking/approval.ts), as declining refunds the deposit.
 export function allowedStatusChanges(status: string): BookingStatus[] {
   switch (status) {
     case "held":
-      return ["cancelled"];
+      return ["confirmed", "cancelled"];
     case "confirmed":
       return ["completed", "no_show", "cancelled"];
     case "completed":
+      return ["no_show", "confirmed"];
     case "no_show":
+      return ["completed", "confirmed"];
     case "cancelled":
       return ["confirmed"];
     default:
@@ -219,6 +222,50 @@ export function allowedStatusChanges(status: string): BookingStatus[] {
 // Statuses that take a place in the diary. Cancelled jobs and lapsed holds
 // don't.
 export const DIARY_STATUSES = ["held", "requested", "confirmed", "completed", "no_show"] as const;
+
+// ------------------------------------------------------------- moving a job
+
+// Jobs still to happen as booked. A hold is someone part-way through paying,
+// and a finished job has already happened.
+export const MOVABLE_STATUSES: readonly string[] = ["requested", "confirmed"];
+
+export function canMoveJob(status: string) {
+  return MOVABLE_STATUSES.includes(status);
+}
+
+// The statuses the database won't let share a van's time.
+const OCCUPYING_STATUSES: readonly string[] = ["held", "requested", "confirmed"];
+
+export function occupiesTime(status: string) {
+  return OCCUPYING_STATUSES.includes(status);
+}
+
+export const overlaps = (a: Placed, b: Placed) => a.start < b.end && b.start < a.end;
+
+export const DIARY_SNAP_MINS = 15;
+
+// "HH:MM" for a minute of the day.
+export function clockOf(minute: number) {
+  return `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+}
+
+// Where a dragged job starts for a pointer at `pointer` minutes, having been
+// picked up `grab` minutes in: on the snap, and all of it on the grid.
+export function dropStart(
+  pointer: number,
+  grab: number,
+  durationMins: number,
+  grid: { from: number; to: number },
+  snap = DIARY_SNAP_MINS,
+) {
+  const latest = Math.floor((grid.to - durationMins) / snap) * snap;
+  return Math.max(grid.from, Math.min(Math.round((pointer - grab) / snap) * snap, latest));
+}
+
+// Inside one opening window, start to finish.
+export function withinHours(windows: readonly (readonly [string, string])[], placed: Placed) {
+  return windows.some(([open, close]) => placed.start >= toMinutes(open) && placed.end <= toMinutes(close));
+}
 
 // ---------------------------------------------------------------- resources
 

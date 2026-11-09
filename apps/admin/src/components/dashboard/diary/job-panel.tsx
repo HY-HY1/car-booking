@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { Mail, MapPin, Phone, X } from "lucide-react";
+import { Mail, Phone } from "lucide-react";
 import { formatDuration, formatPence } from "@leadgen/core/booking/config";
+import { canMoveJob } from "@leadgen/core/booking/diary";
+import { depositOwed } from "@leadgen/core/booking/manage-rules";
 import { localDate } from "@leadgen/core/booking/time";
 import {
   accessRowsOf,
@@ -12,10 +14,18 @@ import {
 } from "@/lib/booking-display";
 import { ApprovalActions } from "@/components/dashboard/approval-actions";
 import { ConditionNote } from "@/components/dashboard/condition-note";
+import { DepositRequestButton } from "@/components/dashboard/deposit-request-button";
+import { PhotoThumbs } from "@/components/dashboard/photo-thumbs";
+import { Badge } from "@/components/ui/badge";
 import { clock, longDate } from "@/lib/diary-display";
-import { cn } from "@/lib/utils";
-import { JobActions } from "./job-actions";
+import type { Photo } from "@/lib/photos";
 import { appUrl } from "@/lib/urls";
+import { cn } from "@/lib/utils";
+import { ContactActions } from "./contact-actions";
+import type { MoveJob } from "./diary-grid";
+import { JobActions, type RefundOffer } from "./job-actions";
+import { JobSheet } from "./job-sheet";
+import { MoveJobForm } from "./move-job-form";
 
 export type PanelJob = {
   id: string;
@@ -31,15 +41,17 @@ export type PanelJob = {
   price_pence: number;
   deposit_pence: number;
   deposit_status: string;
+  stripe_payment_intent_id: string | null;
   customer: { id: string; name: string; email: string | null; phone: string | null } | null;
   // Which van or bay has it; shown when the business has more than one.
   resourceName?: string | null;
+  resource_id: string;
   service: { name: string } | null;
   vehicle: { make: string | null; model: string | null; registration: string | null; size_class: string | null } | null;
 };
 
 // The job picked in the diary: who, where, what and how much, with the few
-// things an owner does on the day (done, no-show, cancel) one click away.
+// things an owner does on the day one tap away.
 export function JobPanel({
   job: b,
   slug,
@@ -48,60 +60,100 @@ export function JobPanel({
   setStatus,
   canManage,
   calendarNote,
+  depositBlocked,
+  photos,
+  move,
+  moveResources,
+  refund,
 }: {
   job: PanelJob;
   slug: string;
   timeZone: string;
   closeHref: string;
-  setStatus: (next: string) => Promise<{ error?: string }>;
+  setStatus: (next: string, refundPence?: number) => Promise<{ error?: string; warning?: string }>;
   // Approving, cancelling and putting back jobs (not technicians).
   canManage: boolean;
   // Something to know about this job's Google Calendar event.
   calendarNote?: string | null;
+  // Why a deposit request can't be emailed (e.g. Stripe not connected).
+  depositBlocked?: string;
+  photos: Photo[];
+  move: MoveJob;
+  // The vans and bays this job could go on.
+  moveResources: { id: string; name: string }[];
+  // Set when the deposit can be given back while cancelling.
+  refund?: RefundOffer;
 }) {
   const quote = quoteOf(b.quote_snapshot);
   const access = accessRowsOf(b.access_notes);
   const car = [b.vehicle?.make, b.vehicle?.model].filter(Boolean).join(" ");
   const address = [b.address_line, b.postcode].filter(Boolean).join(", ");
   const minutes = Math.round((new Date(b.ends_at).getTime() - new Date(b.starts_at).getTime()) / 60_000);
+  const date = localDate(new Date(b.starts_at), timeZone);
+  const customer = b.customer?.name ?? "this customer";
 
   return (
-    <section id="job" className="mt-4 scroll-mt-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-      <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">{b.service?.name ?? "Booking"}</h2>
-          <p className="text-sm text-muted-foreground">
-            {longDate(localDate(new Date(b.starts_at), timeZone))}, {clock(b.starts_at, timeZone)} to{" "}
-            {clock(b.ends_at, timeZone)} · {formatDuration(minutes)}
-            {b.resourceName && <> · {b.resourceName}</>}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "rounded-full px-2.5 py-1 text-xs font-medium",
-              BOOKING_STATUS_TONE[b.status] ?? "bg-muted",
+    <JobSheet
+      jobId={b.id}
+      title={b.service?.name ?? "Booking"}
+      subtitle={`${longDate(date)}, ${clock(b.starts_at, timeZone)} to ${clock(b.ends_at, timeZone)} · ${formatDuration(minutes)}${b.resourceName ? ` · ${b.resourceName}` : ""}`}
+      status={<Badge tone={BOOKING_STATUS_TONE[b.status]}>{BOOKING_STATUS[b.status] ?? b.status}</Badge>}
+      closeHref={closeHref}
+      footer={
+        <>
+          {b.status === "requested" && canManage && (
+            <ApprovalActions slug={slug} bookingId={b.id} customer={customer} depositPaid={b.deposit_status === "paid"} />
+          )}
+          <JobActions
+            status={b.status}
+            depositPaid={b.deposit_status === "paid"}
+            customer={customer}
+            action={setStatus}
+            canManage={canManage}
+            refund={refund}
+          />
+          {canManage &&
+            depositOwed({ status: b.status, depositPence: b.deposit_pence, depositStatus: b.deposit_status }) && (
+              <DepositRequestButton
+                slug={slug}
+                bookingId={b.id}
+                depositPence={b.deposit_pence}
+                customerEmail={b.customer?.email ?? null}
+                blockedReason={depositBlocked}
+              />
             )}
-          >
-            {BOOKING_STATUS[b.status] ?? b.status}
-          </span>
           <Link
-            href={closeHref}
-            aria-label="Close"
-            className="grid size-7 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+            href={appUrl(`/${slug}/bookings/${b.id}`)}
+            className="w-full text-sm font-medium underline-offset-4 hover:underline"
           >
-            <X className="size-4" />
+            Open the full booking →
           </Link>
-        </div>
-      </header>
+        </>
+      }
+    >
+      <div className="grid gap-5 text-sm">
+        <ContactActions phone={b.customer?.phone ?? null} address={address} locationType={b.location_type} />
 
-      {calendarNote && (
-        <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:bg-amber-950/60 dark:text-amber-100">
-          {calendarNote}
-        </p>
-      )}
+        {canManage && canMoveJob(b.status) && (
+          <MoveJobForm
+            key={b.id}
+            bookingId={b.id}
+            date={date}
+            time={clock(b.starts_at, timeZone)}
+            resourceId={b.resource_id}
+            resources={moveResources}
+            canEmail={Boolean(b.customer?.email)}
+            customer={customer}
+            move={move}
+          />
+        )}
 
-      <div className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        {calendarNote && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-amber-950 dark:bg-amber-950/60 dark:text-amber-100">
+            {calendarNote}
+          </p>
+        )}
+
         <Section title="Customer">
           {b.customer ? (
             <>
@@ -130,22 +182,7 @@ export function JobPanel({
         </Section>
 
         <Section title="Where">
-          {b.location_type === "unit" ? (
-            <p>Drop-off at your unit</p>
-          ) : (
-            <>
-              <p>{address}</p>
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex w-fit items-center gap-1.5 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-              >
-                <MapPin className="size-3.5" />
-                Open in Maps
-              </a>
-            </>
-          )}
+          <p>{b.location_type === "unit" ? "Drop-off at your unit" : address}</p>
           {access.map(([label, value]) => (
             <p key={label}>
               <span className="text-muted-foreground">{label}: </span>
@@ -168,6 +205,12 @@ export function JobPanel({
           )}
         </Section>
 
+        {photos.length > 0 && (
+          <Section title="Photos">
+            <PhotoThumbs photos={photos} />
+          </Section>
+        )}
+
         <Section title="Price">
           <p className="font-medium">{formatPence(b.price_pence)}</p>
           <p className="text-muted-foreground">
@@ -177,7 +220,7 @@ export function JobPanel({
           {quote && <ConditionNote condition={quote.condition} needsInspection={quote.needsInspection} size="xs" />}
         </Section>
 
-        <Section title="Customer's notes" className="sm:col-span-1 lg:col-span-2">
+        <Section title="Customer's notes">
           {b.customer_notes ? (
             <p className="whitespace-pre-wrap">{b.customer_notes}</p>
           ) : (
@@ -185,31 +228,7 @@ export function JobPanel({
           )}
         </Section>
       </div>
-
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-        {b.status === "requested" && canManage && (
-          <ApprovalActions
-            slug={slug}
-            bookingId={b.id}
-            customer={b.customer?.name ?? "this customer"}
-            depositPaid={b.deposit_status === "paid"}
-          />
-        )}
-        <JobActions
-          status={b.status}
-          depositPaid={b.deposit_status === "paid"}
-          customer={b.customer?.name ?? "this customer"}
-          action={setStatus}
-          canManage={canManage}
-        />
-        <Link
-          href={appUrl(`/${slug}/bookings/${b.id}`)}
-          className="text-sm font-medium underline-offset-4 hover:underline"
-        >
-          Open the full booking{b.deposit_status === "paid" ? " (payments, refunds)" : ""} →
-        </Link>
-      </div>
-    </section>
+    </JobSheet>
   );
 }
 

@@ -1,15 +1,17 @@
 "use client";
 
-import { cloneElement, useActionState } from "react";
+import { useActionState } from "react";
 import type { BlockTimeState } from "@/app/app/[tenant]/diary/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { Field } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "@/components/ui/toast";
 
 // "Block out time": a holiday, a day off, the van in for a service. Customers
-// can't book into it (for the whole business, or one van or bay). Opens from a plain <details>, so it needs no state of
-// its own; the all-day tickbox hides the times with CSS.
+// can't book into it (for the whole business, or one van or bay). The all-day
+// tickbox hides the times with CSS, so it needs no state of its own.
 
 export function BlockTimeForm({
   action,
@@ -21,7 +23,11 @@ export function BlockTimeForm({
   // Offered when there is more than one: block everything, or just one.
   resources: { id: string; name: string }[];
 }) {
-  const [state, formAction, pending] = useActionState(action, {});
+  const [state, formAction, pending] = useActionState(async (prev: BlockTimeState, formData: FormData) => {
+    const next = await action(prev, formData);
+    if (next.saved && !next.message) toast.success("Time blocked out");
+    return next;
+  }, {});
   const { errors = {}, values } = state;
   const text = (field: string, fallback: string) => (values ? (values[field] ?? "") : fallback);
 
@@ -29,11 +35,10 @@ export function BlockTimeForm({
     <form action={formAction} className="group grid max-w-2xl gap-4 sm:grid-cols-2" noValidate>
       {resources.length > 1 && (
         <Field label="Who is off" name="resource_id" error={errors.resource_id} className="sm:col-span-2">
-          <select
+          <Select
             id="resource_id"
             name="resource_id"
             defaultValue={text("resource_id", "")}
-            className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
           >
             <option value="">The whole business</option>
             {resources.map((r) => (
@@ -41,7 +46,7 @@ export function BlockTimeForm({
                 {r.name} only
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
       )}
       <Field label="From" name="start_date" error={errors.start_date}>
@@ -51,15 +56,13 @@ export function BlockTimeForm({
         <Input id="end_date" name="end_date" type="date" defaultValue={text("end_date", "")} />
       </Field>
 
-      <label className="flex items-center gap-2 text-sm sm:col-span-2">
-        <input
-          type="checkbox"
-          name="all_day"
-          defaultChecked={values ? values.all_day === "on" : true}
-          className="size-4 accent-primary"
-        />
+      <Checkbox
+        labelClassName="sm:col-span-2"
+        name="all_day"
+        defaultChecked={values ? values.all_day === "on" : true}
+      >
         All day
-      </label>
+      </Checkbox>
 
       <div className="hidden gap-4 group-has-[input[name=all_day]:not(:checked)]:grid sm:col-span-2 sm:grid-cols-2">
         <Field label="Start time" name="start_time" error={errors.start_time}>
@@ -81,14 +84,12 @@ export function BlockTimeForm({
       </Field>
 
       <div className="flex items-center gap-3 sm:col-span-2">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" size="lg" disabled={pending}>
           {pending ? "Saving…" : "Block this time"}
         </Button>
         <p role="status" className="text-sm">
           {state.message ? (
             <span className={state.saved ? "text-amber-700 dark:text-amber-400" : "text-destructive"}>{state.message}</span>
-          ) : state.saved && !pending ? (
-            <span className="text-muted-foreground">Blocked.</span>
           ) : null}
         </p>
       </div>
@@ -96,31 +97,3 @@ export function BlockTimeForm({
   );
 }
 
-function Field({
-  label,
-  name,
-  error,
-  className,
-  children,
-}: {
-  label: string;
-  name: string;
-  error?: string;
-  className?: string;
-  children: React.ReactElement<{ "aria-invalid"?: boolean; "aria-describedby"?: string }>;
-}) {
-  return (
-    <div className={cn("grid content-start gap-2", className)}>
-      <Label htmlFor={name}>{label}</Label>
-      {cloneElement(children, {
-        "aria-invalid": error ? true : undefined,
-        "aria-describedby": error ? `${name}-error` : undefined,
-      })}
-      {error && (
-        <p id={`${name}-error`} className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
