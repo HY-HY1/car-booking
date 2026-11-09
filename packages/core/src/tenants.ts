@@ -25,6 +25,8 @@ export function normalizeWebsiteUrl(input: string) {
 
 export const brandingSchema = z.object({
   website_url: websiteUrlSchema.optional().catch(undefined),
+  // The business's own terms, linked instead of the generated ones.
+  terms_url: websiteUrlSchema.optional().catch(undefined),
   primary_color: hexColor.catch("#18181b"),
   accent_color: hexColor.catch("#3b82f6"),
   // Optional: the dashboard's active nav highlight. Unset keeps it neutral.

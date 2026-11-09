@@ -10,10 +10,13 @@ import { removePhotoAction, uploadPhotoAction } from "./actions";
 
 export const MAX_PHOTOS = 6;
 const MAX_EDGE = 2000;
+const THUMB_EDGE = 200;
 
 export type PhotoItem = {
   key: string;
   preview: string;
+  // A small copy to show again after a refresh, when `preview` has gone.
+  thumb?: string;
   status: "uploading" | "done" | "error";
   id?: string;
   error?: string;
@@ -36,7 +39,13 @@ async function shrink(file: File) {
   bitmap.close();
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
   if (!blob) throw new Error("Couldn't process photo");
-  return { blob, width, height };
+
+  const small = document.createElement("canvas");
+  const thumbScale = THUMB_EDGE / Math.max(width, height);
+  small.width = Math.round(width * thumbScale);
+  small.height = Math.round(height * thumbScale);
+  small.getContext("2d")!.drawImage(canvas, 0, 0, small.width, small.height);
+  return { blob, width, height, thumb: small.toDataURL("image/jpeg", 0.6) };
 }
 
 async function upload(item: PhotoItem, setPhotos: SetPhotos) {
@@ -72,8 +81,8 @@ export function PhotoPicker({
     for (const file of Array.from(files ?? []).slice(0, room)) {
       const key = crypto.randomUUID();
       try {
-        const { blob, width, height } = await shrink(file);
-        const item: PhotoItem = { key, preview: URL.createObjectURL(blob), status: "uploading", blob, width, height };
+        const { blob, width, height, thumb } = await shrink(file);
+        const item: PhotoItem = { key, preview: URL.createObjectURL(blob), thumb, status: "uploading", blob, width, height };
         setPhotos((p) => [...p, item]);
         void upload(item, setPhotos);
       } catch {
@@ -88,7 +97,7 @@ export function PhotoPicker({
 
   const remove = (item: PhotoItem) => {
     setPhotos((p) => p.filter((x) => x.key !== item.key));
-    if (item.preview) URL.revokeObjectURL(item.preview);
+    if (item.preview.startsWith("blob:")) URL.revokeObjectURL(item.preview);
     if (item.id) void removePhotoAction(item.id);
   };
 

@@ -10,6 +10,7 @@ import { questionsOf } from "@leadgen/core/settings/questions";
 import { getTenantPayments } from "@leadgen/core/stripe/accounts";
 import { requireRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
+import { ContactLinks } from "@/components/contact-links";
 import { BookingFlow } from "./booking-flow";
 
 export const metadata: Metadata = { title: "Instant quote" };
@@ -31,7 +32,10 @@ export default async function QuotePage({ searchParams }: PageProps<"/sites/[ten
   if (!config || !config.services.length || !(config.settings.offers_mobile || config.settings.offers_unit)) {
     return (
       <main className="flex flex-1 items-center justify-center p-4 text-center text-sm text-neutral-500">
-        Online booking isn&apos;t open yet. Please get in touch with {tenant.name} directly.
+        <div className="grid justify-items-center gap-3">
+          <p>Online booking isn&apos;t open yet. Please get in touch with {tenant.name} directly.</p>
+          <ContactLinks phone={tenant.contact.phone} email={tenant.contact.email} />
+        </div>
       </main>
     );
   }
@@ -104,6 +108,8 @@ export default async function QuotePage({ searchParams }: PageProps<"/sites/[ten
           policy={policy ? policyLines(policy, settings.deposit.type !== "none") : null}
           consentText={tenant.privacy.marketingConsentText ?? DEFAULT_MARKETING_CONSENT}
           privacyUrl={tenant.privacy.policyUrl ?? pageUrl(tenant, "/privacy")}
+          termsUrl={tenant.branding.terms_url ?? pageUrl(tenant, "/terms")}
+          contact={tenant.contact}
         />
       </div>
     </main>

@@ -30,6 +30,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         {children}
         {tenant && (
           <footer className="px-4 py-6 text-center text-xs text-neutral-500">
+            <a href={tenant.branding.terms_url ?? pageUrl(tenant, "/terms")} className="underline">Booking terms</a>
+            <span aria-hidden> · </span>
             <a href={pageUrl(tenant, "/privacy")} className="underline">Privacy notice</a>
             <span aria-hidden> · </span>
             <a href={pageUrl(tenant, "/privacy/request")} className="underline">Your data rights</a>

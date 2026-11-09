@@ -1,27 +1,29 @@
 import { CONCERNS, CONTACT_METHODS, HANDOVER, HEARD_FROM, type StoredAnswers } from "@leadgen/core/booking/answers";
 import type { ConditionCheck } from "@leadgen/core/booking/condition";
+import type { BadgeTone } from "@/components/ui/badge";
+import { formatDateTime } from "@leadgen/core/dates";
 
 // How booking data is labelled and read for display, shared by the bookings
 // list and the booking page.
 
 export const BOOKING_STATUS: Record<string, string> = {
-  held: "Held",
+  held: "Awaiting deposit",
   requested: "Awaiting approval",
   confirmed: "Confirmed",
   completed: "Completed",
   cancelled: "Cancelled",
   no_show: "No-show",
-  expired: "Hold expired",
+  expired: "Deposit not paid",
 };
 
-export const BOOKING_STATUS_TONE: Record<string, string> = {
-  held: "bg-amber-100 text-amber-900",
-  requested: "bg-violet-100 text-violet-900",
-  confirmed: "bg-emerald-100 text-emerald-900",
-  completed: "bg-sky-100 text-sky-900",
-  cancelled: "bg-muted text-muted-foreground",
-  no_show: "bg-red-100 text-red-900",
-  expired: "bg-muted text-muted-foreground",
+export const BOOKING_STATUS_TONE: Record<string, BadgeTone> = {
+  held: "warning",
+  requested: "violet",
+  confirmed: "success",
+  completed: "info",
+  cancelled: "neutral",
+  no_show: "danger",
+  expired: "neutral",
 };
 
 export const DEPOSIT_STATUS: Record<string, string> = {
@@ -34,7 +36,7 @@ export const DEPOSIT_STATUS: Record<string, string> = {
   waived: "Waived",
 };
 
-export const BOOKING_SOURCE: Record<string, string> = { booking_page: "Booking page" };
+export const BOOKING_SOURCE: Record<string, string> = { booking_page: "Booking page", manual: "Added by you" };
 
 const YES_NO: Record<string, string> = { yes: "Yes", no: "No", unsure: "Not sure" };
 const PARKING: Record<string, string> = {
@@ -167,22 +169,11 @@ export function submittedGroups(input: {
     },
     {
       title: "Consent",
-      rows: [["Details confirmed", answers?.termsAcceptedAt ? formatStamp(answers.termsAcceptedAt) : undefined]],
+      rows: [["Terms accepted", answers?.termsAcceptedAt ? formatDateTime(answers.termsAcceptedAt) : undefined]],
     },
   ].map((g) => ({
     title: g.title,
     rows: g.rows.filter((r): r is [string, string] => Boolean(r[1])),
   }));
   return groups.filter((g) => g.rows.length > 0);
-}
-
-function formatStamp(iso: string) {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "Europe/London",
-  }).format(new Date(iso));
 }

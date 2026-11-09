@@ -59,14 +59,14 @@ export default function BookingFlow() {
             "Chooses their address or dropping the car at your unit, if you offer both. For mobile jobs: the address (checked against your coverage area), whether there's a tap and a socket, where the car will be parked, and how you'll get the keys.",
           ],
           [
-            "Your details",
-            "Name, email and mobile number. Optionally, how they'd like you to contact them and how they heard about you.",
-          ],
-          [
             "Date and time",
             "Picks a day, then a start time. Days that are closed or fully booked are greyed out.",
           ],
-          ["Review and book", "Checks the summary, ticks to agree, and books."],
+          [
+            "Your details",
+            "Name, email and mobile number. Optionally, how they'd like you to contact them and how they heard about you.",
+          ],
+          ["Review and book", "Checks the summary and books, which agrees to your booking terms."],
         ]}
       />
 
@@ -124,6 +124,36 @@ export default function BookingFlow() {
         booking appears in your <Place>Calendar</Place> and <Place>Bookings</Place>, with every answer they gave and any
         photos they added.
       </p>
+
+      <h2 id="changes">Customers changing or cancelling</h2>
+      <p>
+        Set your cut-offs under <Place>Settings → Booking</Place>, in the cancellation policy, and customers can cancel
+        or move their own booking up to them. Their confirmation and reminder emails have a{" "}
+        <strong>Manage your booking</strong> button, and so does the page they see after booking.
+      </p>
+      <ul>
+        <li>
+          Moving offers only times that are free for the same job, with your usual notice and how far ahead people can
+          book. The price and any deposit stay as they were, and a request waiting for your approval stays a request.
+        </li>
+        <li>
+          Cancelling frees the time straight away. If they paid a deposit, they&apos;re told what your policy gives
+          back, and your alert says how much to refund. You make the refund yourself from the booking&apos;s page.
+        </li>
+        <li>
+          Past a cut-off, or once they&apos;ve moved it as many times as you allow, the page gives them your phone
+          number and email instead.
+        </li>
+        <li>
+          You get an email each time (under <Place>Settings → Notifications</Place>, &quot;Cancellations and
+          changes&quot;), Google Calendar is updated, and the booking shows who changed it and when.
+        </li>
+      </ul>
+      <p>
+        Without a policy, or with &quot;Let customers cancel and change the time themselves&quot; switched off, the page
+        just shows the booking and how to reach you.
+      </p>
+
       <h2 id="photos">How photos set the condition</h2>
       <p>
         If you price by condition, customers aren&apos;t asked what state their car is in. When they continue past{" "}

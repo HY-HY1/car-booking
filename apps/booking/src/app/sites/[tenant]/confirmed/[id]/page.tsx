@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Check, Clock } from "lucide-react";
+import { Clock } from "lucide-react";
 import { formatPence } from "@leadgen/core/booking/config";
 import { getBookingSummary } from "@leadgen/core/booking/engine";
+import { manageBookingUrl } from "@leadgen/core/booking/manage-link";
 import { confirmFromCheckout } from "@leadgen/core/stripe/payments";
 import { requireRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
 import { resumePaymentAction } from "./actions";
+import { ContactLinks } from "@/components/contact-links";
+import { Booked } from "./booked";
 import { RefreshWhileWaiting } from "./refresh-while-waiting";
+import { formatFullDateTime } from "@leadgen/core/dates";
 
 export const metadata: Metadata = { title: "Your booking" };
 
@@ -18,7 +22,10 @@ export const metadata: Metadata = { title: "Your booking" };
 export default async function ConfirmedPage({ params, searchParams }: PageProps<"/sites/[tenant]/confirmed/[id]">) {
   const tenant = await requireRequestTenant();
   const { id } = await params;
-  const cancelled = (await searchParams).cancelled === "1";
+  const query = await searchParams;
+  const cancelled = query.cancelled === "1";
+  // Inside the embed script's panel: the panel has its own header.
+  const embedded = query.embed === "1";
   let booking = await getBookingSummary(tenant.id, id);
   const waiting = booking?.status === "held" || (booking?.status === "expired" && booking.depositStatus === "pending");
   if (waiting && !cancelled) {
@@ -29,51 +36,33 @@ export default async function ConfirmedPage({ params, searchParams }: PageProps<
       console.error("Checking the deposit with Stripe failed", error);
     }
   }
+  // The same link as in their emails, to change or cancel it later.
+  const manage =
+    booking?.status === "confirmed" || booking?.status === "requested" ? await manageBookingUrl(tenant, id) : null;
 
   return (
     <main className="flex flex-1 flex-col">
-      <header className="bg-brand px-4 py-3 text-brand-fg">
-        <Link href={pageUrl(tenant)} className="font-semibold">
-          {tenant.name}
-        </Link>
-      </header>
+      {!embedded && (
+        <header className="bg-brand px-4 py-3 text-brand-fg">
+          <Link href={pageUrl(tenant)} className="font-semibold">
+            {tenant.name}
+          </Link>
+        </header>
+      )}
       <div className="mx-auto grid w-full max-w-lg flex-1 content-start justify-items-center gap-3 px-4 py-12 text-center">
         {!booking ? (
           <Message title="We couldn't find that booking">
             <Again href={pageUrl(tenant, "/quote")} />
           </Message>
-        ) : booking.status === "confirmed" ? (
-          <>
-            <div className="grid size-14 place-items-center rounded-full bg-brand text-brand-fg">
-              <Check className="size-7" />
-            </div>
-            <h1 className="text-2xl font-semibold">You&apos;re booked in</h1>
-            <p className="text-neutral-600">
-              {booking.serviceName ? `${booking.serviceName}, ` : ""}
-              {formatInstant(booking.startsAt, booking.timezone)}.
-            </p>
-            <p className="max-w-sm text-sm text-neutral-500">
-              {booking.depositStatus === "paid"
-                ? `Your ${formatPence(booking.depositPence)} deposit is paid. ${tenant.name} will be in touch before the day.`
-                : `${tenant.name} will be in touch before the day.`}
-            </p>
-          </>
-        ) : booking.status === "requested" ? (
-          <>
-            <div className="grid size-14 place-items-center rounded-full bg-brand text-brand-fg">
-              <Clock className="size-7" />
-            </div>
-            <h1 className="text-2xl font-semibold">Booking request sent</h1>
-            <p className="text-neutral-600">
-              {booking.serviceName ? `${booking.serviceName}, ` : ""}
-              {formatInstant(booking.startsAt, booking.timezone)}.
-            </p>
-            <p className="max-w-sm text-sm text-neutral-500">
-              {booking.depositStatus === "paid"
-                ? `Your ${formatPence(booking.depositPence)} deposit is paid. ${tenant.name} will confirm your booking shortly; if they can't take it, your deposit is refunded in full.`
-                : `${tenant.name} will confirm your booking shortly. The time is kept for you until they do.`}
-            </p>
-          </>
+        ) : booking.status === "confirmed" || booking.status === "requested" ? (
+          <Booked
+            id={id}
+            booking={booking}
+            businessName={tenant.name}
+            contact={tenant.contact}
+            manageUrl={manage}
+            icsUrl={pageUrl(tenant, `/confirmed/${id}/calendar`)}
+          />
         ) : booking.status === "held" && !cancelled ? (
           <>
             <RefreshWhileWaiting />
@@ -90,7 +79,7 @@ export default async function ConfirmedPage({ params, searchParams }: PageProps<
           <>
             <h1 className="text-2xl font-semibold">Your deposit isn&apos;t paid yet</h1>
             <p className="max-w-sm text-sm text-neutral-500">
-              We&apos;re holding {formatInstant(booking.startsAt, booking.timezone)} for you for a little
+              We&apos;re holding {formatFullDateTime(booking.startsAt, booking.timezone)} for you for a little
               longer. Pay the {formatPence(booking.depositPence)} deposit to secure it.
             </p>
             <form action={resumePaymentAction.bind(null, id)}>
@@ -119,6 +108,11 @@ export default async function ConfirmedPage({ params, searchParams }: PageProps<
             <Again href={pageUrl(tenant, "/quote")} />
           </Message>
         )}
+        {!(booking?.status === "confirmed" || booking?.status === "requested") && (
+          <div className="mt-2">
+            <ContactLinks phone={tenant.contact.phone} email={tenant.contact.email} />
+          </div>
+        )}
       </div>
     </main>
   );
@@ -142,15 +136,4 @@ function Again({ href }: { href: string }) {
       Pick another time
     </Link>
   );
-}
-
-function formatInstant(iso: string, timeZone: string) {
-  return new Intl.DateTimeFormat("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone,
-  }).format(new Date(iso));
 }

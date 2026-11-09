@@ -5,6 +5,8 @@ import { calendarBusyByResource, syncBookingEvent } from "../calendar/sync";
 import { normalizePhone, normalizePostcode } from "../customer-fields";
 import { notifyBookingSecured } from "../email/notify";
 import { attachPhotos, MAX_PHOTOS } from "../photos";
+import { verifiedSender } from "../email/senders-server";
+import { notificationsOf } from "../settings/notifications";
 import { createAdminClient } from "../supabase/admin";
 import { getTenantPayments } from "../stripe/accounts";
 import { depositDescription } from "../stripe/checkout";
@@ -293,8 +295,9 @@ function jobPostcode(settings: BookingSettings, req: { locationType: string; pos
 // kept depends on whether both jobs are at the shop. Time off for the whole
 // business goes in every resource's list, time off for one only in its own.
 // Busy times in Google Calendar count as time off for the vans using that
-// calendar.
-async function loadBusyByResource(
+// calendar. `exclude` leaves one booking out: the one being moved, so its
+// current time doesn't count against it.
+export async function loadBusyByResource(
   db: SupabaseClient,
   tenantId: string,
   settings: BookingSettings,
@@ -303,15 +306,18 @@ async function loadBusyByResource(
   to: Date,
   postcode: string,
   locationType: LocationType,
+  exclude?: string,
 ): Promise<Map<string, BusyPeriod[]>> {
+  let bookingsQuery = db
+    .from("bookings")
+    .select("starts_at, ends_at, postcode, status, hold_expires_at, resource_id, location_type")
+    .eq("tenant_id", tenantId)
+    .in("status", ["held", "requested", "confirmed"])
+    .lt("starts_at", to.toISOString())
+    .gt("ends_at", from.toISOString());
+  if (exclude) bookingsQuery = bookingsQuery.neq("id", exclude);
   const [bookings, blocked, calendarBusy] = await Promise.all([
-    db
-      .from("bookings")
-      .select("starts_at, ends_at, postcode, status, hold_expires_at, resource_id, location_type")
-      .eq("tenant_id", tenantId)
-      .in("status", ["held", "requested", "confirmed"])
-      .lt("starts_at", to.toISOString())
-      .gt("ends_at", from.toISOString()),
+    bookingsQuery,
     db
       .from("blocked_times")
       .select("starts_at, ends_at, resource_id")
@@ -668,7 +674,7 @@ export async function holdSlot(
     const area = await areaCheck(settings, postcode);
     if (!area.ok) return area;
   }
-  if (!req.details.acceptedTerms) return fail("terms_required", "Please tick the box to confirm your details are right.");
+  if (!req.details.acceptedTerms) return fail("terms_required", "Please accept the booking terms to continue.");
   if (settings.photos_required && req.photoIds.length < settings.min_photos) {
     return fail(
       "photos_required",
@@ -845,9 +851,20 @@ export type BookingSummary = {
   status: "held" | "requested" | "confirmed" | "expired" | "other";
   serviceName: string | null;
   startsAt: string;
+  endsAt: string;
   timezone: string;
+  locationType: LocationType;
+  // Where the job happens: the customer's address, or the business's unit.
+  address: string;
+  pricePence: number;
   depositPence: number;
   depositStatus: string;
+  // The final price waits on the business seeing the car.
+  needsInspection: boolean;
+  customerEmail: string | null;
+  // Whether this business can email its customers, and sends reminders.
+  emailsCustomer: boolean;
+  remindsCustomer: boolean;
 };
 
 // What the page after Stripe's checkout shows. The booking id is an
@@ -855,20 +872,28 @@ export type BookingSummary = {
 export async function getBookingSummary(tenantId: string, bookingId: string): Promise<BookingSummary | null> {
   if (!z.uuid().safeParse(bookingId).success) return null;
   const db = createAdminClient();
-  const [booking, settings] = await Promise.all([
+  const [booking, settings, tenant, sender] = await Promise.all([
     db
       .from("bookings")
-      .select("status, starts_at, deposit_pence, deposit_status, hold_expires_at, service:services(name)")
+      .select(
+        "status, starts_at, ends_at, location_type, address_line, postcode, price_pence, deposit_pence, deposit_status, hold_expires_at, quote_snapshot, service:services(name), customer:customers(email)",
+      )
       .eq("tenant_id", tenantId)
       .eq("id", bookingId)
       .maybeSingle(),
-    db.from("booking_settings").select("timezone").eq("tenant_id", tenantId).maybeSingle(),
+    db.from("booking_settings").select("timezone, unit_address, unit_postcode").eq("tenant_id", tenantId).maybeSingle(),
+    db.from("tenants").select("notification_settings").eq("id", tenantId).single(),
+    verifiedSender(tenantId, db),
   ]);
   if (booking.error) throw booking.error;
   if (settings.error) throw settings.error;
+  if (tenant.error) throw tenant.error;
   if (!booking.data) return null;
 
   const b = booking.data;
+  const notifications = notificationsOf(tenant.data.notification_settings);
+  const customerEmail = (b.customer as unknown as { email: string | null } | null)?.email ?? null;
+  const emailsCustomer = Boolean(sender) && notifications.channels.email && customerEmail !== null;
   const lapsed = b.status === "held" && new Date(b.hold_expires_at).getTime() <= Date.now();
   const status =
     lapsed || b.status === "expired"
@@ -880,8 +905,19 @@ export async function getBookingSummary(tenantId: string, bookingId: string): Pr
     status,
     serviceName: (b.service as unknown as { name: string } | null)?.name ?? null,
     startsAt: b.starts_at,
+    endsAt: b.ends_at,
     timezone: settings.data?.timezone ?? "Europe/London",
+    locationType: b.location_type,
+    address:
+      b.location_type === "unit"
+        ? [settings.data?.unit_address, settings.data?.unit_postcode].filter(Boolean).join(", ")
+        : [b.address_line, b.postcode].filter(Boolean).join(", "),
+    pricePence: b.price_pence,
     depositPence: b.deposit_pence,
     depositStatus: b.deposit_status,
+    needsInspection: (b.quote_snapshot as { needs_inspection?: boolean } | null)?.needs_inspection === true,
+    customerEmail,
+    emailsCustomer,
+    remindsCustomer: emailsCustomer && notifications.messages.reminder.enabled,
   };
 }

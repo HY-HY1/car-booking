@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useEffectEvent, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Loader2, Pencil } from "lucide-react";
 import {
@@ -35,6 +35,8 @@ import { shortDate } from "@leadgen/core/booking/calendar";
 import { CAR_MAKES, CAR_MODELS, POPULAR_MAKES } from "@leadgen/core/vehicles/catalog";
 import { suggestSize } from "@leadgen/core/vehicles/sizes";
 import { SearchSelect, type OptionGroup } from "@/components/search-select";
+import { Checkbox, Field, Input, Textarea } from "@/components/ui/fields";
+import { ContactLinks } from "@/components/contact-links";
 import { pageUrl } from "@/lib/urls";
 import {
   assessPhotosAction,
@@ -45,7 +47,9 @@ import {
   saveLeadAction,
 } from "./actions";
 import { DateTimePicker } from "./date-time-picker";
+import { clearDraft, forgetOpeningDraft, openingDraft, parseDraft, saveDraft } from "./draft";
 import { PhotoPicker, type PhotoItem } from "./photo-picker";
+import { formatFullDateTime } from "@leadgen/core/dates";
 
 // The booking page: every step on one page, the finished ones folded down to
 // a line, with the price following the customer in a summary beside it. The
@@ -86,6 +90,10 @@ type Props = {
   consentText: string;
   // Where "privacy notice" links go.
   privacyUrl: string;
+  // Where "booking terms" links go.
+  termsUrl: string;
+  // How to reach the business when the form can't help.
+  contact: { email: string | null; phone: string | null };
 };
 
 const OTHER = "Other (not listed)";
@@ -100,8 +108,8 @@ const STEPS = [
   { id: "vehicle", title: "Your car" },
   { id: "options", title: "Extras and options" },
   { id: "where", title: "Where" },
-  { id: "details", title: "Your details" },
   { id: "time", title: "Date and time" },
+  { id: "details", title: "Your details" },
   { id: "confirm", title: "Review and book" },
 ] as const;
 type StepId = (typeof STEPS)[number]["id"];
@@ -138,7 +146,6 @@ type Answers = {
   carLocation: string;
   notes: string;
   flexible: boolean;
-  acceptedTerms: boolean;
   date?: string;
   slot?: Slot;
 };
@@ -162,30 +169,78 @@ const EMPTY: Answers = {
   carLocation: "",
   notes: "",
   flexible: false,
-  acceptedTerms: false,
 };
 
+type Draft = {
+  active: number;
+  answers: Answers;
+  photos: { key: string; id: string; thumb?: string }[];
+  assessment: (ConditionAssessment & { photoKey: string }) | null;
+};
+
+// A saved booking, if it still fits what this business offers and the service
+// they've just come here for.
+function usableDraft(raw: string | null, props: Props): Draft | null {
+  const draft = parseDraft<Draft>(raw);
+  if (!draft) return null;
+  const { serviceId, addOnIds } = draft.answers;
+  if (serviceId && !props.services.some((s) => s.id === serviceId)) return null;
+  if (props.initialServiceId && serviceId !== props.initialServiceId) return null;
+  return {
+    ...draft,
+    active: serviceId ? Math.min(draft.active, STEPS.length - 1) : 0,
+    answers: { ...draft.answers, addOnIds: addOnIds.filter((id) => props.addOns.some((x) => x.id === id)) },
+  };
+}
+
+const noSubscribe = () => () => {};
+
+// Reads any saved booking once the page is in the browser, then starts the
+// form from it. The server knows nothing of it, so the first paint is empty.
 export function BookingFlow(props: Props) {
+  const slug = props.tenant.slug;
+  const raw = useSyncExternalStore(noSubscribe, () => openingDraft(slug), () => null);
+  const draft = useMemo(() => usableDraft(raw, props), [raw, props]);
+  useEffect(() => () => forgetOpeningDraft(slug), [slug]);
+  return <Flow key={draft ? "restored" : "fresh"} {...props} draft={draft} />;
+}
+
+function depositNote(rule: PricingSettings["deposit"]) {
+  switch (rule.type) {
+    case "none":
+      return null;
+    case "percent":
+      return `${rule.value}% deposit to book`;
+    case "fixed":
+      return `${formatPence(rule.value_pence)} deposit to book`;
+    case "full":
+      return "Paid in full when you book";
+  }
+}
+
+function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
   const { services, addOns, pricing, timezone, questions: ask } = props;
   const preselected = services.some((x) => x.id === props.initialServiceId);
-  const [active, setActive] = useState<number>(preselected ? 1 : 0);
+  const startActive = preselected ? 1 : 0;
+  const startAnswers: Answers = preselected ? { ...EMPTY, serviceId: props.initialServiceId } : EMPTY;
+  const [active, setActive] = useState<number>(draft?.active ?? startActive);
   const [phase, setPhase] = useState<Phase>("form");
-  const [a, setA] = useState<Answers>(preselected ? { ...EMPTY, serviceId: props.initialServiceId } : EMPTY);
+  const [a, setA] = useState<Answers>(draft?.answers ?? startAnswers);
   const [error, setError] = useState<string | null>(null);
   const [slots, setSlots] = useState<Slot[] | null>(null);
   // Days with a start time free; null while that's being worked out.
   const [openDates, setOpenDates] = useState<string[] | null>(null);
-  const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  const [photos, setPhotos] = useState<PhotoItem[]>(
+    () => draft?.photos.map((p) => ({ key: p.key, id: p.id, thumb: p.thumb, preview: p.thumb ?? "", status: "done" as const })) ?? [],
+  );
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
-  // The booking went in as a request for the owner to approve.
-  const [requested, setRequested] = useState(false);
   const photoIds = photos.flatMap((p) => (p.status === "done" && p.id ? [p.id] : []));
   const uploading = photos.some((p) => p.status === "uploading");
   // The condition comes from a check of the photos (never asked), and only
   // counts for the photos it looked at: adding or removing one means a new check.
   const pricesByCondition = pricing.condition_tiers.length > 0;
   const photoKey = [...photoIds].sort().join(",");
-  const [assessment, setAssessment] = useState<(ConditionAssessment & { photoKey: string }) | null>(null);
+  const [assessment, setAssessment] = useState<(ConditionAssessment & { photoKey: string }) | null>(draft?.assessment ?? null);
   const [checking, setChecking] = useState(false);
   const check = assessment?.photoKey === photoKey ? assessment : null;
   const [pending, startTransition] = useTransition();
@@ -236,6 +291,19 @@ export function BookingFlow(props: Props) {
   })();
 
   const payOnline = !!quote && collectsDepositOnline(quote.deposit_pence, props.stripeReady);
+
+  // Remembered from the first change on, so a refresh picks up here.
+  const slug = props.tenant.slug;
+  const touched = active !== startActive || JSON.stringify(a) !== JSON.stringify(startAnswers);
+  useEffect(() => {
+    if (phase !== "form" || !touched) return;
+    saveDraft<Draft>(slug, {
+      active,
+      answers: a,
+      photos: photos.flatMap((p) => (p.status === "done" && p.id ? [{ key: p.key, id: p.id, thumb: p.thumb }] : [])),
+      assessment,
+    });
+  }, [phase, touched, slug, active, a, photos, assessment]);
 
   const set = (patch: Partial<Answers>) => {
     setError(null);
@@ -319,7 +387,7 @@ export function BookingFlow(props: Props) {
       : {};
 
   const year = /^\d{4}$/.test(a.year.trim()) ? Number(a.year.trim()) : undefined;
-  const details = () => ({
+  const details = (acceptedTerms: boolean) => ({
     colour: a.colour,
     year,
     concerns: a.concerns,
@@ -327,7 +395,7 @@ export function BookingFlow(props: Props) {
     contactMethod: a.contactMethod,
     heardFrom: a.heardFrom,
     flexible: a.flexible,
-    acceptedTerms: a.acceptedTerms,
+    acceptedTerms,
   });
 
   const pickDate = (date: string) => {
@@ -357,6 +425,45 @@ export function BookingFlow(props: Props) {
       if (dates[0]) pickDate(dates[0]);
     });
   };
+
+  // Back after a refresh, past the point of picking a time: the diary hasn't
+  // been loaded, and the time they chose may have gone since.
+  const reloadDiary = useEffectEvent(() => {
+    const backToPicking = (message?: string) => {
+      setA((prev) => ({ ...prev, slot: undefined }));
+      setActive(stepIndex("time"));
+      if (message) setError(message);
+    };
+    startTransition(async () => {
+      let dates = props.dates;
+      try {
+        const result = await findOpenDatesAction({ ...quoteRequest(), ...place() });
+        if (result.ok) dates = result.dates;
+      } catch {
+        // Every working day, as on the way in.
+      }
+      setOpenDates(dates);
+      if (!a.date || !dates.includes(a.date)) {
+        if (a.slot) backToPicking("That time has gone since you picked it. Pick another.");
+        setA((prev) => ({ ...prev, date: undefined }));
+        if (dates[0]) pickDate(dates[0]);
+        return;
+      }
+      try {
+        const result = await findSlotsAction({ ...quoteRequest(), ...place(), date: a.date });
+        if (!result.ok) return;
+        setSlots(result.slots);
+        if (a.slot && !result.slots.some((s) => s.startsAt === a.slot!.startsAt)) {
+          backToPicking("That time has gone since you picked it. Pick another.");
+        }
+      } catch {
+        // The time is checked again when they book.
+      }
+    });
+  });
+  useEffect(() => {
+    if (draft && draft.active >= stepIndex("time") && draft.answers.locationType) reloadDiary();
+  }, [draft]);
 
   // One line per finished step, shown while it's folded.
   const summaries: Record<StepId, string> = {
@@ -417,23 +524,27 @@ export function BookingFlow(props: Props) {
           </div>
         )}
 
-        {phase === "done" && quote && a.slot && (
-          <div className="grid justify-items-center gap-3 rounded-2xl border bg-white px-4 py-12 text-center">
-            <div className="grid size-14 place-items-center rounded-full bg-brand text-brand-fg">
-              <Check className="size-7" />
-            </div>
-            <h2 className="text-2xl font-semibold">{requested ? "Booking request sent" : "You’re booked in"}</h2>
-            <p className="text-neutral-600">
-              {quote.service_name}, {formatInstant(a.slot.startsAt, timezone)}.
-            </p>
-            <p className="max-w-sm text-sm text-neutral-500">
-              {requested
-                ? `${props.tenantName} will confirm your booking shortly. The time is kept for you until they do.`
-                : quote.deposit_pence > 0
-                  ? `${props.tenantName} will be in touch about the ${formatPence(quote.deposit_pence)} deposit.`
-                  : `${props.tenantName} will be in touch before the day.`}
-            </p>
+        {phase === "done" && (
+          <div className="grid justify-items-center gap-3 rounded-2xl border bg-white py-12 text-center">
+            <Loader2 className="size-8 animate-spin text-neutral-400" />
+            <h2 className="text-xl font-semibold">Booking you in…</h2>
           </div>
+        )}
+
+        {draft && !finished && (
+          <p className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-neutral-100 px-3 py-2 text-sm text-neutral-700">
+            We&apos;ve kept your answers so you can carry on.
+            <button
+              type="button"
+              className="font-medium underline underline-offset-2"
+              onClick={() => {
+                clearDraft(slug);
+                window.location.reload();
+              }}
+            >
+              Start again
+            </button>
+          </p>
         )}
 
         {!finished && (
@@ -471,8 +582,8 @@ export function BookingFlow(props: Props) {
                     />
                     {a.makeChoice === OTHER ? (
                       <>
-                        <Field label="Make" value={a.make} onChange={(make) => set({ make })} />
-                        <Field label="Model" value={a.model} onChange={(model) => set({ model })} />
+                        <TextField label="Make" value={a.make} onChange={(make) => set({ make })} />
+                        <TextField label="Model" value={a.model} onChange={(model) => set({ model })} />
                       </>
                     ) : (
                       <>
@@ -488,14 +599,14 @@ export function BookingFlow(props: Props) {
                           }
                         />
                         {a.modelChoice === OTHER && (
-                          <Field label="Model" value={a.model} onChange={(model) => set({ model })} />
+                          <TextField label="Model" value={a.model} onChange={(model) => set({ model })} />
                         )}
                       </>
                     )}
                     {(ask.registration || ask.colour_year) && (
                       <div className={ask.registration && ask.colour_year ? "grid grid-cols-3 gap-3" : "grid grid-cols-2 gap-3"}>
                         {ask.registration && (
-                          <Field
+                          <TextField
                             label="Registration"
                             placeholder="Optional"
                             value={a.registration}
@@ -505,8 +616,8 @@ export function BookingFlow(props: Props) {
                         )}
                         {ask.colour_year && (
                           <>
-                            <Field label="Colour" placeholder="Optional" value={a.colour} onChange={(colour) => set({ colour })} />
-                            <Field
+                            <TextField label="Colour" placeholder="Optional" value={a.colour} onChange={(colour) => set({ colour })} />
+                            <TextField
                               label="Year"
                               placeholder="Optional"
                               inputMode="numeric"
@@ -631,8 +742,8 @@ export function BookingFlow(props: Props) {
                 {a.locationType === "mobile" && (
                   <>
                     <div className="grid gap-3">
-                      <Field label="Postcode" value={a.postcode} onChange={(postcode) => set({ postcode })} autoComplete="postal-code" />
-                      <Field
+                      <TextField label="Postcode" value={a.postcode} onChange={(postcode) => set({ postcode })} autoComplete="postal-code" />
+                      <TextField
                         label="First line of the address"
                         value={a.addressLine}
                         onChange={(addressLine) => set({ addressLine })}
@@ -664,7 +775,7 @@ export function BookingFlow(props: Props) {
                           </>
                         )}
                         {ask.car_location && (
-                          <Field
+                          <TextField
                             label="Finding you (optional)"
                             placeholder="Gate code, which bay, a landmark…"
                             value={a.carLocation}
@@ -696,22 +807,68 @@ export function BookingFlow(props: Props) {
                 <Continue
                   pending={pending}
                   disabled={!a.locationType || (a.locationType === "mobile" && (!a.postcode.trim() || !a.addressLine.trim()))}
-                  onClick={() =>
-                    a.locationType === "mobile"
-                      ? run(() => checkAreaAction(a.postcode), next)
-                      : next()
-                  }
+                  onClick={() => {
+                    const toTimes = () => {
+                      next();
+                      loadOpenDates();
+                    };
+                    if (a.locationType === "mobile") run(() => checkAreaAction(a.postcode), toTimes);
+                    else toTimes();
+                  }}
                 />
               </div>
+            </StepCard>
+
+            <StepCard {...cardProps("time")}>
+              {quote && (
+                <div className="grid gap-5">
+                  <Section title="When suits you?" hint={`The job takes about ${formatDuration(quote.duration_mins)}.`}>
+                    {openDates === null ? (
+                      <p className="flex items-center gap-2 text-sm text-neutral-500">
+                        <Loader2 className="size-4 animate-spin" /> Checking the diary…
+                      </p>
+                    ) : openDates.length === 0 ? (
+                      <div className="grid gap-3 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+                        <p>
+                          {props.tenantName} is fully booked for the coming weeks. Get in touch and we&apos;ll find you
+                          a time.
+                        </p>
+                        <ContactLinks phone={props.contact.phone} email={props.contact.email} />
+                      </div>
+                    ) : (
+                      <DateTimePicker
+                        today={props.today}
+                        openDates={openDates}
+                        date={a.date}
+                        onPickDate={pickDate}
+                        slots={slots}
+                        loadingSlots={pending}
+                        slot={a.slot}
+                        onPickSlot={(slot) => set({ slot })}
+                      />
+                    )}
+                  </Section>
+                  {ask.flexible && (
+                    <Checkbox checked={a.flexible} onChange={(e) => set({ flexible: e.target.checked })}>
+<span>I&apos;m flexible. Let me know if an earlier time opens up.</span>
+</Checkbox>
+                  )}
+                  <Continue
+                    label={a.slot && a.date ? `Continue · ${shortDate(a.date)} at ${a.slot.time}` : "Pick a time to continue"}
+                    disabled={!a.slot}
+                    onClick={next}
+                  />
+                </div>
+              )}
             </StepCard>
 
             <StepCard {...cardProps("details")}>
               {quote && (
                 <div className="grid gap-5">
                   <Section title="Your details">
-                    <Field label="Name" value={a.name} onChange={(name) => set({ name })} autoComplete="name" />
-                    <Field label="Email" type="email" value={a.email} onChange={(email) => set({ email })} autoComplete="email" />
-                    <Field label="Mobile number" type="tel" value={a.phone} onChange={(phone) => set({ phone })} autoComplete="tel" />
+                    <TextField label="Name" value={a.name} onChange={(name) => set({ name })} autoComplete="name" />
+                    <TextField label="Email" type="email" value={a.email} onChange={(email) => set({ email })} autoComplete="email" />
+                    <TextField label="Mobile number" type="tel" value={a.phone} onChange={(phone) => set({ phone })} autoComplete="tel" />
                   </Section>
                   {ask.contact_method && (
                     <Section title="How should we contact you?" hint="Optional.">
@@ -747,15 +904,9 @@ export function BookingFlow(props: Props) {
                       </div>
                     </Section>
                   )}
-                  <label className="flex items-start gap-3 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={a.emailMarketing}
-                      onChange={(e) => set({ emailMarketing: e.target.checked })}
-                      className="mt-0.5 size-4 accent-[var(--brand)]"
-                    />
-                    <span>{props.consentText}</span>
-                  </label>
+                  <Checkbox checked={a.emailMarketing} onChange={(e) => set({ emailMarketing: e.target.checked })}>
+<span>{props.consentText}</span>
+</Checkbox>
                   <p className="text-xs text-neutral-500">
                     {props.tenantName} uses your details to handle this enquiry and booking, and may contact
                     you about it, including to follow up if you don&apos;t finish booking. See our{" "}
@@ -776,61 +927,12 @@ export function BookingFlow(props: Props) {
                             draft: {
                               vehicle: { make: carMake, model: carModel, registration: a.registration },
                               access: access(),
-                              details: details(),
+                              details: details(false),
                             },
                           }),
-                        () => {
-                          next();
-                          loadOpenDates();
-                        },
+                        next,
                       )
                     }
-                  />
-                </div>
-              )}
-            </StepCard>
-
-            <StepCard {...cardProps("time")}>
-              {quote && (
-                <div className="grid gap-5">
-                  <Section title="When suits you?" hint={`The job takes about ${formatDuration(quote.duration_mins)}.`}>
-                    {openDates === null ? (
-                      <p className="flex items-center gap-2 text-sm text-neutral-500">
-                        <Loader2 className="size-4 animate-spin" /> Checking the diary…
-                      </p>
-                    ) : openDates.length === 0 ? (
-                      <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
-                        {props.tenantName} is fully booked for the coming weeks. Please get in touch directly and
-                        we&apos;ll find you a time.
-                      </p>
-                    ) : (
-                      <DateTimePicker
-                        today={props.today}
-                        openDates={openDates}
-                        date={a.date}
-                        onPickDate={pickDate}
-                        slots={slots}
-                        loadingSlots={pending}
-                        slot={a.slot}
-                        onPickSlot={(slot) => set({ slot })}
-                      />
-                    )}
-                  </Section>
-                  {ask.flexible && (
-                    <label className="flex items-start gap-3 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={a.flexible}
-                        onChange={(e) => set({ flexible: e.target.checked })}
-                        className="mt-0.5 size-4 accent-[var(--brand)]"
-                      />
-                      <span>I&apos;m flexible. Let me know if an earlier time opens up.</span>
-                    </label>
-                  )}
-                  <Continue
-                    label={a.slot && a.date ? `Continue · ${shortDate(a.date)} at ${a.slot.time}` : "Pick a time to continue"}
-                    disabled={!a.slot}
-                    onClick={next}
                   />
                 </div>
               )}
@@ -842,7 +944,7 @@ export function BookingFlow(props: Props) {
                   <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-2xl border bg-white p-4 text-sm">
                     <dt className="text-neutral-500">When</dt>
                     <dd>
-                      {formatInstant(a.slot.startsAt, timezone)}
+                      {formatFullDateTime(a.slot.startsAt, timezone)}
                       <span className="text-neutral-500"> · about {formatDuration(quote.duration_mins)}</span>
                     </dd>
                     <dt className="text-neutral-500">Where</dt>
@@ -877,7 +979,7 @@ export function BookingFlow(props: Props) {
                     </p>
                   )}
                   {ask.notes && (
-                    <Field label="Anything else we should know? (optional)" value={a.notes} onChange={(notes) => set({ notes })} multiline />
+                    <TextField label="Anything else we should know? (optional)" value={a.notes} onChange={(notes) => set({ notes })} multiline />
                   )}
                   {props.policy && (
                     <div className="rounded-xl border bg-white p-3 text-sm text-neutral-600">
@@ -887,18 +989,6 @@ export function BookingFlow(props: Props) {
                       ))}
                     </div>
                   )}
-                  <label className="flex items-start gap-3 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={a.acceptedTerms}
-                      onChange={(e) => set({ acceptedTerms: e.target.checked })}
-                      className="mt-0.5 size-4 accent-[var(--brand)]"
-                    />
-                    <span>
-                      The details above are right, and I&apos;ve read the{" "}
-                      <a href={props.privacyUrl} target="_blank" rel="noopener" className="underline">privacy notice</a>.
-                    </span>
-                  </label>
                   {payOnline && (
                     <p className="text-sm text-neutral-500">
                       You&apos;ll pay the {formatPence(quote.deposit_pence)} deposit securely on the next page. Your
@@ -914,7 +1004,6 @@ export function BookingFlow(props: Props) {
                           : "Confirm booking"
                     }
                     pending={pending}
-                    disabled={!a.acceptedTerms}
                     onClick={() =>
                       run(
                         () =>
@@ -926,28 +1015,39 @@ export function BookingFlow(props: Props) {
                             startsAt: a.slot!.startsAt,
                             vehicle: { make: carMake, model: carModel, registration: a.registration },
                             access: access(),
-                            details: details(),
+                            details: details(true),
                             notes: a.notes,
                             expectedTotalPence: quote.total_pence,
                           }),
                         (result) => {
                           const url = "checkoutUrl" in result ? result.checkoutUrl : null;
+                          clearDraft(slug);
                           window.scrollTo({ top: 0 });
                           if (url) {
                             setCheckoutUrl(url);
                             setPhase("pay");
                             goToCheckout(url);
-                          } else {
-                            setRequested("status" in result && result.status === "requested");
+                          } else if ("bookingId" in result) {
                             setPhase("done");
+                            router.push(pageUrl(props.tenant, `/confirmed/${result.bookingId}${props.embedded ? "?embed=1" : ""}`));
                           }
                         },
                       )
                     }
                   />
+                  <p className="text-center text-xs text-neutral-500">
+                    By booking you agree to our{" "}
+                    <a href={props.termsUrl} target="_blank" rel="noopener" className="underline">booking terms</a>
+                    {" "}and confirm you&apos;ve read our{" "}
+                    <a href={props.privacyUrl} target="_blank" rel="noopener" className="underline">privacy notice</a>.
+                  </p>
                 </div>
               )}
             </StepCard>
+
+            {(quote || service) && (
+              <PriceBar quote={quote} service={service} deposit={pricing.deposit} embedded={props.embedded} />
+            )}
           </>
         )}
       </div>
@@ -957,8 +1057,8 @@ export function BookingFlow(props: Props) {
         service={service}
         car={[carMake, carModel].filter(Boolean).join(" ")}
         where={a.locationType ? summaries.where : ""}
-        when={a.slot && a.date ? formatInstant(a.slot.startsAt, timezone) : ""}
-        showDeposit={active >= stepIndex("time") || finished}
+        when={a.slot && a.date ? formatFullDateTime(a.slot.startsAt, timezone) : ""}
+        deposit={pricing.deposit}
         unconfirmed={unconfirmed}
         sticky={!props.embedded}
       />
@@ -1041,7 +1141,7 @@ function Summary({
   car,
   where,
   when,
-  showDeposit,
+  deposit,
   unconfirmed,
   sticky,
 }: {
@@ -1050,7 +1150,7 @@ function Summary({
   car: string;
   where: string;
   when: string;
-  showDeposit: boolean;
+  deposit: PricingSettings["deposit"];
   // The final price waits on the owner seeing the car.
   unconfirmed: boolean;
   sticky: boolean;
@@ -1079,12 +1179,13 @@ function Summary({
         )}
         {quote ? (
           <div className="mt-3 border-t pt-3">
-            <QuoteLines quote={quote} showDeposit={showDeposit} />
+            <QuoteLines quote={quote} />
           </div>
         ) : (
           service && (
             <p className="mt-3 border-t pt-3 text-sm text-neutral-500">
-              From {formatPence(service.base_price_pence)}. Your exact price appears once you&apos;ve chosen your car&apos;s size.
+              From {formatPence(service.base_price_pence)}.{depositNote(deposit) && ` ${depositNote(deposit)}.`} Your exact
+              price appears once you&apos;ve chosen your car&apos;s size.
             </p>
           )
         )}
@@ -1232,7 +1333,7 @@ function Choice<K extends string>({
   );
 }
 
-function Field({
+function TextField({
   label,
   value,
   onChange,
@@ -1253,21 +1354,12 @@ function Field({
   inputMode?: "numeric";
   maxLength?: number;
 }) {
-  const className =
-    "w-full rounded-xl border border-neutral-300 bg-white px-3 py-2.5 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/30";
   return (
-    <label className="grid gap-1.5 text-sm">
-      <span>{label}</span>
+    <Field label={label}>
       {multiline ? (
-        <textarea
-          rows={3}
-          value={value}
-          placeholder={placeholder}
-          onChange={(e) => onChange(e.target.value)}
-          className={className}
-        />
+        <Textarea rows={3} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
       ) : (
-        <input
+        <Input
           type={type}
           value={value}
           autoComplete={autoComplete}
@@ -1275,10 +1367,9 @@ function Field({
           inputMode={inputMode}
           maxLength={maxLength}
           onChange={(e) => onChange(e.target.value)}
-          className={className}
         />
       )}
-    </label>
+    </Field>
   );
 }
 
@@ -1306,7 +1397,39 @@ function Continue({
   );
 }
 
-function QuoteLines({ quote, showDeposit }: { quote: Quote; showDeposit?: boolean }) {
+// On a phone the summary is below every step, so the price and deposit also
+// stay in view at the bottom of the screen.
+function PriceBar({
+  quote,
+  service,
+  deposit,
+  embedded,
+}: {
+  quote: Quote | null;
+  service: Service | undefined;
+  deposit: PricingSettings["deposit"];
+  embedded: boolean;
+}) {
+  const depositText = !quote
+    ? depositNote(deposit)
+    : quote.deposit_pence >= quote.total_pence
+      ? "Paid in full when you book"
+      : quote.deposit_pence > 0
+        ? `${formatPence(quote.deposit_pence)} deposit to book`
+        : null;
+  return (
+    <div
+      className={`sticky bottom-0 z-10 -mx-4 flex items-baseline justify-between gap-3 border-t bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur ${embedded ? "" : "lg:hidden"}`}
+    >
+      <span className="font-semibold">
+        {quote ? formatPence(quote.total_pence) : service && `From ${formatPence(service.base_price_pence)}`}
+      </span>
+      {depositText && <span className="text-sm text-neutral-600">{depositText}</span>}
+    </div>
+  );
+}
+
+function QuoteLines({ quote }: { quote: Quote }) {
   return (
     <div className="text-sm">
       <ul className="grid gap-1.5">
@@ -1321,7 +1444,7 @@ function QuoteLines({ quote, showDeposit }: { quote: Quote; showDeposit?: boolea
         <span>Total</span>
         <span>{formatPence(quote.total_pence)}</span>
       </div>
-      {showDeposit && quote.deposit_pence > 0 && (
+      {quote.deposit_pence > 0 && (
         <div className="mt-1 flex justify-between text-neutral-500">
           <span>Deposit to secure the booking</span>
           <span>{formatPence(quote.deposit_pence)}</span>
@@ -1346,15 +1469,4 @@ function chip(selected: boolean) {
   return `shrink-0 rounded-xl border px-3 py-2 text-center text-sm transition ${
     selected ? "border-brand bg-brand text-brand-fg" : "border-neutral-200 bg-white hover:border-neutral-400"
   }`;
-}
-
-function formatInstant(iso: string, timeZone: string) {
-  return new Intl.DateTimeFormat("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone,
-  }).format(new Date(iso));
 }
