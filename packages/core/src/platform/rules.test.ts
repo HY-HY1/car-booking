@@ -134,7 +134,7 @@ describe("what a new business is created with", () => {
     expect(row.deposit).toEqual({ type: "percent", value: 30 });
   });
 
-  it("starts with one van, to be added to under Settings → Booking", () => {
+  it("starts with one van, to be added to under Settings → Hours & rules", () => {
     const [van, ...rest] = startingResources();
     expect(rest).toEqual([]);
     expect(resourceSchema.safeParse({ ...van, id: "5f0c1c46-6b6a-4f7b-9d57-2d3f1b8e9a10", weekly_hours: null }).success).toBe(true);

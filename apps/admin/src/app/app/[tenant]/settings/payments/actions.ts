@@ -28,7 +28,7 @@ export async function saveDepositAction(slug: string, formData: FormData): Promi
 }
 
 // What happens to the deposit when a customer cancels. Only once a
-// cancellation policy exists (Settings → Booking); the cut-offs are kept.
+// cancellation policy exists (Settings → Hours & rules); the cut-offs are kept.
 export async function saveRefundRulesAction(slug: string, formData: FormData): Promise<SaveState> {
   const { tenant, denied } = await requireOwner(slug);
   if (denied) return denied;
@@ -40,7 +40,7 @@ export async function saveRefundRulesAction(slug: string, formData: FormData): P
     .maybeSingle();
   if (current.error) return failed("the refund rules", current.error);
   const policy = policyOf(current.data?.cancellation_policy);
-  if (!policy) return { message: "Turn on a cancellation policy under Settings → Booking first." };
+  if (!policy) return { message: "Turn on a cancellation policy under Settings → Hours & rules first." };
 
   const parsed = parseRefundForm(plain(formData), policy);
   if (!parsed.success) return fieldErrors(parsed.error);

@@ -88,7 +88,7 @@ export type CapacitySummary = {
 };
 
 // What the business can actually take, and what's stopping it, for the top of
-// Settings → Booking.
+// Settings → Hours & rules.
 export function summariseCapacity(
   settings: Pick<BookingSettings, "offers_mobile" | "offers_unit" | "weekly_hours" | "unit_weekly_hours">,
   resources: (CapacityResource & { name: string; active: boolean })[],

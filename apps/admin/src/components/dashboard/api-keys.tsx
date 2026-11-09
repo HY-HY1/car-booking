@@ -13,7 +13,7 @@ import { toast } from "@/components/ui/toast";
 import { askToConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 
-// Settings → API: make a key (shown once), see which keys exist and when they
+// Settings → Integrations: make a key (shown once), see which keys exist and when they
 // were last used, and revoke them.
 
 export function ApiKeys({

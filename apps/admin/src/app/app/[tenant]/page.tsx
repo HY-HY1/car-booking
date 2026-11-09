@@ -4,7 +4,6 @@ import { Suspense } from "react";
 import { formatPence } from "@leadgen/core/booking/config";
 import { getOverview, type IncomeState } from "@leadgen/core/stats/overview";
 import { parseOffset, parsePeriod } from "@leadgen/core/stats/periods";
-import { DashboardSearch } from "@/components/dashboard/dashboard-search";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { BarChart } from "@/components/dashboard/overview/bar-chart";
 import { PeriodControls } from "@/components/dashboard/overview/period-controls";
@@ -23,7 +22,7 @@ export default async function OverviewPage({
   searchParams,
 }: PageProps<"/app/[tenant]">) {
   const { tenant: slug } = await params;
-  const { tenant, role, can } = await requireTenant(slug);
+  const { tenant, can } = await requireTenant(slug);
   const isOwner = can("money");
   const sp = await searchParams;
   const period = parsePeriod(sp.period);
@@ -38,7 +37,6 @@ export default async function OverviewPage({
   return (
     <>
       <PageHeader title="Overview" />
-      {can("customers.view") && <DashboardSearch slug={slug} role={role} />}
       {isOwner && (
         <Suspense>
           <SetupNudge tenantId={tenant.id} slug={slug} />

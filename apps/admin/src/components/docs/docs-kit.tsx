@@ -99,7 +99,7 @@ export function Endpoint({ method, path }: { method: "GET"; path: string }) {
   );
 }
 
-// Where something is in the dashboard, e.g. <Place>Settings → API</Place>.
+// Where something is in the dashboard, e.g. <Place>Settings → Integrations</Place>.
 export function Place({ children }: { children: ReactNode }) {
   return <strong className="font-medium">{children}</strong>;
 }

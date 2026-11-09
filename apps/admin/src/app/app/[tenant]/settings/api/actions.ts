@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createApiKey, revokeApiKey } from "@leadgen/core/api/keys";
 import { requireTenant } from "@/lib/auth";
 
-// Settings → API. Owner-only: the keys are written with the secret key, so
+// Settings → Integrations. Owner-only: the keys are written with the secret key, so
 // this check is what stops anyone else.
 
 export type CreateKeyState = { key?: string; error?: string };

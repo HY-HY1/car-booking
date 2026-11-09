@@ -50,7 +50,7 @@ export type PublicTenant = {
   customDomain: string | null;
   branding: Branding;
   trackingIds: Record<string, string>;
-  // How customers reach the business (Settings → General).
+  // How customers reach the business (Settings → Business details).
   contact: { email: string | null; phone: string | null };
   // Who's responsible for customers' data, for the privacy notice.
   privacy: {

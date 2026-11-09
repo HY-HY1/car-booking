@@ -7,7 +7,7 @@ import { AddRow, Check, DeleteButton, Field, Row, SaveForm, type Action } from "
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-// Staff / Techs: the team list. Each person opens to edit; "Add a person"
+// Team → Staff: the team list. Each person opens to edit; "Add a person"
 // opens the same fields.
 
 export type StaffMember = {

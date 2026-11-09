@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 import type { Role } from "@leadgen/core/team/access";
 import { Input } from "@/components/ui/input";
 import { matchPages } from "@/lib/dashboard-pages";
 import { liveSearchAction, type LiveResult } from "@/app/app/[tenant]/search/actions";
 import { cn } from "@/lib/utils";
-import { appUrl } from "@/lib/urls";
+import { appPathOf, appUrl } from "@/lib/urls";
 
 // Search with a dropdown. Pages are matched in the browser as you type;
 // customers, bookings and leads are fetched after a short pause. Each row reads
@@ -17,14 +17,23 @@ import { appUrl } from "@/lib/urls";
 
 type Row = { id: string; prefix: string; label: string; detail?: string; href: string };
 
-export function DashboardSearch({
+// In the header of every page. Shows what was searched for while on the
+// results page, and starts empty again on leaving it.
+export function HeaderSearch({ slug, role }: { slug: string; role: Role }) {
+  const onResults = appPathOf(usePathname()) === `/${slug}/search`;
+  const q = useSearchParams().get("q");
+  const searched = onResults ? (q ?? "") : "";
+  return <DashboardSearch key={searched} slug={slug} role={role} defaultValue={searched} />;
+}
+
+function DashboardSearch({
   slug,
   role,
-  defaultValue = "",
+  defaultValue,
 }: {
   slug: string;
   role: Role;
-  defaultValue?: string;
+  defaultValue: string;
 }) {
   const router = useRouter();
   const listId = useId();
@@ -96,6 +105,7 @@ export function DashboardSearch({
 
   function go(href: string) {
     setOpen(false);
+    setQ("");
     inputRef.current?.blur();
     router.push(href);
   }
@@ -125,7 +135,7 @@ export function DashboardSearch({
       role="search"
       action={`${base}/search`}
       onSubmit={(e) => e.preventDefault()}
-      className="relative mb-6 max-w-md"
+      className="relative min-w-0 flex-1 md:max-w-md"
     >
       <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
@@ -141,20 +151,23 @@ export function DashboardSearch({
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        placeholder="Search pages, customers, bookings… (Ctrl K)"
+        placeholder="Search everything"
         aria-label="Search the dashboard"
         role="combobox"
         aria-expanded={showPanel}
         aria-controls={listId}
         aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
-        className="h-9 pl-8"
+        className="pl-8 md:pr-14"
       />
+      {!q && (
+        <kbd className="pointer-events-none absolute top-1/2 right-2.5 hidden -translate-y-1/2 text-xs text-muted-foreground md:block">Ctrl K</kbd>
+      )}
 
       {showPanel && (
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border bg-popover p-1 text-sm shadow-lg"
+          className="absolute z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border bg-popover p-1 text-sm text-popover-foreground shadow-lg max-md:fixed max-md:inset-x-2 max-md:top-14 max-md:mt-0 max-md:w-auto"
         >
           {rows.map((r, i) => (
             <li

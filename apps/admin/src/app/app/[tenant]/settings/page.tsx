@@ -73,7 +73,7 @@ export default async function SettingsPage({ params }: PageProps<"/app/[tenant]/
             <dt className="text-muted-foreground">Team</dt>
             <dd>
               {members.count ?? 1} {members.count === 1 ? "person" : "people"} ·{" "}
-              <Link href={appUrl(`/${slug}/staff`)} className="underline underline-offset-4">
+              <Link href={appUrl(`/${slug}/team`)} className="underline underline-offset-4">
                 Manage staff
               </Link>
             </dd>

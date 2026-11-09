@@ -44,7 +44,7 @@ export default async function NewBookingPage({ params, searchParams }: PageProps
         {back}
         <PageHeader title="Add booking" />
         <p className="text-sm text-muted-foreground">
-          Add your services under Packages, and your vans or bays under Settings → Booking, to start taking bookings.
+          Add your services under Pricing, and your vans or bays under Settings → Hours & rules, to start taking bookings.
         </p>
       </>
     );

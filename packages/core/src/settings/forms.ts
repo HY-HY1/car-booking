@@ -169,7 +169,7 @@ export const askingFormSchema = z
     };
   });
 
-// Cut-offs and the note (Settings → Booking). The refund side is kept as it
+// Cut-offs and the note (Settings → Hours & rules). The refund side is kept as it
 // was, or the default, so the two forms can't undo each other.
 export function parsePolicyForm(input: Record<string, string>, current: CancellationPolicy | null) {
   const schema = z.object({

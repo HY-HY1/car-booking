@@ -19,8 +19,8 @@ export default function Availability() {
       </DocTitle>
 
       <p>
-        These settings are under <Place>Settings → Booking</Place>, apart from map territories, which are under{" "}
-        <Place>Coverage Area</Place>. Only the business owner can change them.
+        These settings are under <Place>Settings → Hours & rules</Place>, apart from map territories, which are under{" "}
+        <Place>Coverage area</Place>. Only the business owner can change them.
       </p>
 
       <h2>Working hours</h2>
@@ -57,7 +57,7 @@ export default function Availability() {
       </ul>
       <p>
         A time is offered if <em>any</em> suitable van or bay is free then. The booking goes to the first free one, in
-        the order you&apos;ve set. You can see each van&apos;s jobs side by side in the <Place>Calendar</Place>.
+        the order you&apos;ve set. You can see each van&apos;s jobs side by side in the <Place>Diary</Place>.
       </p>
       <Callout>
         <p>
@@ -107,7 +107,7 @@ export default function Availability() {
       <h2>Blocking out time</h2>
       <p>
         For holidays, the van&apos;s MOT or a job you took over the phone, use <Place>Block out time</Place> in the{" "}
-        <Place>Calendar</Place>. Block the whole business, or just one van or bay. Blocked time is never offered to
+        <Place>Diary</Place>. Block the whole business, or just one van or bay. Blocked time is never offered to
         customers. Unlike a job, it doesn&apos;t need a travel gap either side.
       </p>
 
@@ -134,7 +134,7 @@ export default function Availability() {
       <Callout>
         <p>
           Change bookings here, not in Google. If a job&apos;s event is moved or deleted in Google Calendar, it&apos;s
-          put back and the job is marked in the <Place>Calendar</Place>, so a customer is never moved without being told.
+          put back and the job is marked in the <Place>Diary</Place>, so a customer is never moved without being told.
         </p>
       </Callout>
 
@@ -149,7 +149,7 @@ export default function Availability() {
           [
             "Territories",
             <>
-              Up to {MAX_TERRITORIES} circles you draw and resize on a map under <Place>Coverage Area</Place>, such as one
+              Up to {MAX_TERRITORIES} circles you draw and resize on a map under <Place>Coverage area</Place>, such as one
               round each town you cover. A customer inside any of them can book.
             </>,
           ],

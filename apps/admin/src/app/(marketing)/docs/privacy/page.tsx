@@ -24,7 +24,7 @@ export default function Privacy() {
       <Callout>
         <p>
           Most businesses that handle customer details need to register with the ICO and pay its data protection fee.
-          Once you have your number, add it under <Place>Settings → Privacy</Place> and it appears on your privacy
+          Once you have your number, add it under <Place>Settings → Privacy &amp; data</Place> and it appears on your privacy
           notice.
         </p>
       </Callout>
@@ -34,7 +34,7 @@ export default function Privacy() {
         Your booking page has a privacy notice at <code>/privacy</code>, linked from the footer and from the booking
         form. It names your business as the controller, says what&apos;s collected and why, and lists the companies
         involved in running the platform. Fill in your legal or trading name and a privacy contact email under{" "}
-        <Place>Settings → Privacy</Place> so it&apos;s about you.
+        <Place>Settings → Privacy &amp; data</Place> so it&apos;s about you.
       </p>
 
       <h2>Data requests</h2>
@@ -48,7 +48,7 @@ export default function Privacy() {
         ))}
       </ul>
       <p>
-        Requests arrive under <Place>Settings → Privacy</Place>, each with a due date one month after it came in, which
+        Requests arrive under <Place>Settings → Privacy &amp; data</Place>, each with a due date one month after it came in, which
         is the legal deadline. If someone asks in person, by phone or by email instead, log it there yourself.
       </p>
       <p>Working a request:</p>
@@ -96,7 +96,7 @@ export default function Privacy() {
 
       <h2>How long data is kept</h2>
       <p>
-        Under <Place>Settings → Privacy</Place>, choose how long to keep a customer&apos;s details after they last booked
+        Under <Place>Settings → Privacy &amp; data</Place>, choose how long to keep a customer&apos;s details after they last booked
         or enquired: between 1 and 7 years, 3 by default. Once a week, customers with no activity for that long are
         erased automatically, in the same way as above.
       </p>

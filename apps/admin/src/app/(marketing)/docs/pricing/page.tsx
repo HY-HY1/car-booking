@@ -5,7 +5,7 @@ import { Callout, DocTitle, Place, SimpleTable } from "@/components/docs/docs-ki
 import { exampleAddOn, exampleQuote, exampleService, exampleSettings, exampleTiers } from "@/lib/docs-examples";
 import { docsUrl } from "@/lib/urls";
 
-export const metadata: Metadata = { title: "Packages and pricing" };
+export const metadata: Metadata = { title: "Services and pricing" };
 
 export default function Pricing() {
   const quote = exampleQuote();
@@ -15,7 +15,7 @@ export default function Pricing() {
 
   return (
     <>
-      <DocTitle eyebrow="How it works" title="Packages and pricing">
+      <DocTitle eyebrow="How it works" title="Services and pricing">
         <p>
           You set the rules once, and every quote is worked out from them, whether it&apos;s on your booking page, on
           your website or in the dashboard. Customers never type a price in.
@@ -23,7 +23,7 @@ export default function Pricing() {
       </DocTitle>
 
       <p>
-        Everything on this page lives under <Place>Packages</Place> in the dashboard. Only the business owner can change
+        Everything on this page lives under <Place>Pricing</Place> in the dashboard. Only the business owner can change
         prices.
       </p>
 

@@ -17,7 +17,7 @@ export default function ApiKeys() {
       <p>Only the business owner can manage keys.</p>
       <ol>
         <li>
-          In the dashboard, go to <Place>Settings → API</Place>.
+          In the dashboard, go to <Place>Settings → Integrations</Place>.
         </li>
         <li>
           Give the key a name that says where it&apos;s used, like <em>Main website</em>, and create it.
@@ -69,7 +69,7 @@ export default function ApiKeys() {
 
       <h2>Revoking and rotating</h2>
       <p>
-        <Place>Revoke</Place> next to a key in <Place>Settings → API</Place> stops it working at once: the next request
+        <Place>Revoke</Place> next to a key in <Place>Settings → Integrations</Place> stops it working at once: the next request
         with it gets a <code>401</code> with the code <code>invalid_key</code>. It can&apos;t be switched back on.
       </p>
       <p>To swap a key without any downtime:</p>

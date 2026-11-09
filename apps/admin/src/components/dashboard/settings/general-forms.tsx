@@ -24,7 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/components/ui/toast";
 import { askToConfirm } from "@/components/ui/confirm-dialog";
 
-// Settings → General and → Booking page.
+// Settings → Business details and → Booking page.
 
 export type GeneralValues = {
   name: string;

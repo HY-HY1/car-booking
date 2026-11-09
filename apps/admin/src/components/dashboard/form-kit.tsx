@@ -93,7 +93,7 @@ export function SaveForm({
         <div
           className={cn(
             "flex flex-wrap items-center gap-3",
-            sticky && "sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80",
+            sticky && "sticky bottom-(--bottom-nav) z-10 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80",
           )}
         >
           <Button type="submit" size="lg" disabled={pending}>

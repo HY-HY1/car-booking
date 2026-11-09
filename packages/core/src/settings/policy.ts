@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { formatPence } from "../booking/config";
 
-// The cancellation and refund policy (Settings → Booking and → Payments),
+// The cancellation and refund policy (Settings → Hours & rules and → Payments),
 // stored as booking_settings.cancellation_policy. {} means the business
 // hasn't set one: nothing is promised to customers and refunds are the
 // owner's call. No database access, so it can be tested.

@@ -17,7 +17,7 @@ export const DOCS_NAV: DocsSection[] = [
     title: "How it works",
     pages: [
       { href: "/booking-flow", title: "How customers book" },
-      { href: "/pricing", title: "Packages and pricing" },
+      { href: "/pricing", title: "Services and pricing" },
       { href: "/availability", title: "Hours, vans and travel" },
       { href: "/payments", title: "Deposits and payments" },
       { href: "/dashboard", title: "Your dashboard" },

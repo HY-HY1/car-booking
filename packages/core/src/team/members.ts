@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { createAdminClient } from "../supabase/admin";
 import { wouldLeaveNoOwner, type Role } from "./access";
 
-// The logins that can open a business (Settings → Team & access). Written
+// The logins that can open a business (Team → Logins & access). Written
 // with the secret key: callers check the signed-in user can("team.manage")
 // for `tenantId` first. A login is a person's own account, so removing them
 // from one business never deletes the account or touches other businesses.

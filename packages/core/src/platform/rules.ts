@@ -143,7 +143,7 @@ export function bookingSettingsFor(input: NewBusiness) {
 }
 
 // A van for mobile work and a bay for a unit; a business doing both starts
-// with one of each. More vans and bays are added under Settings → Booking.
+// with one of each. More vans and bays are added under Settings → Hours & rules.
 export function startingResources(locations: Location = "mobile") {
   return [
     ...(locations !== "unit" ? [{ name: "Van", location_types: ["mobile"] }] : []),

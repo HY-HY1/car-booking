@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox, Radio } from "@/components/ui/checkbox";
 
-// Settings → Booking: what customers are asked, approval, and the
+// Settings → Hours & rules: what customers are asked, approval, and the
 // cancellation policy.
 
 export function AskingForm({

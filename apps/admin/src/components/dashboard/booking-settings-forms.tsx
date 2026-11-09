@@ -8,7 +8,7 @@ import { AddRow, Check, DeleteButton, Field, Row, SaveForm, type Action } from "
 import { HoursEditor } from "./hours-editor";
 import { Checkbox, Radio } from "@/components/ui/checkbox";
 
-// Settings → Booking: where the business works, when, how jobs are spaced,
+// Settings → Hours & rules: where the business works, when, how jobs are spaced,
 // and the vans and bays that do them.
 
 // ------------------------------------------------------------------ locations

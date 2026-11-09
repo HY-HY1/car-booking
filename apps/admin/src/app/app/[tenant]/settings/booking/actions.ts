@@ -15,7 +15,7 @@ import { requireTenant } from "@/lib/auth";
 import { nextOrder, writeOrder } from "@/lib/reorder";
 import { createClient } from "@/lib/supabase/server";
 
-// Saves from Settings → Booking. Owner-only (RLS enforces the same). Every
+// Saves from Settings → Hours & rules. Owner-only (RLS enforces the same). Every
 // write is filtered on the tenant from the URL's membership check, never an
 // id from the form.
 

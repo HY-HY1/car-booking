@@ -8,7 +8,7 @@ import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { requireTenant } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
-// Saves from Staff / Techs. Owner-only (RLS enforces the same). Every write
+// Saves from Team → Staff. Owner-only (RLS enforces the same). Every write
 // is filtered on the tenant from the URL's membership check, never an id from
 // the form.
 

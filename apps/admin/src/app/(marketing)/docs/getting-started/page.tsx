@@ -49,22 +49,22 @@ export default function GettingStarted() {
             "Set your services and prices",
             "Yes",
             <>
-              <Place>Packages</Place>. Change or replace the starter services. See{" "}
-              <Link href={docsUrl("/pricing")}>Packages and pricing</Link>.
+              <Place>Pricing</Place>. Change or replace the starter services. See{" "}
+              <Link href={docsUrl("/pricing")}>Services and pricing</Link>.
             </>,
           ],
           [
             "Set your working hours",
             "Yes",
             <>
-              <Place>Settings → Booking</Place>. Mobile hours, and shop hours if you have a unit.
+              <Place>Settings → Hours & rules</Place>. Mobile hours, and shop hours if you have a unit.
             </>,
           ],
           [
             "Say where your van starts",
             "If you do mobile jobs",
             <>
-              <Place>Settings → Booking</Place>. Used to work out travel time and your coverage area.
+              <Place>Settings → Hours & rules</Place>. Used to work out travel time and your coverage area.
             </>,
           ],
           [
@@ -101,7 +101,7 @@ export default function GettingStarted() {
       <h2>4. Take a test booking</h2>
       <p>
         Open your booking page and book something yourself. You&apos;ll see the price build up as you choose, the times
-        offered around your hours, and the booking land in your <Place>Calendar</Place> and <Place>Bookings</Place>.
+        offered around your hours, and the booking land in your <Place>Diary</Place> and <Place>Bookings</Place>.
         Cancel it afterwards from either.
       </p>
       <Callout tone="warning">

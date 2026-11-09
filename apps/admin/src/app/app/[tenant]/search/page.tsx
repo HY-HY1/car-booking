@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { formatPhone } from "@leadgen/core/customer-fields";
 import { formatDate } from "@leadgen/core/dates";
-import { DashboardSearch } from "@/components/dashboard/dashboard-search";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { requireAccess } from "@/lib/auth";
 import { searchDashboard } from "@/lib/search";
@@ -13,7 +12,7 @@ export const metadata: Metadata = { title: "Search" };
 
 export default async function SearchPage({ params, searchParams }: PageProps<"/app/[tenant]/search">) {
   const { tenant: slug } = await params;
-  const { tenant, role } = await requireAccess(slug, "customers.view");
+  const { tenant } = await requireAccess(slug, "customers.view");
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim().slice(0, 100) : "";
 
@@ -24,7 +23,6 @@ export default async function SearchPage({ params, searchParams }: PageProps<"/a
   return (
     <>
       <PageHeader title="Search" />
-      <DashboardSearch slug={slug} role={role} defaultValue={q} />
 
       {q.length < 2 ? (
         <p className="text-sm text-muted-foreground">Type at least two characters to search.</p>

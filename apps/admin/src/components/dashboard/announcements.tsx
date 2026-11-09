@@ -45,22 +45,14 @@ export async function Announcements({ params }: { params: Promise<{ tenant: stri
   if (can("setup")) {
     try {
       const setup = await loadSetup(tenant.id);
-      if (setup) {
-        if (!setup.progress.ready) {
-          items.push({
-            key: "setup",
-            icon: icon(Wrench),
-            text: `Finish setting up: ${setup.progress.doneRequired} of ${setup.progress.totalRequired} steps done`,
-            href: `${base}/setup`,
-          });
-        } else {
-          items.push({
-            key: "ready",
-            icon: icon(Check),
-            text: "Setup complete: you're ready to take bookings",
-            href: `${base}/setup`,
-          });
-        }
+      // Once it's finished there's nothing more to say about it.
+      if (setup && !setup.progress.ready) {
+        items.push({
+          key: "setup",
+          icon: icon(Wrench),
+          text: `Finish setting up: ${setup.progress.doneRequired} of ${setup.progress.totalRequired} steps done`,
+          href: `${base}/setup`,
+        });
         for (const s of setup.steps) {
           if (s.done) done.push({ key: s.key, icon: icon(Check), text: DONE_TEXT[s.key], href: `${base}/setup` });
         }
@@ -102,7 +94,7 @@ export async function Announcements({ params }: { params: Promise<{ tenant: stri
       items.unshift({
         key: "closing",
         icon: icon(TriangleAlert),
-        text: `This account is set to be deleted on ${when}. Undo it in Settings → Privacy.`,
+        text: `This account is set to be deleted on ${when}. Undo it in Settings → Privacy & data.`,
         href: `${base}/settings/privacy#close-account`,
       });
     }

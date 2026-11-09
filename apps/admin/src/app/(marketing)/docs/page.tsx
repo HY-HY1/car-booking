@@ -8,7 +8,7 @@ import { apiUrl, docsUrl } from "@/lib/urls";
 const blurbs: Record<string, string> = {
   "/getting-started": "Sign up, finish the setup checklist and take your first booking.",
   "/booking-flow": "What your customers see, from picking a service to paying the deposit.",
-  "/pricing": "Packages, vehicle sizes, condition levels, extras and deposits.",
+  "/pricing": "Services, vehicle sizes, condition levels, extras and deposits.",
   "/availability": "Working hours, vans and bays, travel time and your coverage area.",
   "/payments": "Connecting Stripe, deposits, refunds and payment links.",
   "/dashboard": "The calendar, bookings, leads, customers and team roles.",
@@ -77,7 +77,7 @@ export default function DocsHome() {
 
       <h3>Quick start</h3>
       <p>
-        Create a key under <strong>Settings → API</strong> in your dashboard, then:
+        Create a key under <strong>Settings → Integrations</strong> in your dashboard, then:
       </p>
       <CodeBlock title="Terminal" code={`curl ${endpoint} \\\n  -H "Authorization: Bearer YOUR_API_KEY"`} />
     </>

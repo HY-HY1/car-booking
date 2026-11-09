@@ -74,7 +74,7 @@ export default function BookingFlow() {
       <p>
         Every price comes from your own rules: base price, vehicle size, condition, extras, call-out fee and minimum
         charge. The form only shows the result, and the same sum runs again on the server when they book, so the price
-        can&apos;t be changed in the browser. See <Link href={docsUrl("/pricing")}>Packages and pricing</Link>.
+        can&apos;t be changed in the browser. See <Link href={docsUrl("/pricing")}>Services and pricing</Link>.
       </p>
 
       <h3>Only real times are offered</h3>
@@ -121,13 +121,13 @@ export default function BookingFlow() {
       <h2>After booking</h2>
       <p>
         The customer sees a confirmation page with the service, the time and what they&apos;ve paid. On your side the
-        booking appears in your <Place>Calendar</Place> and <Place>Bookings</Place>, with every answer they gave and any
+        booking appears in your <Place>Diary</Place> and <Place>Bookings</Place>, with every answer they gave and any
         photos they added.
       </p>
 
       <h2 id="changes">Customers changing or cancelling</h2>
       <p>
-        Set your cut-offs under <Place>Settings → Booking</Place>, in the cancellation policy, and customers can cancel
+        Set your cut-offs under <Place>Settings → Hours & rules</Place>, in the cancellation policy, and customers can cancel
         or move their own booking up to them. Their confirmation and reminder emails have a{" "}
         <strong>Manage your booking</strong> button, and so does the page they see after booking.
       </p>

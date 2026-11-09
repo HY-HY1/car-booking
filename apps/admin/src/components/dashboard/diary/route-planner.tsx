@@ -112,7 +112,7 @@ export function RoutePlanner({
         <>
           {!route.home && (
             <p className="text-sm text-amber-800 dark:text-amber-300">
-              Add the postcode your van starts from (Settings → Booking) to plan the drive there and back.
+              Add the postcode your van starts from (Settings → Hours & rules) to plan the drive there and back.
             </p>
           )}
           {route.late && (

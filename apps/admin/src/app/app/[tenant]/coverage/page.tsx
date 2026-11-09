@@ -50,7 +50,7 @@ export default async function CoveragePage({ params }: PageProps<"/app/[tenant]/
         <EmptyState>
           {postcode ? `We couldn't find ${postcode} on the map. Check it in ` : "Add where your vans start from in "}
           <Link href={appUrl(`/${slug}/settings/booking`)} className="underline">
-            Settings → Booking
+            Settings → Hours & rules
           </Link>
           .
         </EmptyState>

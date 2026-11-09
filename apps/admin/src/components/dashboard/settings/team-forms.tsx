@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState, useTransition } from "reac
 import { useUnsavedChanges } from "../unsaved-changes";
 import { Trash2 } from "lucide-react";
 import { ROLE_KEYS, ROLES, type Role } from "@leadgen/core/team/access";
-import { changeRoleAction, removeMemberAction, type AddMemberState } from "@/app/app/[tenant]/settings/team/actions";
+import { changeRoleAction, removeMemberAction, type AddMemberState } from "@/app/app/[tenant]/team/access/actions";
 import { CopyText } from "@/components/platform/copy-text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import { toast } from "@/components/ui/toast";
 import { askToConfirm } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 
-// Settings → Team & access.
+// Team → Logins & access.
 
 export function AddMemberForm({
   action,

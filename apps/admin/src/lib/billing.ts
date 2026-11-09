@@ -51,7 +51,7 @@ export async function hostedCheckoutUrl(tenant: { id: string; slug: string }, em
   });
 }
 
-// Settings → Subscription: Stripe's billing portal for a business that has
+// Settings → Billing: Stripe's billing portal for a business that has
 // already been through Checkout.
 export async function billingPortalUrl(tenant: { id: string; slug: string }) {
   const { customerId } = await getBillingState(tenant.id);

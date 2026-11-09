@@ -21,7 +21,7 @@ export default function Website() {
 
       <p>
         Below, <code>{site}</code> stands for your own booking address. You&apos;ll find yours, ready to copy, on the{" "}
-        <Place>Setup</Place> page and under <Place>Settings → General</Place>.
+        <Place>Setup</Place> page and under <Place>Settings → Booking page</Place>.
       </p>
 
       <h2>Your booking link</h2>
@@ -48,12 +48,12 @@ export default function Website() {
       <p>
         Use this on the &quot;Book&quot; button for each service on your own site, so customers don&apos;t have to choose
         it again. The <code>service</code> value is the service&apos;s <strong>Link name</strong>, which you can see
-        and change when editing it under <Place>Packages</Place>. The service&apos;s id works too, and the API gives you these links ready made
+        and change when editing it under <Place>Pricing</Place>. The service&apos;s id works too, and the API gives you these links ready made
         as <code>bookUrl</code>. If the value doesn&apos;t match a service, or the service is switched off, the form
         simply starts at the first step.
       </p>
       <p>
-        If you set your website&apos;s address under <Place>Settings → General</Place>, your booking page shows a
+        If you set your website&apos;s address under <Place>Settings → Booking page</Place>, your booking page shows a
         &quot;Back to website&quot; link to it.
       </p>
 

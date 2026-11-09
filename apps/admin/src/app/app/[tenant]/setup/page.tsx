@@ -13,7 +13,7 @@ import { connectStripeAction } from "../settings/actions";
 import { appUrl, tenantUrl } from "@/lib/urls";
 import { EmptyState } from "@/components/ui/empty-state";
 
-export const metadata: Metadata = { title: "Get set up" };
+export const metadata: Metadata = { title: "Setup" };
 
 // Steps that keep their button after they're ticked, so the owner can go back and edit.
 const EDITABLE_WHEN_DONE: SetupStepKey[] = ["services", "hours", "area"];
@@ -26,7 +26,7 @@ export default async function SetupPage({ params }: PageProps<"/app/[tenant]/set
   if (!setup) {
     return (
       <>
-        <PageHeader title="Get set up" />
+        <PageHeader title="Setup" />
         <EmptyState>Booking isn&apos;t set up for this business yet.</EmptyState>
       </>
     );
@@ -103,7 +103,7 @@ export default async function SetupPage({ params }: PageProps<"/app/[tenant]/set
   return (
     <>
       <PageHeader
-        title="Get set up"
+        title="Setup"
         description={`Welcome to ${tenant.name}. A few things to check before you take real bookings.`}
       />
 

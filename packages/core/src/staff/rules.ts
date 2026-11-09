@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { normalizePhone } from "../customer-fields";
 
-// Parsing the Staff / Techs editor's form posts into the row they save. No
+// Parsing the Team → Staff editor's form posts into the row they save. No
 // database access, so it can be tested. Values arrive as strings, as a
 // browser sends them.
 

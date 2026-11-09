@@ -77,7 +77,7 @@ export async function createManualBooking(
   m: ManualBooking,
 ): Promise<EngineResult<{ bookingId: string; depositEmailed: boolean | null }>> {
   const config = await getBookingConfig(tenantId);
-  if (!config) return fail("not_set_up", "Set up booking under Settings → Booking first.");
+  if (!config) return fail("not_set_up", "Set up booking under Settings → Hours & rules first.");
   const { settings } = config;
 
   const service = config.services.find((s) => s.id === m.serviceId);
@@ -102,7 +102,7 @@ export async function createManualBooking(
   const price = settleManualPrice(quote, settings.deposit, m);
 
   const postcode = m.locationType === "unit" ? settings.unit_postcode : m.postcode;
-  if (!postcode) return fail("postcode_required", "Add your shop's postcode under Settings → Booking to book jobs there.");
+  if (!postcode) return fail("postcode_required", "Add your shop's postcode under Settings → Hours & rules to book jobs there.");
 
   // The van or bay picked, or each that does this kind of job in turn.
   const suitable = resourcesFor(config.resources, m.locationType);

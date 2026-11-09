@@ -170,7 +170,7 @@ export async function handleBillingEvent(event: Stripe.Event) {
   }
 }
 
-// ---------------------------------------------------------------- Settings → Subscription
+// ---------------------------------------------------------------- Settings → Billing
 
 export type SubscriptionDetails = {
   priceLabel: string;

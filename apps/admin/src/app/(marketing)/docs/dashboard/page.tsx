@@ -13,19 +13,20 @@ export default function Dashboard() {
       </DocTitle>
 
       <p>
-        The menu is grouped the same way as this page. The search box at the top finds customers, bookings and leads by
+        The menu is grouped the same way as this page. On a phone it&apos;s the tabs along the bottom, with the rest under{" "}
+        <Place>More</Place>. The search box at the top of every page finds customers, bookings and leads by
         name, email, phone or postcode, and jumps to any dashboard page by name.
       </p>
 
-      <h2>Overview</h2>
-      <h3>Dashboard</h3>
+      <h2>Day to day</h2>
+      <h3>Overview</h3>
       <p>
         How the business is doing. Switch between day, week, month and year, and step back through earlier periods.
         You&apos;ll see jobs and income against the period before, charts of both, what&apos;s coming up next and your
         most-booked services. Income is shown to the owner only.
       </p>
 
-      <h3>Calendar</h3>
+      <h3>Diary</h3>
       <p>Your diary, by day or by week.</p>
       <ul>
         <li>The day view has a column for each van or bay. The week view can be filtered to one.</li>
@@ -95,25 +96,25 @@ export default function Dashboard() {
         <Link href={docsUrl("/booking-flow#leads")}>Leads</Link>.
       </p>
 
-      <h2>Services</h2>
-      <h3>Packages</h3>
+      <h2>Your business</h2>
+      <h3>Pricing</h3>
       <p>
         Your services, extras, condition levels, deposit, minimum charge and call-out fee, plus each service&apos;s page
-        content and photos. See <Link href={docsUrl("/pricing")}>Packages and pricing</Link>.
+        content and photos. See <Link href={docsUrl("/pricing")}>Services and pricing</Link>.
       </p>
-      <h3>Coverage Area</h3>
+      <h3>Coverage area</h3>
       <p>
         A map of where you&apos;ll travel, with circles you can drag and resize. See{" "}
         <Link href={docsUrl("/availability#coverage")}>Coverage area</Link>.
       </p>
-      <h3>Staff / Techs</h3>
+      <h3>Team</h3>
       <p>
-        A list of the people who do the work: name, job title, contact details, notes, and the van and territory
-        they&apos;re usually on. This is a record for you, not a login. Logins are covered under{" "}
+        Two tabs. <Place>Staff</Place> lists the people who do the work: name, job title, contact details, notes, and the
+        van and territory they&apos;re usually on. It&apos;s a record for you and doesn&apos;t give anyone a login.{" "}
+        <Place>Logins &amp; access</Place> is who can sign in to the dashboard and what they can do. See{" "}
         <a href="#roles">Team roles</a>.
       </p>
 
-      <h2>Marketing</h2>
       <h3>Customers</h3>
       <p>
         Everyone who has booked or enquired, plus anyone you add yourself with <Place>Add customer</Place>. A
@@ -122,7 +123,6 @@ export default function Dashboard() {
         <Link href={docsUrl("/privacy")}>Customer data and privacy</Link>.
       </p>
 
-      <h2>Finance</h2>
       <h3>Payments</h3>
       <p>
         Card payments into your Stripe account, and payment links. Owner only. See{" "}
@@ -131,49 +131,51 @@ export default function Dashboard() {
 
       <h2>Settings</h2>
       <SimpleTable
-        head={["Tab", "What's there"]}
+        head={["Page", "What's there"]}
         rows={[
+          ["Business details", "Your business's name, contact details and time zone."],
           [
-            "General",
-            "Your business details, the addresses your booking page is on, a link back to your own website, and connecting Stripe.",
-          ],
-          [
-            "Booking",
-            <>
-              Mobile and shop, hours, how far you travel, booking rules, and your vans and bays. See{" "}
-              <Link href={docsUrl("/availability")}>Hours, vans and travel</Link>.
-            </>,
-          ],
-          [
-            "Privacy",
+            "Privacy & data",
             <>
               Data requests, how long customer data is kept, and your ICO registration. See{" "}
               <Link href={docsUrl("/privacy")}>Customer data and privacy</Link>.
             </>,
           ],
-          ["Subscription", "Your plan with us."],
+          ["Billing", "Your plan with us."],
           [
-            "API",
+            "Hours & rules",
             <>
-              Keys for your website to read your services and prices. See <Link href={docsUrl("/api")}>the API docs</Link>.
+              Mobile and shop, hours, how far you travel, booking rules, and your vans and bays. See{" "}
+              <Link href={docsUrl("/availability")}>Hours, vans and travel</Link>.
             </>,
           ],
+          ["Booking page", "How your booking page looks, the addresses it's on, a link back to your own website, and the button for your site."],
+          ["Payments", "Connecting Stripe, and what happens to deposits."],
+          ["Notifications", "The emails customers get, and the alerts you get."],
+          [
+            "Integrations",
+            <>
+              Google Calendar, and keys for your website to read your services and prices. See{" "}
+              <Link href={docsUrl("/api")}>the API docs</Link>.
+            </>,
+          ],
+          ["Your account", "Your own name, email and password."],
         ]}
       />
       <p>
-        <Place>Setup</Place> is the checklist for new businesses. See <Link href={docsUrl("/getting-started")}>Getting started</Link>
-        .
+        <Place>Setup</Place> is the checklist for new businesses. It leaves the menu once the steps are done, and search still
+        finds it. See <Link href={docsUrl("/getting-started")}>Getting started</Link>.
       </p>
 
       <h2 id="roles">Team roles</h2>
       <p>
-        Everyone who signs in to your dashboard has a role. You&apos;re the <strong>owner</strong>. We can add{" "}
-        <strong>staff</strong> logins for your team: tell us their email address.
+        Everyone who signs in to your dashboard has a role. You&apos;re the <strong>owner</strong>. Add logins for your team under{" "}
+        <Place>Team → Logins &amp; access</Place>.
       </p>
       <SimpleTable
         head={["", "Owner", "Staff"]}
         rows={[
-          ["Calendar, bookings, leads and customers", "Yes", "Yes"],
+          ["Diary, bookings, leads and customers", "Yes", "Yes"],
           ["Mark jobs done, block out time", "Yes", "Yes"],
           ["Income on the overview", "Yes", "No"],
           ["Change services, prices, hours, coverage and settings", "Yes", "No"],

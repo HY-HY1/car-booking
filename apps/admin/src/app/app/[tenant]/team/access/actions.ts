@@ -6,7 +6,7 @@ import { roleSchema } from "@leadgen/core/team/access";
 import { addTeamMember, changeTeamRole, removeTeamMember } from "@leadgen/core/team/members";
 import { requireTenant } from "@/lib/auth";
 
-// Settings → Team & access. Owners only: who can log in to this business and
+// Team → Logins & access. Owners only: who can log in to this business and
 // at what level. The business is always the one from the URL's membership
 // check; user ids from the form are only ever matched within it.
 

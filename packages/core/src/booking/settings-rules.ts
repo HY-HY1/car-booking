@@ -3,7 +3,7 @@ import { normalizePostcode } from "../customer-fields";
 import { DAY_KEYS, weeklyHoursSchema, type ServiceArea, type WeeklyHours } from "./config";
 import { isUkPostcode } from "./geo";
 
-// Parsing the booking-settings editor's form posts (Settings → Booking) into
+// Parsing the booking-settings editor's form posts (Settings → Hours & rules) into
 // the rows they update. No database access, so it can be tested. Values come
 // in as strings, as a browser sends them.
 

@@ -55,8 +55,8 @@ export default function Payments() {
         ]}
       />
       <p>
-        Set the deposit under <Place>Packages</Place>: none, a percentage of the total, or a fixed amount. See{" "}
-        <Link href={docsUrl("/pricing")}>Packages and pricing</Link>. Stripe can&apos;t take a payment under{" "}
+        Set the deposit under <Place>Pricing</Place>: none, a percentage of the total, or a fixed amount. See{" "}
+        <Link href={docsUrl("/pricing")}>Services and pricing</Link>. Stripe can&apos;t take a payment under{" "}
         {formatPence(MIN_CHARGE_PENCE)}, so a deposit smaller than that isn&apos;t collected online.
       </p>
       <p>
@@ -117,7 +117,7 @@ export default function Payments() {
       <h2>Your subscription</h2>
       <p>
         What you pay us is separate from your customers&apos; payments. It&apos;s billed to the card you gave when you
-        signed up, and you can see your plan under <Place>Settings → Subscription</Place>.
+        signed up, and you can see your plan under <Place>Settings → Billing</Place>.
       </p>
     </>
   );

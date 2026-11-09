@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/dashboard/page-header";
-import { PaymentsTabs } from "@/components/dashboard/payments-tabs";
+import { PageTabs } from "@/components/dashboard/page-tabs";
 
 export default async function PaymentsLayout({
   children,
@@ -9,7 +9,13 @@ export default async function PaymentsLayout({
   return (
     <>
       <PageHeader title="Payments" />
-      <PaymentsTabs slug={slug} />
+      <PageTabs
+        base={`/${slug}/payments`}
+        tabs={[
+          { path: "", label: "Payments" },
+          { path: "/links", label: "Payment links" },
+        ]}
+      />
       {children}
     </>
   );

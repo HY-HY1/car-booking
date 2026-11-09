@@ -47,7 +47,7 @@ export default function ApiOverview() {
       </p>
       <CodeBlock title="Header" code="Authorization: Bearer ascnd_YOUR_KEY" />
       <p>
-        Keys are created by the business owner under <strong>Settings → API</strong>. See{" "}
+        Keys are created by the business owner under <strong>Settings → Integrations</strong>. See{" "}
         <Link href={docsUrl("/api/keys")}>API keys</Link>.
       </p>
 

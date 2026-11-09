@@ -804,7 +804,7 @@ export async function holdSlot(
 }
 
 // What a hold becomes once it's secured: confirmed, or 'requested' when the
-// business approves each booking itself (Settings → Booking).
+// business approves each booking itself (Settings → Hours & rules).
 export async function securedStatus(db: SupabaseClient, tenantId: string): Promise<"confirmed" | "requested"> {
   const { data, error } = await db.from("booking_settings").select("approval_mode").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw error;

@@ -454,7 +454,7 @@ export default async function BookingPage({ params }: PageProps<"/app/[tenant]/b
       </div>
 
       {/* The main actions, in reach however far down the page you are. */}
-      <div className="sticky bottom-0 z-10 -mx-4 -mb-6 mt-6 border-t bg-background/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur empty:hidden supports-[backdrop-filter]:bg-background/80 md:-mx-8 md:-mb-8 md:px-8">
+      <div className="sticky bottom-(--bottom-nav) z-10 -mx-4 -mb-6 mt-6 border-t bg-background/95 px-4 py-3 backdrop-blur empty:hidden supports-[backdrop-filter]:bg-background/80 md:-mx-8 md:-mb-8 md:px-8">
         {b.status === "requested"
           ? can("bookings.manage") && (
               <ApprovalActions
