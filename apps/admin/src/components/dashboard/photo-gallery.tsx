@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { Trash2 } from "lucide-react";
-import { formatDate } from "@leadgen/core/customer-fields";
+import { formatDate } from "@leadgen/core/dates";
 import type { Photo } from "@/lib/photos";
+import { toast } from "@/components/ui/toast";
+import { askToConfirm } from "@/components/ui/confirm-dialog";
 
 export function PhotoGallery({
   photos,
@@ -15,11 +17,9 @@ export function PhotoGallery({
   deleteAction: (id: string) => Promise<{ error?: string }>;
 }) {
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string>();
 
   return (
-    <div className="grid gap-2">
-      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+    <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {photos.map((p) => (
           <li key={p.id} className="group relative overflow-hidden rounded-xl border bg-muted">
             {p.url ? (
@@ -41,9 +41,19 @@ export function PhotoGallery({
                   disabled={pending}
                   aria-label="Delete photo"
                   className="rounded p-1 hover:bg-background hover:text-destructive"
-                  onClick={() => {
-                    if (!confirm("Delete this photo? This can't be undone.")) return;
-                    startTransition(async () => setError((await deleteAction(p.id)).error));
+                  onClick={async () => {
+                    const confirmed = await askToConfirm({
+                      title: "Delete this photo?",
+                      description: "This can't be undone.",
+                      confirmLabel: "Delete photo",
+                      destructive: true,
+                    });
+                    if (!confirmed) return;
+                    startTransition(async () => {
+                      const { error } = await deleteAction(p.id);
+                      if (error) toast.error(error);
+                      else toast.success("Photo deleted");
+                    });
                   }}
                 >
                   <Trash2 className="size-3.5" />
@@ -52,8 +62,6 @@ export function PhotoGallery({
             </div>
           </li>
         ))}
-      </ul>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-    </div>
+    </ul>
   );
 }

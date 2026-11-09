@@ -3,8 +3,10 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { approveBooking, declineBooking } from "@leadgen/core/booking/approval";
-import { emailPaymentLink } from "@leadgen/core/email/notify";
+import { recordOfflinePayment, removeOfflinePayment } from "@leadgen/core/booking/offline-payments";
+import { emailDepositRequest, emailPaymentLink } from "@leadgen/core/email/notify";
 import { createBookingBalanceLink } from "@leadgen/core/stripe/payment-links";
+import { offlinePaymentSchema } from "@leadgen/core/stripe/payment-rules";
 import { refundDeposit } from "@leadgen/core/stripe/payments";
 import { requireTenant } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -120,4 +122,69 @@ export async function emailBalanceLinkAction(slug: string, bookingId: string): P
     console.error("Emailing a booking payment link failed", error);
     return { error: "Couldn't send the link. Try again." };
   }
+}
+
+// "Email deposit request": asks the customer to pay the deposit still owed
+// from their booking page. Anyone who manages bookings can send it; it goes
+// to the booking's own customer.
+export async function emailDepositRequestAction(slug: string, bookingId: string): Promise<{ error?: string; sent?: boolean }> {
+  const { tenant, can } = await requireTenant(slug);
+  if (!can("bookings.manage")) return { error: "Your access level doesn't include asking for deposits." };
+  if (!z.uuid().safeParse(bookingId).success) return { error: "That booking wasn't found." };
+  const result = await emailDepositRequest(tenant.id, bookingId);
+  return result.ok ? { sent: true } : { error: result.message };
+}
+
+export type OfflinePaymentState = {
+  errors?: { method?: string; amount?: string; note?: string };
+  message?: string;
+  saved?: boolean;
+};
+
+// "Record payment": cash or a bank transfer, money taken outside Stripe,
+// recorded against the booking. Owners and managers (money), like refunds
+// and payment links.
+export async function recordPaymentAction(
+  slug: string,
+  bookingId: string,
+  _prev: OfflinePaymentState,
+  formData: FormData,
+): Promise<OfflinePaymentState> {
+  const { tenant, can, user } = await requireTenant(slug);
+  if (!can("money")) return { message: "Your access level doesn't include recording payments." };
+  if (!z.uuid().safeParse(bookingId).success) return { message: "That booking wasn't found." };
+
+  const parsed = offlinePaymentSchema.safeParse({
+    method: formData.get("method") ?? "",
+    amountPence: formData.get("amount") ?? "",
+    note: formData.get("note") ?? "",
+  });
+  if (!parsed.success) {
+    const fields = z.flattenError(parsed.error).fieldErrors;
+    return { errors: { method: fields.method?.[0], amount: fields.amountPence?.[0], note: fields.note?.[0] } };
+  }
+  try {
+    const result = await recordOfflinePayment(tenant.id, bookingId, parsed.data, user.id);
+    if (!result.ok) return { message: result.message };
+  } catch (error) {
+    console.error("Recording a payment failed", error);
+    return { message: "Couldn't record the payment. Try again." };
+  }
+  refresh();
+  return { saved: true };
+}
+
+export async function removePaymentAction(slug: string, bookingId: string, paymentId: string): Promise<{ message?: string }> {
+  const { tenant, can } = await requireTenant(slug);
+  if (!can("money")) return { message: "Your access level doesn't include recording payments." };
+  if (!z.uuid().safeParse(bookingId).success) return { message: "That booking wasn't found." };
+  try {
+    const result = await removeOfflinePayment(tenant.id, bookingId, paymentId);
+    if (!result.ok) return { message: result.message };
+  } catch (error) {
+    console.error("Removing a payment failed", error);
+    return { message: "Couldn't remove the payment. Try again." };
+  }
+  refresh();
+  return {};
 }

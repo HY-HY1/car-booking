@@ -6,6 +6,8 @@ import { formatPence } from "@leadgen/core/booking/config";
 import { createBalanceLinkAction, emailBalanceLinkAction, type BalanceLinkState } from "@/app/app/[tenant]/bookings/[id]/actions";
 import { CopyText } from "@/components/platform/copy-text";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
+import { askToConfirm } from "@/components/ui/confirm-dialog";
 
 // Payment actions on a booking, shown while something is still owed.
 export function BookingPaymentActions({
@@ -33,7 +35,10 @@ export function BookingPaymentActions({
           disabled={pending || Boolean(blockedReason)}
           onClick={() =>
             startTransition(async () => {
-              setState(await createBalanceLinkAction(slug, bookingId));
+              const result = await createBalanceLinkAction(slug, bookingId);
+              setState(result);
+              if (result.error) toast.error(result.error);
+              else toast.success("Payment link created");
             })
           }
         >
@@ -45,10 +50,18 @@ export function BookingPaymentActions({
           variant="outline"
           disabled={pending || Boolean(blockedReason) || !customerEmail}
           title={customerEmail ? undefined : "This customer has no email address"}
-          onClick={() => {
-            if (!confirm(`Email a payment link for ${formatPence(balancePence)} to ${customerEmail}?`)) return;
+          onClick={async () => {
+            const confirmed = await askToConfirm({
+              title: "Email a payment link?",
+              description: `We'll send a link for ${formatPence(balancePence)} to ${customerEmail}.`,
+              confirmLabel: "Send email",
+            });
+            if (!confirmed) return;
             startTransition(async () => {
-              setState(await emailBalanceLinkAction(slug, bookingId));
+              const result = await emailBalanceLinkAction(slug, bookingId);
+              setState(result);
+              if (result.error) toast.error(result.error);
+              else if (result.sentTo) toast.success(`Payment link emailed to ${result.sentTo}`);
             });
           }}
         >
@@ -57,16 +70,6 @@ export function BookingPaymentActions({
         </Button>
       </div>
       {blockedReason && <p className="text-xs text-muted-foreground">{blockedReason}</p>}
-      {state.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {state.error}
-        </p>
-      )}
-      {state.sentTo && (
-        <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">
-          Payment link emailed to {state.sentTo}.
-        </p>
-      )}
       {state.link && (
         <div className="grid gap-2 rounded-lg border p-3 text-sm">
           <p className="font-medium">

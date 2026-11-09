@@ -5,6 +5,7 @@ import { formatPence } from "@leadgen/core/booking/config";
 import type { RefundAdvice } from "@leadgen/core/settings/policy";
 import { Button } from "@/components/ui/button";
 import { refundDepositAction } from "@/app/app/[tenant]/bookings/[id]/actions";
+import { toast } from "@/components/ui/toast";
 
 // Two steps so a deposit can't be refunded by a stray click. When the
 // business has a cancellation policy and the job is cancelled, the policy's
@@ -21,7 +22,6 @@ export function RefundDeposit({
   advice?: RefundAdvice | null;
 }) {
   const [amount, setAmount] = useState<number | null>(null);
-  const [message, setMessage] = useState<string>();
   const [pending, startTransition] = useTransition();
   const full = formatPence(depositPence);
   const partial = advice?.kind === "partial" ? advice.refundPence : null;
@@ -60,8 +60,12 @@ export function RefundDeposit({
           onClick={() =>
             startTransition(async () => {
               const result = await refundDepositAction(slug, bookingId, amount < depositPence ? amount : undefined);
-              setMessage(result.message);
-              if (!result.message) setAmount(null);
+              if (result.message) {
+                toast.error(result.message);
+                return;
+              }
+              toast.success(`Refunded ${shown}`);
+              setAmount(null);
             })
           }
         >
@@ -71,11 +75,6 @@ export function RefundDeposit({
           Keep deposit
         </Button>
       </div>
-      {message && (
-        <p role="alert" className="text-destructive">
-          {message}
-        </p>
-      )}
     </div>
   );
 }
