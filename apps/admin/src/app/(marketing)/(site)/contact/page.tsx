@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { isContactTopic } from "@leadgen/core/marketing/contact-topics";
@@ -17,9 +18,18 @@ const REASONS = [
   ["A website", "We build websites for detailing businesses that plug straight into your bookings. Quoted per project."],
 ] as const;
 
-export default async function ContactPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+// Only the form depends on the link's ?topic=, so the rest of the page can be
+// built ahead of time.
+async function FormForTopic({ searchParams, privacyHref }: { searchParams: SearchParams; privacyHref: string }) {
   const { topic } = await searchParams;
+  return <ContactForm topic={isContactTopic(topic) ? topic : "question"} privacyHref={privacyHref} />;
+}
+
+export default function ContactPage({ searchParams }: { searchParams: SearchParams }) {
   const docs = docsUrl();
+  const privacyHref = marketingUrl("/legal/privacy");
 
   return (
     <>
@@ -66,7 +76,9 @@ export default async function ContactPage({ searchParams }: { searchParams: Prom
           </div>
 
           <div className="order-1 lg:order-2">
-            <ContactForm topic={isContactTopic(topic) ? topic : "question"} privacyHref={marketingUrl("/legal/privacy")} />
+            <Suspense fallback={<ContactForm topic="question" privacyHref={privacyHref} />}>
+              <FormForTopic searchParams={searchParams} privacyHref={privacyHref} />
+            </Suspense>
           </div>
         </div>
       </section>
