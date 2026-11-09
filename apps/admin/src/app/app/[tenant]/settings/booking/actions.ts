@@ -12,6 +12,7 @@ import { askingFormSchema, parsePolicyForm } from "@leadgen/core/settings/forms"
 import { policyOf } from "@leadgen/core/settings/policy";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { requireTenant } from "@/lib/auth";
+import { nextOrder, writeOrder } from "@/lib/reorder";
 import { createClient } from "@/lib/supabase/server";
 
 // Saves from Settings → Booking. Owner-only (RLS enforces the same). Every
@@ -114,37 +115,33 @@ export async function saveResource(slug: string, id: string | null, formData: Fo
   if (denied) return denied;
   const parsed = resourceFormSchema.safeParse(plain(formData));
   if (!parsed.success) return fieldErrors(parsed.error);
-  const { sort_order, ...fields } = parsed.data;
+  const fields = parsed.data;
 
   const supabase = await createClient();
   if (id) {
     if (!z.uuid().safeParse(id).success) return { message: "That one no longer exists." };
     const { error } = await supabase
       .from("resources")
-      .update({ ...fields, ...(sort_order !== undefined && { sort_order }) })
+      .update(fields)
       .eq("tenant_id", tenant.id)
       .eq("id", id);
     if (error) return failed("that", error);
   } else {
-    // New ones go to the end of the line unless an order is given.
-    let order = sort_order;
-    if (order === undefined) {
-      const { data } = await supabase
-        .from("resources")
-        .select("sort_order")
-        .eq("tenant_id", tenant.id)
-        .order("sort_order", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      order = (data?.sort_order ?? -1) + 1;
-    }
     const { error } = await supabase
       .from("resources")
-      .insert({ ...fields, sort_order: order, tenant_id: tenant.id });
+      .insert({ ...fields, sort_order: await nextOrder("resources", tenant.id), tenant_id: tenant.id });
     if (error) return failed("that", error);
   }
   refresh();
   return { saved: true };
+}
+
+export async function reorderResources(slug: string, ids: string[]): Promise<SaveState> {
+  const { tenant, denied } = await requireOwner(slug);
+  if (denied) return denied;
+  const result = await writeOrder("resources", tenant.id, ids);
+  if (!result.message) refresh();
+  return result;
 }
 
 export async function deleteResource(slug: string, id: string): Promise<SaveState> {

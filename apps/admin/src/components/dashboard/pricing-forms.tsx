@@ -6,8 +6,8 @@ import { formatDuration, formatPence, type ConditionTier } from "@leadgen/core/b
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { poundsInput, type EditableAddOn, type EditableService, type PricingRules } from "@/lib/pricing-fields";
-import { cn } from "@/lib/utils";
 import {
   AddRow,
   Check,
@@ -15,10 +15,11 @@ import {
   Field,
   Row,
   SaveForm,
-  fieldClass,
   type Action,
   type Errors,
 } from "./form-kit";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox, Radio } from "@/components/ui/checkbox";
 
 // ------------------------------------------------------------------ extras
 
@@ -72,27 +73,25 @@ function AddOnFields({ addOn, services, errors }: { addOn?: EditableAddOn; servi
         <Field label="Name" name="name" error={errors.name}>
           <Input name="name" defaultValue={addOn?.name} />
         </Field>
-        <Field label="Price (£)" name="price" error={errors.price}>
-          <Input name="price" inputMode="decimal" defaultValue={addOn ? poundsInput(addOn.price_pence) : ""} />
+        <Field label="Price" name="price" error={errors.price}>
+          <MoneyInput name="price" inputMode="decimal" defaultValue={addOn ? poundsInput(addOn.price_pence) : ""} />
         </Field>
         <Field label="Extra mins" name="duration_mins" error={errors.duration_mins}>
           <Input name="duration_mins" inputMode="numeric" defaultValue={addOn?.duration_mins || ""} placeholder="0" />
         </Field>
       </div>
       <Field label="Description" name="description" error={errors.description}>
-        <textarea name="description" rows={2} defaultValue={addOn?.description ?? ""} className={cn(fieldClass, "py-2")} />
+        <Textarea name="description" rows={2} defaultValue={addOn?.description ?? ""} />
       </Field>
       <fieldset className="grid gap-2">
         <legend className="mb-2 text-sm font-medium">Goes with</legend>
         <div className="flex gap-4 text-sm">
-          <label className="flex items-center gap-2">
-            <input type="radio" name="applies_to" value="all" checked={!some} onChange={() => setSome(false)} className="accent-primary" />
+          <Radio name="applies_to" value="all" checked={!some} onChange={() => setSome(false)}>
             Every service
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="radio" name="applies_to" value="some" checked={some} onChange={() => setSome(true)} className="accent-primary" />
+          </Radio>
+          <Radio name="applies_to" value="some" checked={some} onChange={() => setSome(true)}>
             Only some
-          </label>
+          </Radio>
         </div>
         {some && (
           <div className="flex flex-wrap gap-x-5 gap-y-2 rounded-lg border p-3">
@@ -109,12 +108,7 @@ function AddOnFields({ addOn, services, errors }: { addOn?: EditableAddOn; servi
         )}
         {errors.service_ids && <p className="text-sm text-destructive">{errors.service_ids}</p>}
       </fieldset>
-      <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
-        <Check name="active" label="Show on booking page" defaultChecked={addOn?.active ?? true} />
-        <Field label="Order" name="sort_order" error={errors.sort_order} className="w-20">
-          <Input name="sort_order" inputMode="numeric" defaultValue={addOn?.sort_order ?? 0} />
-        </Field>
-      </div>
+      <Check name="active" label="Show on booking page" defaultChecked={addOn?.active ?? true} />
     </>
   );
 }
@@ -166,12 +160,12 @@ export function RulesForm({ rules, action, readOnly }: { rules: PricingRules; ac
         <>
           <input type="hidden" name="condition_tiers" value={serialised} />
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Minimum charge (£)" name="min_price" error={errors.min_price}>
-              <Input name="min_price" inputMode="decimal" placeholder="0" defaultValue={rules.min_price_pence ? poundsInput(rules.min_price_pence) : ""} />
+            <Field label="Minimum charge" name="min_price" error={errors.min_price}>
+              <MoneyInput name="min_price" inputMode="decimal" placeholder="0" defaultValue={rules.min_price_pence ? poundsInput(rules.min_price_pence) : ""} />
             </Field>
             {rules.offers_mobile && (
-              <Field label="Mobile call-out fee (£)" name="mobile_surcharge" error={errors.mobile_surcharge}>
-                <Input
+              <Field label="Mobile call-out fee" name="mobile_surcharge" error={errors.mobile_surcharge}>
+                <MoneyInput
                   name="mobile_surcharge"
                   inputMode="decimal"
                   placeholder="0"
@@ -234,12 +228,10 @@ export function RulesForm({ rules, action, readOnly }: { rules: PricingRules; ac
                           />
                         </td>
                         <td className="px-3 py-1.5">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={t.needsInspection}
                             onChange={(e) => update(i, { needsInspection: e.target.checked })}
                             aria-label="Needs inspection before pricing"
-                            className="size-4 accent-primary"
                           />
                         </td>
                         <td className="px-2 py-1.5">

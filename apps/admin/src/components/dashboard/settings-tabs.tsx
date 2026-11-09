@@ -13,12 +13,12 @@ export function SettingsTabs({ slug, role }: { slug: string; role: Role }) {
   const here = appPathOf(usePathname());
   const base = `/${slug}/settings`;
   const view: Permission = "settings.view";
-  const tabs: { path: string; label: string; permission?: Permission }[] = [
+  const tabs: { path: string; label: string; permission?: Permission; soon?: boolean }[] = [
     { path: `${base}/account`, label: "Account" },
     { path: base, label: "General", permission: view },
     { path: `${base}/booking-page`, label: "Booking page", permission: view },
     { path: `${base}/booking`, label: "Booking", permission: view },
-    { path: `${base}/assistant`, label: "AI assistant", permission: view },
+    { path: `${base}/assistant`, label: "AI assistant", permission: view, soon: true },
     { path: `${base}/payments`, label: "Payments", permission: view },
     { path: `${base}/notifications`, label: "Notifications", permission: view },
     { path: `${base}/privacy`, label: "Privacy & data", permission: view },
@@ -43,6 +43,7 @@ export function SettingsTabs({ slug, role }: { slug: string; role: Role }) {
               )}
             >
               {t.label}
+              {t.soon && <span className="ml-1.5 text-xs font-normal text-muted-foreground">Soon</span>}
             </Link>
           );
         })}

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireTenant } from "@/lib/auth";
 import { addOnFormSchema, formObject, rulesFormSchema, serviceFormSchema } from "@/lib/pricing";
 import { GALLERY_MAX, SERVICE_IMAGE_MAX_BYTES, SERVICE_IMAGE_TYPES } from "@/lib/pricing-fields";
+import { nextOrder, writeOrder } from "@/lib/reorder";
 import { createClient } from "@/lib/supabase/server";
 import { appUrl } from "@/lib/urls";
 
@@ -92,7 +93,7 @@ export async function saveService(slug: string, id: string | null, formData: For
   } else {
     const { data, error } = await supabase
       .from("services")
-      .insert({ ...parsed.data, tenant_id: tenant.id })
+      .insert({ ...parsed.data, sort_order: await nextOrder("services", tenant.id), tenant_id: tenant.id })
       .select("id")
       .single();
     if (error) return error.code === "23505" ? slugTaken : failed("service", error);
@@ -171,7 +172,7 @@ export async function saveAddOn(slug: string, id: string | null, formData: FormD
   const supabase = await createClient();
   const { error } = id
     ? await supabase.from("add_ons").update(parsed.data).eq("tenant_id", tenant.id).eq("id", id)
-    : await supabase.from("add_ons").insert({ ...parsed.data, tenant_id: tenant.id });
+    : await supabase.from("add_ons").insert({ ...parsed.data, sort_order: await nextOrder("add_ons", tenant.id), tenant_id: tenant.id });
   if (error) return failed("extra", error);
   refresh();
   return { saved: true };
@@ -198,4 +199,22 @@ export async function savePricingRules(slug: string, formData: FormData): Promis
   if (error) return failed("pricing rules", error);
   refresh();
   return { saved: true };
+}
+
+// ------------------------------------------------------------- list order
+
+async function saveOrder(slug: string, table: "services" | "add_ons", ids: string[]): Promise<SaveState> {
+  const { tenant, denied } = await requireOwner(slug);
+  if (denied) return denied;
+  const result = await writeOrder(table, tenant.id, ids);
+  if (!result.message) refresh();
+  return result;
+}
+
+export async function reorderServices(slug: string, ids: string[]) {
+  return saveOrder(slug, "services", ids);
+}
+
+export async function reorderAddOns(slug: string, ids: string[]) {
+  return saveOrder(slug, "add_ons", ids);
 }

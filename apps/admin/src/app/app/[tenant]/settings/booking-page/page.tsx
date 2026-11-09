@@ -5,6 +5,7 @@ import { AddDomainForm, BrandingForm, DomainRow, type DomainView } from "@/compo
 import { CopyText } from "@/components/platform/copy-text";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireAccess } from "@/lib/auth";
+import { serviceImageUrl } from "@/lib/pricing-fields";
 import { createClient } from "@/lib/supabase/server";
 import { tenantUrl } from "@/lib/urls";
 import { addDomainAction, saveBrandingAction } from "../actions";
@@ -17,17 +18,28 @@ export default async function BookingPageSettings({ params }: PageProps<"/app/[t
   const readOnly = !can("settings.edit");
 
   const supabase = await createClient();
-  const [business, domains] = await Promise.all([
-    supabase.from("tenants").select("name, branding").eq("id", tenant.id).single(),
+  const [business, domains, services] = await Promise.all([
+    supabase.from("tenants").select("name, branding, contact_email, contact_phone").eq("id", tenant.id).single(),
     supabase
       .from("domains")
       .select("id, hostname, verified, is_primary, verification_token, check_error, created_at")
       .eq("tenant_id", tenant.id)
       .order("is_primary", { ascending: false })
       .order("created_at"),
+    // The first few, for the preview.
+    supabase
+      .from("services")
+      .select("id, name, base_price_pence, tagline, image_path")
+      .eq("tenant_id", tenant.id)
+      .eq("active", true)
+      .not("slug", "is", null)
+      .order("sort_order")
+      .order("name")
+      .limit(3),
   ]);
   if (business.error) throw business.error;
   if (domains.error) throw domains.error;
+  if (services.error) throw services.error;
 
   // The free address always works and isn't a row; the rows are the
   // business's own domains (older slug.localhost rows are skipped).
@@ -60,7 +72,7 @@ export default async function BookingPageSettings({ params }: PageProps<"/app/[t
   const branding = brandingSchema.parse(business.data.branding ?? {});
 
   return (
-    <div className="grid max-w-3xl gap-4">
+    <div className="grid max-w-5xl gap-4 [&>*:not(:nth-child(-n+2))]:max-w-3xl">
       {readOnly && (
         <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">Your access level lets you see these but not change them.</p>
       )}
@@ -73,6 +85,14 @@ export default async function BookingPageSettings({ params }: PageProps<"/app/[t
           <BrandingForm
             branding={branding}
             businessName={business.data.name}
+            contact={{ email: business.data.contact_email, phone: business.data.contact_phone }}
+            services={services.data.map((s) => ({
+              id: s.id,
+              name: s.name,
+              basePricePence: s.base_price_pence,
+              tagline: s.tagline,
+              imageUrl: serviceImageUrl(s.image_path),
+            }))}
             action={saveBrandingAction.bind(null, slug)}
             readOnly={readOnly}
           />

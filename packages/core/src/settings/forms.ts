@@ -139,6 +139,7 @@ export const brandingFormSchema = z.object({
   secondary_color: z.union([z.literal(""), hexColor]).optional().transform((v) => v || undefined),
   tagline: text(120, "the tagline").transform((v) => v || undefined),
   website_url: optionalUrl.transform((v) => v ?? undefined),
+  terms_url: optionalUrl.transform((v) => v ?? undefined),
   button_label: text(30, "the button text").transform((v) => v || undefined),
   button_position: z.enum(["right", "left"]).default("right"),
 });
@@ -176,6 +177,16 @@ export function parsePolicyForm(input: Record<string, string>, current: Cancella
     cutoff_hours: whole("The cancellation notice", 0, 720),
     reschedule_cutoff_hours: whole("The notice to change the time", 0, 720),
     note: text(500, "the note"),
+    self_service: checkbox,
+    // Blank = no limit.
+    max_reschedules: z
+      .string()
+      .trim()
+      .default("")
+      .refine((v) => v === "" || (/^\d+$/.test(v) && Number(v) >= 1 && Number(v) <= 10), {
+        message: "The number of changes must be a whole number from 1 to 10, or blank for no limit.",
+      })
+      .transform((v) => (v === "" ? undefined : Number(v))),
   });
   const parsed = schema.safeParse(input);
   if (!parsed.success) return parsed;
@@ -186,6 +197,8 @@ export function parsePolicyForm(input: Record<string, string>, current: Cancella
         cutoff_hours: v.cutoff_hours,
         reschedule_cutoff_hours: v.reschedule_cutoff_hours,
         note: v.note || undefined,
+        self_service: v.self_service,
+        max_reschedules: v.max_reschedules,
       }
     : {};
   return { success: true as const, data: policy };

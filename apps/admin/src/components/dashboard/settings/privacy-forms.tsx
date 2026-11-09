@@ -5,7 +5,8 @@ import { DEFAULT_MARKETING_CONSENT } from "@leadgen/core/settings/forms";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Field, SaveForm, fieldClass, type Action } from "../form-kit";
+import { Field, SaveForm, type Action } from "../form-kit";
+import { Textarea } from "@/components/ui/textarea";
 
 // Settings → Privacy & data: the extras beside the controller details, and
 // closing the account.
@@ -30,13 +31,12 @@ export function PrivacyExtrasForm({
             The booking page links here instead of the privacy notice we write for you. Make sure it covers online bookings.
           </p>
           <Field label="Marketing tick box wording" name="marketing_consent_text" error={errors.marketing_consent_text}>
-            <textarea
+            <Textarea
               name="marketing_consent_text"
               rows={2}
               maxLength={500}
               defaultValue={values.marketing_consent_text ?? ""}
               placeholder={DEFAULT_MARKETING_CONSENT}
-              className={fieldClass}
             />
           </Field>
           <p className="-mt-3 text-xs text-muted-foreground">

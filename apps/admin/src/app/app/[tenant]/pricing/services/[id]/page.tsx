@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { BackLink, ComingSoon, PageHeader } from "@/components/dashboard/page-header";
+import { BackLink, PageHeader } from "@/components/dashboard/page-header";
 import { ServiceForm } from "@/components/dashboard/service-editor";
 import { requireAccess } from "@/lib/auth";
 import { loadPricing } from "@/lib/pricing";
 import { loadSetup } from "@/lib/setup";
 import { deleteService, saveService } from "../../actions";
 import { appUrl, tenantUrl } from "@/lib/urls";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Edit service" };
 
@@ -22,7 +23,7 @@ export default async function ServicePage({ params }: PageProps<"/app/[tenant]/p
       <>
         {back}
         <PageHeader title="Service" />
-        <ComingSoon>Booking isn&apos;t set up for this business yet.</ComingSoon>
+        <EmptyState>Booking isn&apos;t set up for this business yet.</EmptyState>
       </>
     );
   }
@@ -40,7 +41,7 @@ export default async function ServicePage({ params }: PageProps<"/app/[tenant]/p
       {back}
       <PageHeader
         title={service ? service.name : "Add a service"}
-        description="Everything here appears on this service's own page and in your booking list. Changes show straight away."
+        description="Changes show to customers straight away."
       />
       {readOnly && (
         <p className="mb-6 rounded-lg bg-muted p-3 text-sm text-muted-foreground">Only the business owner can change services.</p>

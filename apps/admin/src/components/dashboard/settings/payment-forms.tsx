@@ -4,8 +4,9 @@ import { useState } from "react";
 import type { DepositRule } from "@leadgen/core/booking/config";
 import { policyLines, type CancellationPolicy } from "@leadgen/core/settings/policy";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import { Field, SaveForm, fieldClass, type Action } from "../form-kit";
+import { MoneyInput } from "@/components/ui/money-input";
+import { Field, SaveForm, type Action } from "../form-kit";
+import { Select } from "@/components/ui/select";
 
 // Settings → Payments: the deposit and what happens to it on cancellation.
 
@@ -20,17 +21,16 @@ export function DepositForm({ deposit, action, readOnly }: { deposit: DepositRul
       {(errors) => (
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="When customers book, they pay" name="deposit_type" error={errors.deposit_type}>
-            <select
+            <Select
               name="deposit_type"
               value={type}
               onChange={(e) => setType(e.target.value as typeof type)}
-              className={cn(fieldClass, "h-8")}
             >
               <option value="none">Nothing up front</option>
               <option value="percent">A percentage of the price</option>
               <option value="fixed">A fixed deposit</option>
               <option value="full">The full price</option>
-            </select>
+            </Select>
           </Field>
           {type === "percent" && (
             <Field label="Deposit (%)" name="deposit_percent" error={errors.deposit_percent}>
@@ -38,8 +38,8 @@ export function DepositForm({ deposit, action, readOnly }: { deposit: DepositRul
             </Field>
           )}
           {type === "fixed" && (
-            <Field label="Deposit (£)" name="deposit_fixed" error={errors.deposit_fixed}>
-              <Input name="deposit_fixed" inputMode="decimal" defaultValue={deposit.type === "fixed" ? poundsInput(deposit.value_pence) : ""} />
+            <Field label="Deposit" name="deposit_fixed" error={errors.deposit_fixed}>
+              <MoneyInput name="deposit_fixed" inputMode="decimal" defaultValue={deposit.type === "fixed" ? poundsInput(deposit.value_pence) : ""} />
             </Field>
           )}
           {type !== "fixed" && <input type="hidden" name="deposit_fixed" value="" />}
@@ -70,35 +70,33 @@ export function RefundForm({ policy, action, readOnly }: { policy: CancellationP
         <>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Cancelled in time" name="refund_before_cutoff" error={errors.refund_before_cutoff}>
-              <select
+              <Select
                 name="refund_before_cutoff"
                 value={before}
                 onChange={(e) => setBefore(e.target.value as typeof before)}
-                className={cn(fieldClass, "h-8")}
               >
                 <option value="full">Refund the deposit in full</option>
                 <option value="none">Keep it: deposits aren&apos;t refundable</option>
-              </select>
+              </Select>
             </Field>
             {before === "full" ? (
               <Field label="Cancelled late, or a no-show" name="late_fee_type" error={errors.late_fee_type}>
-                <select
+                <Select
                   name="late_fee_type"
                   value={lateType}
                   onChange={(e) => setLateType(e.target.value as typeof lateType)}
-                  className={cn(fieldClass, "h-8")}
                 >
                   <option value="deposit">Keep the whole deposit</option>
                   <option value="fixed">Keep part of it</option>
                   <option value="none">Refund it anyway</option>
-                </select>
+                </Select>
               </Field>
             ) : (
               <input type="hidden" name="late_fee_type" value="deposit" />
             )}
             {before === "full" && lateType === "fixed" ? (
-              <Field label="Amount you keep (£)" name="late_fee_amount" error={errors.late_fee_amount}>
-                <Input name="late_fee_amount" inputMode="decimal" value={lateAmount} onChange={(e) => setLateAmount(e.target.value)} />
+              <Field label="Amount you keep" name="late_fee_amount" error={errors.late_fee_amount}>
+                <MoneyInput name="late_fee_amount" inputMode="decimal" value={lateAmount} onChange={(e) => setLateAmount(e.target.value)} />
               </Field>
             ) : (
               <input type="hidden" name="late_fee_amount" value="" />

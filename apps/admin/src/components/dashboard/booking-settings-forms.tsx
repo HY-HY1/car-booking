@@ -6,6 +6,7 @@ import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { Input } from "@/components/ui/input";
 import { AddRow, Check, DeleteButton, Field, Row, SaveForm, type Action } from "./form-kit";
 import { HoursEditor } from "./hours-editor";
+import { Checkbox, Radio } from "@/components/ui/checkbox";
 
 // Settings → Booking: where the business works, when, how jobs are spaced,
 // and the vans and bays that do them.
@@ -47,17 +48,15 @@ export function LocationsForm({ settings, action, readOnly }: { settings: Locati
                     : []),
                 ] as const
               ).map(([value, label]) => (
-                <label key={value} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="area_type"
-                    value={value}
-                    checked={areaType === value}
-                    onChange={() => setAreaType(value)}
-                    className="size-4 accent-primary"
-                  />
+                <Radio
+                  key={value}
+                  name="area_type"
+                  value={value}
+                  checked={areaType === value}
+                  onChange={() => setAreaType(value)}
+                >
                   {label}
-                </label>
+                </Radio>
               ))}
             </fieldset>
             {areaType === "radius" && (
@@ -129,16 +128,13 @@ export function HoursForm({
 
           {both && (
             <div className="grid gap-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  name="shop_different"
-                  checked={different}
-                  onChange={(e) => setDifferent(e.target.checked)}
-                  className="size-4 accent-primary"
-                />
+              <Checkbox
+                name="shop_different"
+                checked={different}
+                onChange={(e) => setDifferent(e.target.checked)}
+              >
                 My shop opens at different times
-              </label>
+              </Checkbox>
               {different ? (
                 <>
                   <h3 className="text-sm font-medium">Shop hours</h3>
@@ -183,7 +179,7 @@ export function BookingRulesForm({ settings, action, readOnly }: { settings: Rul
           <Field label="Book up to (days ahead)" name="max_days_ahead" error={errors.max_days_ahead}>
             <Input name="max_days_ahead" inputMode="numeric" defaultValue={settings.max_days_ahead} />
           </Field>
-          <Field label="Hold a slot while paying (minutes)" name="hold_minutes" error={errors.hold_minutes}>
+          <Field label="Keep the time reserved while paying (minutes)" name="hold_minutes" error={errors.hold_minutes}>
             <Input name="hold_minutes" inputMode="numeric" defaultValue={settings.hold_minutes} />
           </Field>
           <Field label="Minimum gap between mobile jobs (minutes)" name="travel_buffer_mins" error={errors.travel_buffer_mins}>
@@ -194,7 +190,7 @@ export function BookingRulesForm({ settings, action, readOnly }: { settings: Rul
           </Field>
           <p className="text-sm text-muted-foreground sm:col-span-2">
             For mobile jobs the gap is the longer of this and the estimated drive between the two postcodes. Each van
-            or bay is spaced on its own. Holds are lengthened to at least 35 minutes when a deposit is paid online.
+            or bay is spaced on its own. The reserved time goes up to at least 35 minutes when a deposit is paid online.
           </p>
         </div>
       )}
@@ -267,14 +263,9 @@ function ResourceFields({
   const [custom, setCustom] = useState(Boolean(resource?.weekly_hours));
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-[1fr_6rem]">
-        <Field label="Name" name="name" error={errors.name}>
-          <Input name="name" autoComplete="off" placeholder={suggestion} defaultValue={resource?.name ?? suggestion ?? ""} />
-        </Field>
-        <Field label="Order" name="sort_order" error={errors.sort_order}>
-          <Input name="sort_order" inputMode="numeric" placeholder="Last" defaultValue={resource?.sort_order ?? ""} />
-        </Field>
-      </div>
+      <Field label="Name" name="name" error={errors.name}>
+        <Input name="name" autoComplete="off" placeholder={suggestion} defaultValue={resource?.name ?? suggestion ?? ""} />
+      </Field>
 
       <fieldset className="grid gap-2">
         <legend className="mb-1 text-sm font-medium">Where it works</legend>
@@ -286,16 +277,13 @@ function ResourceFields({
       </fieldset>
 
       <div className="grid gap-3">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            name="custom_hours"
-            checked={custom}
-            onChange={(e) => setCustom(e.target.checked)}
-            className="size-4 accent-primary"
-          />
+        <Checkbox
+          name="custom_hours"
+          checked={custom}
+          onChange={(e) => setCustom(e.target.checked)}
+        >
           Its own hours (otherwise it follows the business hours)
-        </label>
+        </Checkbox>
         {custom && (
           <>
             <HoursEditor name="hours" label="Hours for this one" initial={resource?.weekly_hours ?? {}} />

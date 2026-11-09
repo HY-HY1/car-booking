@@ -1,21 +1,22 @@
 "use client";
 
-import { cloneElement, useId, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { ChevronDown, Plus, Trash2, X } from "lucide-react";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/toast";
+import { askToConfirm } from "@/components/ui/confirm-dialog";
+import { Badge } from "@/components/ui/badge";
+import { useUnsavedChanges } from "./unsaved-changes";
 
 // The pieces the dashboard's editors are built from: a form that saves
 // through a server action and shows its errors, collapsible rows, and labelled
 // fields. Used by the pricing and booking-settings editors.
 
 export type Action = (formData: FormData) => Promise<SaveState>;
-
-export const fieldClass =
-  "w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30";
-
 
 export type Errors = Record<string, string | undefined>;
 
@@ -45,14 +46,21 @@ export function SaveForm({
   const [state, setState] = useState<SaveState>({});
   const [pending, startTransition] = useTransition();
   const form = useRef<HTMLFormElement>(null);
+  const markSaved = useUnsavedChanges(form, !readOnly);
+  // Read once the save has finished: while it's going, the fields are disabled
+  // and a form leaves disabled fields out.
+  const justSaved = useRef(false);
+  useEffect(() => {
+    if (pending || !justSaved.current) return;
+    justSaved.current = false;
+    markSaved();
+  }, [pending, markSaved]);
 
   return (
     <form
       ref={form}
       noValidate
       className="grid gap-5"
-      // Clear "Saved" as soon as anything changes again.
-      onChange={() => state.saved && setState({})}
       onSubmit={(e) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
@@ -70,7 +78,9 @@ export function SaveForm({
           }
           setState(result);
           if (result.saved) {
+            toast.success(savedText);
             if (resetOnSave) form.current?.reset();
+            justSaved.current = true;
             onSaved?.();
           }
         });
@@ -86,7 +96,7 @@ export function SaveForm({
             sticky && "sticky bottom-0 z-10 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80",
           )}
         >
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" size="lg" disabled={pending}>
             {pending ? "Saving…" : submitLabel}
           </Button>
           {extra}
@@ -95,8 +105,6 @@ export function SaveForm({
               <span className="text-destructive">{state.message}</span>
             ) : state.errors ? (
               <span className="text-destructive">Check the highlighted fields.</span>
-            ) : state.saved && !pending ? (
-              <span className="text-muted-foreground">{savedText}</span>
             ) : null}
           </p>
         </div>
@@ -121,7 +129,7 @@ export function Row({
       <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
         <span className="min-w-0 flex-1">
           <span className={cn("font-medium", hidden && "text-muted-foreground")}>{title}</span>
-          {hidden && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Hidden</span>}
+          {hidden && <Badge className="ml-2">Hidden</Badge>}
           <span className="block truncate text-sm text-muted-foreground">{summary}</span>
         </span>
         <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
@@ -155,23 +163,29 @@ export function AddRow({ label, children }: { label: string; children: (close: (
 
 export function DeleteButton({ what, note, action }: { what: string; note?: string; action: () => Promise<SaveState> }) {
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string>();
   return (
-    <>
-      <Button
-        type="button"
-        variant="ghost"
-        disabled={pending}
-        className="text-destructive"
-        onClick={() => {
-          if (!confirm(`Delete ${what}? ${note ?? `Past bookings keep their prices. To stop offering it for now, untick "Show on booking page" instead.`}`)) return;
-          startTransition(async () => setError((await action()).message));
-        }}
-      >
-        <Trash2 /> {pending ? "Deleting…" : "Delete"}
-      </Button>
-      {error && <span className="text-sm text-destructive">{error}</span>}
-    </>
+    <Button
+      type="button"
+      variant="ghost"
+      disabled={pending}
+      className="text-destructive"
+      onClick={async () => {
+        const confirmed = await askToConfirm({
+          title: `Delete ${what}?`,
+          description: note ?? `Past bookings keep their prices. To stop offering it for now, untick "Show on booking page" instead.`,
+          confirmLabel: "Delete",
+          destructive: true,
+        });
+        if (!confirmed) return;
+        startTransition(async () => {
+          const { message } = await action();
+          if (message) toast.error(message);
+          else toast.success(`Deleted ${what}`);
+        });
+      }}
+    >
+      <Trash2 /> {pending ? "Deleting…" : "Delete"}
+    </Button>
   );
 }
 
@@ -187,10 +201,9 @@ export function Check({
   defaultChecked: boolean;
 }) {
   return (
-    <label className="flex items-center gap-2 text-sm">
-      <input type="checkbox" name={name} value={value} defaultChecked={defaultChecked} className="size-4 accent-primary" />
+    <Checkbox name={name} value={value} defaultChecked={defaultChecked}>
       {label}
-    </label>
+    </Checkbox>
   );
 }
 
@@ -199,34 +212,4 @@ export function FirstError({ errors, prefix }: { errors: Errors; prefix: string 
   return first ? <p className="text-sm text-destructive">{first}</p> : null;
 }
 
-export function Field({
-  label,
-  name,
-  error,
-  className,
-  children,
-}: {
-  label: string;
-  name: string;
-  error?: string;
-  className?: string;
-  children: React.ReactElement<{ id?: string; "aria-invalid"?: boolean; "aria-describedby"?: string }>;
-}) {
-  // Several forms share a page, so ids are made unique per field instance.
-  const id = `${name}-${useId()}`;
-  return (
-    <div className={cn("grid content-start gap-2", className)}>
-      <Label htmlFor={id}>{label}</Label>
-      {cloneElement(children, {
-        id,
-        "aria-invalid": error ? true : undefined,
-        "aria-describedby": error ? `${id}-error` : undefined,
-      })}
-      {error && (
-        <p id={`${id}-error`} className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
+export { Field };

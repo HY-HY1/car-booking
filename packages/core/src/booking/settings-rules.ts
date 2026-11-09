@@ -187,11 +187,6 @@ export const resourceFormSchema = z
     custom_hours: checkbox,
     hours: z.string().default("{}"),
     active: checkbox,
-    sort_order: z
-      .string()
-      .trim()
-      .refine((v) => v === "" || (/^\d+$/.test(v) && Number(v) <= 1000), "Order must be a whole number from 0 to 1000.")
-      .transform((v) => (v === "" ? undefined : Number(v))),
   })
   .transform((v, ctx) => {
     if (!v.location_mobile && !v.location_unit) {
@@ -220,6 +215,5 @@ export const resourceFormSchema = z
       location_types: [v.location_mobile && "mobile", v.location_unit && "unit"].filter(Boolean) as ("mobile" | "unit")[],
       weekly_hours,
       active: v.active,
-      sort_order: v.sort_order,
     };
   });

@@ -1,15 +1,19 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useUnsavedChanges } from "../unsaved-changes";
 import { Trash2 } from "lucide-react";
 import { ROLE_KEYS, ROLES, type Role } from "@leadgen/core/team/access";
 import { changeRoleAction, removeMemberAction, type AddMemberState } from "@/app/app/[tenant]/settings/team/actions";
 import { CopyText } from "@/components/platform/copy-text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
-import { fieldClass } from "../form-kit";
+import { Field } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
+import { Radio } from "@/components/ui/checkbox";
+import { toast } from "@/components/ui/toast";
+import { askToConfirm } from "@/components/ui/confirm-dialog";
+import { Badge } from "@/components/ui/badge";
 
 // Settings → Team & access.
 
@@ -23,39 +27,38 @@ export function AddMemberForm({
   const [state, formAction, pending] = useActionState(action, {});
   const [role, setRole] = useState<Role>("staff");
   const e = state.errors ?? {};
+  const form = useRef<HTMLFormElement>(null);
+  const markSaved = useUnsavedChanges(form);
+  useEffect(() => {
+    if (!state.errors) markSaved();
+  }, [state, markSaved]);
 
   return (
     <div className="grid gap-4">
-      <form action={formAction} className="grid gap-4" noValidate>
+      <form ref={form} action={formAction} className="grid gap-4" noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-2">
-            <Label htmlFor="member-email">Email</Label>
-            <Input id="member-email" name="email" type="email" autoComplete="off" aria-invalid={e.email ? true : undefined} />
-            {e.email && <p className="text-sm text-destructive">{e.email}</p>}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="member-name">Name (optional)</Label>
-            <Input id="member-name" name="name" autoComplete="off" />
-            {e.name && <p className="text-sm text-destructive">{e.name}</p>}
-          </div>
+          <Field label="Email" name="email" error={e.email}>
+            <Input name="email" type="email" autoComplete="off" />
+          </Field>
+          <Field label="Name (optional)" name="name" error={e.name}>
+            <Input name="name" autoComplete="off" />
+          </Field>
         </div>
         <fieldset className="grid gap-2">
           <legend className="mb-1 text-sm font-medium">Access level</legend>
           {ROLE_KEYS.map((k) => (
-            <label key={k} className="flex items-start gap-2 text-sm">
-              <input
-                type="radio"
-                name="role"
-                value={k}
-                checked={role === k}
-                onChange={() => setRole(k)}
-                className="mt-0.5 size-4 accent-primary"
-              />
+            <Radio
+              key={k}
+              name="role"
+              value={k}
+              checked={role === k}
+              onChange={() => setRole(k)}
+            >
               <span>
                 {ROLES[k].label}
                 <span className="block text-muted-foreground">{ROLES[k].detail}</span>
               </span>
-            </label>
+            </Radio>
           ))}
           {e.role && <p className="text-sm text-destructive">{e.role}</p>}
         </fieldset>
@@ -101,7 +104,6 @@ export function MemberRow({
   canManage: boolean;
 }) {
   const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string>();
   const who = member.name ?? member.email;
 
   return (
@@ -109,7 +111,7 @@ export function MemberRow({
       <div className="min-w-0">
         <p className="truncate font-medium">
           {member.name ?? member.email}
-          {isYou && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">You</span>}
+          {isYou && <Badge className="ml-2">You</Badge>}
         </p>
         <p className="truncate text-sm text-muted-foreground">
           {member.name && `${member.email} · `}
@@ -119,53 +121,74 @@ export function MemberRow({
       <div className="flex flex-wrap items-center gap-2">
         {canManage ? (
           <>
-            <select
+            <Select
               aria-label={`Access level for ${who}`}
               defaultValue={member.role}
               disabled={pending}
-              onChange={(e) => {
+              onChange={async (e) => {
                 const next = e.target.value;
                 const select = e.target;
-                if (isYou && next !== "owner" && !confirm("Change your own access? You'll lose the owner's controls, including this page.")) {
+                if (
+                  isYou &&
+                  next !== "owner" &&
+                  !(await askToConfirm({
+                    title: "Change your own access?",
+                    description: "You'll lose the owner's controls, including this page.",
+                    confirmLabel: "Change access",
+                    destructive: true,
+                  }))
+                ) {
                   select.value = member.role;
                   return;
                 }
                 startTransition(async () => {
-                  const result = await changeRoleAction(slug, member.userId, next);
-                  setMessage(result.message);
-                  if (result.message) select.value = member.role;
+                  const { message } = await changeRoleAction(slug, member.userId, next);
+                  if (message) {
+                    toast.error(message);
+                    select.value = member.role;
+                  } else {
+                    toast.success("Access level changed");
+                  }
                 });
               }}
-              className={cn(fieldClass, "h-8 w-auto")}
+              className="w-auto"
             >
               {Object.entries(ROLES).map(([k, r]) => (
                 <option key={k} value={k}>
                   {r.label}
                 </option>
               ))}
-            </select>
+            </Select>
             <Button
               type="button"
               size="sm"
               variant="ghost"
               className="text-destructive"
               disabled={pending}
-              onClick={() => {
-                const text = isYou
-                  ? "Remove your own access to this business? You'll be signed out of it."
-                  : `Remove ${who}'s access? They won't be able to open this business any more. Their own account isn't deleted.`;
-                if (!confirm(text)) return;
-                startTransition(async () => setMessage((await removeMemberAction(slug, member.userId)).message));
+              onClick={async () => {
+                const confirmed = await askToConfirm({
+                  title: isYou ? "Remove your own access to this business?" : `Remove ${who}'s access?`,
+                  description: isYou
+                    ? "You'll be signed out of it."
+                    : "They won't be able to open this business any more. Their own account isn't deleted.",
+                  confirmLabel: "Remove access",
+                  destructive: true,
+                });
+                if (!confirmed) return;
+                startTransition(async () => {
+                  const { message } = await removeMemberAction(slug, member.userId);
+                  if (message) toast.error(message);
+                  else toast.success("Access removed");
+                });
               }}
             >
               <Trash2 /> Remove
             </Button>
           </>
         ) : (
-          <span className="rounded-full bg-muted px-2.5 py-1 text-xs">{ROLES[member.role]?.label ?? member.role}</span>
+          <Badge>{ROLES[member.role]?.label ?? member.role}</Badge>
         )}
       </div>
-      {message && <p className="text-sm text-destructive sm:col-span-2">{message}</p>}
     </li>
   );
 }

@@ -8,7 +8,9 @@ import { BookingRulesForm, HoursForm, LocationsForm, NewResource, ResourceEditor
 import { AskingForm, PolicyForm } from "@/components/dashboard/settings/booking-forms";
 import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { deleteResource, saveAsking, saveBookingRules, saveHours, saveLocations, savePolicy, saveResource } from "./actions";
+import { deleteResource, reorderResources, saveAsking, saveBookingRules, saveHours, saveLocations, savePolicy, saveResource } from "./actions";
+import { SortableRows } from "@/components/dashboard/sortable";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Booking settings" };
 
@@ -32,7 +34,7 @@ export default async function BookingSettingsPage({ params }: PageProps<"/app/[t
   if (resourcesResult.error) throw resourcesResult.error;
 
   if (!settingsResult.data) {
-    return <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">Booking isn&apos;t set up for this business yet.</p>;
+    return <EmptyState>Booking isn&apos;t set up for this business yet.</EmptyState>;
   }
   const settings = bookingSettingsSchema.parse(settingsResult.data);
   const resources = z.array(resourceSchema.extend({ active: z.boolean() })).parse(resourcesResult.data);
@@ -89,15 +91,22 @@ export default async function BookingSettingsPage({ params }: PageProps<"/app/[t
           hours if it works different days, or set it to do both mobile and shop work if one person covers both.
           {mobileCount === 0 && " You have none yet."}
         </p>
-        {resources.map((r) => (
-          <ResourceEditor
-            key={r.id}
-            resource={r}
-            action={saveResource.bind(null, slug, r.id)}
-            deleteAction={deleteResource.bind(null, slug, r.id)}
-            readOnly={readOnly}
-          />
-        ))}
+        <SortableRows
+          readOnly={readOnly}
+          save={reorderResources.bind(null, slug)}
+          items={resources.map((r) => ({
+            id: r.id,
+            label: r.name,
+            content: (
+              <ResourceEditor
+                resource={r}
+                action={saveResource.bind(null, slug, r.id)}
+                deleteAction={deleteResource.bind(null, slug, r.id)}
+                readOnly={readOnly}
+              />
+            ),
+          }))}
+        />
         <NewResource action={saveResource.bind(null, slug, null)} readOnly={readOnly} suggestion={suggestion} />
       </section>
 

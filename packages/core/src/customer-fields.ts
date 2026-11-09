@@ -64,12 +64,3 @@ export function normalizePostcode(input: string): string {
     ? `${compact.slice(0, -3)} ${compact.slice(-3)}`
     : input.trim().toUpperCase();
 }
-
-export function formatDate(iso: string) {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "Europe/London",
-  }).format(new Date(iso));
-}

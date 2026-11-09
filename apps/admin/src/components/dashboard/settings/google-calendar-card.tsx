@@ -1,10 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Field, SaveForm, fieldClass, type Action } from "../form-kit";
+import { Field, SaveForm, type Action } from "../form-kit";
+import { Select } from "@/components/ui/select";
+import { toast } from "@/components/ui/toast";
+import { askToConfirm } from "@/components/ui/confirm-dialog";
+import { Badge } from "@/components/ui/badge";
 
 // Settings → Integrations: connecting Google Calendar, and which calendar
 // each van or bay uses.
@@ -52,18 +56,9 @@ export function GoogleCalendarCard(props: CalendarCardProps) {
             Your bookings in your Google Calendar, and busy times there blocked out for customers.
           </span>
         </span>
-        <span
-          className={cn(
-            "shrink-0 rounded-full px-2.5 py-1 text-xs",
-            connection?.status === "active"
-              ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100"
-              : connection
-                ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-100"
-                : "bg-muted text-muted-foreground",
-          )}
-        >
+        <Badge tone={connection?.status === "active" ? "success" : connection ? "warning" : "neutral"}>
           {connection?.status === "active" ? "Connected" : connection ? "Needs reconnecting" : configured ? "Not connected" : "Coming soon"}
-        </span>
+        </Badge>
       </div>
 
       {note && (
@@ -193,7 +188,7 @@ function CalendarSelect({
   // doesn't silently change it.
   const known = value === "" || calendars.some((c) => c.id === value);
   return (
-    <select name={name} defaultValue={value} className={cn(fieldClass, "h-8")}>
+    <Select name={name} defaultValue={value}>
       {inherit && <option value="">{inherit}</option>}
       {calendars.map((c) => (
         <option key={c.id} value={c.id}>
@@ -201,33 +196,34 @@ function CalendarSelect({
         </option>
       ))}
       {!known && <option value={value}>A calendar you no longer have</option>}
-    </select>
+    </Select>
   );
 }
 
 function Disconnect({ action }: { action: () => Promise<SaveState> }) {
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string>();
   return (
-    <>
-      <Button
-        type="button"
-        variant="ghost"
-        disabled={pending}
-        className="text-destructive"
-        onClick={() => {
-          if (
-            !confirm(
-              "Disconnect Google Calendar? Upcoming jobs come out of your Google Calendar (past ones stay) and its busy times stop blocking bookings.",
-            )
-          )
-            return;
-          startTransition(async () => setError((await action()).message));
-        }}
-      >
-        {pending ? "Disconnecting…" : "Disconnect"}
-      </Button>
-      {error && <span className="text-sm text-destructive">{error}</span>}
-    </>
+    <Button
+      type="button"
+      variant="ghost"
+      disabled={pending}
+      className="text-destructive"
+      onClick={async () => {
+        const confirmed = await askToConfirm({
+          title: "Disconnect Google Calendar?",
+          description: "Upcoming jobs come out of your Google Calendar (past ones stay) and its busy times stop blocking bookings.",
+          confirmLabel: "Disconnect",
+          destructive: true,
+        });
+        if (!confirmed) return;
+        startTransition(async () => {
+          const { message } = await action();
+          if (message) toast.error(message);
+          else toast.success("Google Calendar disconnected");
+        });
+      }}
+    >
+      {pending ? "Disconnecting…" : "Disconnect"}
+    </Button>
   );
 }

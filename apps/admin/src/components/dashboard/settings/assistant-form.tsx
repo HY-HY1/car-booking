@@ -3,8 +3,11 @@
 import { useState } from "react";
 import { ASSISTANT_MODES, ASSISTANT_TONES, type AssistantSettings } from "@leadgen/core/settings/assistant";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { cn } from "@/lib/utils";
-import { Check, Field, SaveForm, fieldClass, type Action } from "../form-kit";
+import { Check, Field, SaveForm, type Action } from "../form-kit";
+import { Select } from "@/components/ui/select";
+import { Checkbox, Radio } from "@/components/ui/checkbox";
 
 // Settings → AI assistant.
 
@@ -34,26 +37,25 @@ export function AssistantForm({
           <fieldset className="grid gap-3">
             <legend className="mb-2 text-sm font-medium">What it handles</legend>
             {Object.entries(ASSISTANT_MODES).map(([k, m]) => (
-              <label key={k} className="flex items-start gap-2 text-sm">
-                <input type="radio" name="mode" value={k} defaultChecked={settings.mode === k} className="mt-0.5 size-4 accent-primary" />
+              <Radio key={k} name="mode" value={k} defaultChecked={settings.mode === k}>
                 <span>
                   {m.label}
                   <span className="block text-muted-foreground">{m.detail}</span>
                 </span>
-              </label>
+              </Radio>
             ))}
             {errors.mode && <p className="text-sm text-destructive">{errors.mode}</p>}
           </fieldset>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Tone" name="tone" error={errors.tone}>
-              <select name="tone" defaultValue={settings.tone} className={cn(fieldClass, "h-8")}>
+              <Select name="tone" defaultValue={settings.tone}>
                 {Object.entries(ASSISTANT_TONES).map(([k, label]) => (
                   <option key={k} value={k}>
                     {label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label="Signs off as" name="sign_off" error={errors.sign_off}>
               <Input name="sign_off" defaultValue={settings.sign_off ?? ""} placeholder={businessName} maxLength={60} />
@@ -62,16 +64,13 @@ export function AssistantForm({
 
           <fieldset className="grid gap-3">
             <legend className="mb-2 text-sm font-medium">Following up enquiries that don&apos;t book</legend>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="follow_up_enabled"
-                checked={followUp}
-                onChange={(e) => setFollowUp(e.target.checked)}
-                className="size-4 accent-primary"
-              />
+            <Checkbox
+              name="follow_up_enabled"
+              checked={followUp}
+              onChange={(e) => setFollowUp(e.target.checked)}
+            >
               Chase them up
-            </label>
+            </Checkbox>
             <div className={cn("grid gap-4 sm:grid-cols-3", !followUp && "opacity-60")}>
               <Field label="First nudge after (hours)" name="first_after_hours" error={errors.first_after_hours}>
                 <Input name="first_after_hours" inputMode="numeric" defaultValue={settings.follow_up.first_after_hours} />
@@ -93,11 +92,11 @@ export function AssistantForm({
             <p className="text-sm">Always, when a customer asks to speak to a person.</p>
             <Check name="handoff_low_confidence" label="When it isn't sure of the size or condition" defaultChecked={settings.handoff.low_confidence} />
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Jobs over (£), blank for no limit" name="handoff_over_price" error={errors.handoff_over_price}>
-                <Input name="handoff_over_price" inputMode="decimal" defaultValue={poundsInput(settings.handoff.over_price_pence)} placeholder="No limit" />
+              <Field label="Jobs over (blank for no limit)" name="handoff_over_price" error={errors.handoff_over_price}>
+                <MoneyInput name="handoff_over_price" inputMode="decimal" defaultValue={poundsInput(settings.handoff.over_price_pence)} placeholder="No limit" />
               </Field>
-              <Field label="It won't quote over (£) without you" name="max_quote" error={errors.max_quote}>
-                <Input name="max_quote" inputMode="decimal" defaultValue={poundsInput(settings.max_quote_pence)} placeholder="No limit" />
+              <Field label="It won't quote over this without you" name="max_quote" error={errors.max_quote}>
+                <MoneyInput name="max_quote" inputMode="decimal" defaultValue={poundsInput(settings.max_quote_pence)} placeholder="No limit" />
               </Field>
             </div>
             <Field label="Messages mentioning these words (comma separated)" name="handoff_keywords" error={errors.handoff_keywords}>

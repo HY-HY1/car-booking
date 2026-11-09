@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, RefreshCw, Trash2 } from "lucide-react";
+import { RefreshCw, Trash2 } from "lucide-react";
 import type { SenderRecord, SenderStatus } from "@leadgen/core/email/senders";
 import { checkSenderAction, removeSenderAction } from "@/app/app/[tenant]/settings/notifications/actions";
 import { CopyText } from "@/components/platform/copy-text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, SaveForm, type Action } from "../form-kit";
+import { toast } from "@/components/ui/toast";
+import { askToConfirm } from "@/components/ui/confirm-dialog";
 
 // Settings → Notifications: the address the business's emails come from, on
 // its own domain, and the DNS records that prove it can send from it.
@@ -59,6 +61,7 @@ export function SenderCard({
                       startTransition(async () => {
                         const r = await checkSenderAction(slug);
                         if (r.status) setStatus(r.status);
+                        if (r.status === "verified") toast.success(`Verified. Your emails now come from ${sender.address}`);
                         setMessage(r.message ?? (r.status === "verified" ? undefined : "Not verified yet. DNS changes can take up to an hour to show."));
                       })
                     }
@@ -72,10 +75,19 @@ export function SenderCard({
                   variant="ghost"
                   className="text-destructive"
                   disabled={pending}
-                  onClick={() => {
-                    if (confirm(`Stop sending from ${sender.address}? Customers won't get emails until you set up an address again.`)) {
-                      startTransition(async () => setMessage((await removeSenderAction(slug)).message));
-                    }
+                  onClick={async () => {
+                    const confirmed = await askToConfirm({
+                      title: `Stop sending from ${sender.address}?`,
+                      description: "Customers won't get emails until you set up an address again.",
+                      confirmLabel: "Stop sending",
+                      destructive: true,
+                    });
+                    if (!confirmed) return;
+                    startTransition(async () => {
+                      const { message } = await removeSenderAction(slug);
+                      if (message) toast.error(message);
+                      else toast.success("Sending address removed");
+                    });
                   }}
                 >
                   <Trash2 /> Remove
@@ -120,11 +132,6 @@ export function SenderCard({
             </div>
           )}
 
-          {status === "verified" && (
-            <p role="status" className="flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400">
-              <Check className="size-4" /> Verified. Your emails now come from {sender.address}.
-            </p>
-          )}
           {current !== "verified" && sender.checkError && !message && (
             <p className="text-sm text-amber-800 dark:text-amber-300">{sender.checkError}</p>
           )}

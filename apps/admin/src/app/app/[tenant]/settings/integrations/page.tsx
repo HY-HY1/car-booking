@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createKeyAction, revokeKeyAction } from "../api/actions";
 import { disconnectCalendarAction, saveCalendarAction } from "./actions";
 import { apiUrl, docsUrl } from "@/lib/urls";
+import { Badge } from "@/components/ui/badge";
 
 export const metadata: Metadata = { title: "Integrations" };
 
@@ -67,7 +68,7 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
                 <span className="font-medium">{c.name}</span>
                 <span className="block text-sm text-muted-foreground">{c.detail}</span>
               </span>
-              <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{c.status}</span>
+              <Badge tone="info">Coming soon</Badge>
             </li>
           ))}
         </ul>
@@ -143,11 +144,11 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
           </section>
 
           <section aria-labelledby="webhooks" className="grid gap-2 text-sm">
-            <h2 id="webhooks" className="font-medium">
-              Webhooks
+            <h2 id="webhooks" className="flex items-center gap-2 font-medium">
+              Webhooks <Badge tone="info">Coming soon</Badge>
             </h2>
             <p className="text-muted-foreground">
-              Have new bookings, cancellations and enquiries sent to your own system as they happen. Coming soon.
+              Have new bookings, cancellations and enquiries sent to your own system as they happen.
             </p>
           </section>
         </div>
@@ -158,6 +159,6 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
 }
 
 const COMING = [
-  { name: "Google Business reviews", detail: "See new reviews here and reply to them.", status: "Later" },
-  { name: "Facebook and Instagram lead forms", detail: "Enquiries from Meta lead ads arrive as leads here.", status: "Later" },
+  { name: "Google Business reviews", detail: "See new reviews here and reply to them." },
+  { name: "Facebook and Instagram lead forms", detail: "Enquiries from Meta lead ads arrive as leads here." },
 ];

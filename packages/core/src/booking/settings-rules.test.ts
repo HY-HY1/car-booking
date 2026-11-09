@@ -137,7 +137,7 @@ describe("bookingRulesFormSchema", () => {
 });
 
 describe("resourceFormSchema", () => {
-  const van = { name: " Van 2 ", location_mobile: "on", hours: "{}", sort_order: "" };
+  const van = { name: " Van 2 ", location_mobile: "on", hours: "{}" };
 
   it("builds a van that follows the business hours", () => {
     expect(resourceFormSchema.parse({ ...van, active: "on" })).toEqual({
@@ -145,7 +145,6 @@ describe("resourceFormSchema", () => {
       location_types: ["mobile"],
       weekly_hours: null,
       active: true,
-      sort_order: undefined,
     });
   });
 
@@ -155,13 +154,11 @@ describe("resourceFormSchema", () => {
       location_unit: "on",
       custom_hours: "on",
       hours: JSON.stringify({ fri: [["09:00", "17:00"]] }),
-      sort_order: "3",
     });
     expect(out).toMatchObject({
       location_types: ["mobile", "unit"],
       weekly_hours: { fri: [["09:00", "17:00"]] },
       active: false,
-      sort_order: 3,
     });
   });
 

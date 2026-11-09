@@ -130,7 +130,6 @@ export const serviceFormSchema = z
     location_mobile: checkbox,
     location_unit: checkbox,
     active: checkbox,
-    sort_order: wholeNumber("Order", { max: 1000, optional: true }),
     ...sizeFields,
   })
   .superRefine((s, ctx) => {
@@ -158,7 +157,6 @@ export const serviceFormSchema = z
     duration_mins: s.duration_mins,
     location_types: [s.location_mobile && "mobile", s.location_unit && "unit"].filter(Boolean) as string[],
     active: s.active,
-    sort_order: s.sort_order,
     // Only sizes that change something are stored.
     size_adjustments: Object.fromEntries(
       SIZES.flatMap((size) => {
@@ -178,7 +176,6 @@ export const addOnFormSchema = z
     applies_to: z.enum(["all", "some"]),
     service_ids: z.array(z.uuid()),
     active: checkbox,
-    sort_order: wholeNumber("Order", { max: 1000, optional: true }),
   })
   .superRefine((a, ctx) => {
     if (a.applies_to === "some" && a.service_ids.length === 0) {
@@ -192,7 +189,6 @@ export const addOnFormSchema = z
     duration_mins: a.duration_mins,
     service_ids: a.applies_to === "all" ? null : a.service_ids,
     active: a.active,
-    sort_order: a.sort_order,
   }));
 
 // The deposit is set under Settings → Payments, so it isn't part of this form.

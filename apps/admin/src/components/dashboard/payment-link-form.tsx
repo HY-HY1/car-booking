@@ -1,13 +1,18 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { Mail } from "lucide-react";
 import { createLinkAction, deactivateLinkAction, emailLinkAction, type CreateLinkState, type EmailLinkState } from "@/app/app/[tenant]/payments/links/actions";
 import { CopyText } from "@/components/platform/copy-text";
-import { Field, selectClass } from "@/components/platform/field";
+import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { formatPence } from "@leadgen/core/booking/config";
+import { Select } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "@/components/ui/toast";
+import { useUnsavedChanges } from "./unsaved-changes";
 
 export type BookingChoice = { id: string; label: string; balancePence: number; description: string; customerEmail: string | null };
 
@@ -15,6 +20,11 @@ export function PaymentLinkForm({ slug, bookings }: { slug: string; bookings: Bo
   const [state, formAction, pending] = useActionState<CreateLinkState, FormData>(createLinkAction.bind(null, slug), {});
   const v = state.values ?? {};
   const e = state.errors ?? {};
+  const form = useRef<HTMLFormElement>(null);
+  const markSaved = useUnsavedChanges(form);
+  useEffect(() => {
+    if (state.created) markSaved();
+  }, [state, markSaved]);
   // Picking a booking fills in what's still owed; both can still be edited.
   const [description, setDescription] = useState(v.description ?? "");
   const [amount, setAmount] = useState(v.amount ?? "");
@@ -23,14 +33,13 @@ export function PaymentLinkForm({ slug, bookings }: { slug: string; bookings: Bo
 
   return (
     <div className="grid max-w-xl gap-4">
-      <form action={formAction} className="grid gap-4 rounded-xl border p-4">
+      <form ref={form} action={formAction} className="grid gap-4 rounded-xl border p-4">
         {bookings.length > 0 && (
           <Field label="For a booking (optional)" name="bookingId" hint="Fills in the balance still owed. You can change it.">
-            <select
+            <Select
               id="bookingId"
               name="bookingId"
               defaultValue={v.bookingId ?? ""}
-              className={selectClass}
               onChange={(ev) => {
                 setBookingId(ev.target.value);
                 const b = bookings.find((x) => x.id === ev.target.value);
@@ -45,27 +54,26 @@ export function PaymentLinkForm({ slug, bookings }: { slug: string; bookings: Bo
                   {b.label} · {formatPence(b.balancePence)} due
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
         )}
         <Field label="What is it for?" name="description" error={e.description} hint="Shown to the customer on the payment page.">
           <Input id="description" name="description" value={description} onChange={(ev) => setDescription(ev.target.value)} required />
         </Field>
-        <Field label="Amount (£)" name="amount" error={e.amount}>
-          <Input id="amount" name="amount" inputMode="decimal" value={amount} onChange={(ev) => setAmount(ev.target.value)} required className="w-40" />
+        <Field label="Amount" name="amount" error={e.amount}>
+          <MoneyInput id="amount" name="amount" inputMode="decimal" value={amount} onChange={(ev) => setAmount(ev.target.value)} required className="w-40" />
         </Field>
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" name="singleUse" defaultChecked={state.values ? v.singleUse === "on" : true} className="mt-0.5 size-4" />
+        <Checkbox name="singleUse" defaultChecked={state.values ? v.singleUse === "on" : true}>
           <span>
             One-off: stops working after one payment. Untick for a link you can use again, like a standard top-up.
           </span>
-        </label>
+        </Checkbox>
         {state.message && (
           <p role="alert" className="text-sm text-destructive">
             {state.message}
           </p>
         )}
-        <Button type="submit" disabled={pending} className="w-fit">
+        <Button type="submit" size="lg" disabled={pending} className="w-fit">
           {pending ? "Creating…" : "Create payment link"}
         </Button>
       </form>
@@ -87,7 +95,6 @@ export function PaymentLinkForm({ slug, bookings }: { slug: string; bookings: Bo
 }
 
 export function DeactivateLink({ slug, id }: { slug: string; id: string }) {
-  const [message, setMessage] = useState<string>();
   const [pending, startTransition] = useTransition();
   return (
     <div className="text-right">
@@ -98,48 +105,37 @@ export function DeactivateLink({ slug, id }: { slug: string; id: string }) {
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
-            const result = await deactivateLinkAction(slug, id);
-            setMessage(result.message);
+            const { message } = await deactivateLinkAction(slug, id);
+            if (message) toast.error(message);
+            else toast.success("Payment link switched off");
           })
         }
       >
         {pending ? "Switching off…" : "Switch off"}
       </Button>
-      {message && (
-        <p role="alert" className="mt-1 text-xs text-destructive">
-          {message}
-        </p>
-      )}
     </div>
   );
 }
 
 // Emails a link to the address given. Pressing it again sends it again.
 export function EmailLinkForm({ slug, id, defaultEmail = "" }: { slug: string; id: string; defaultEmail?: string }) {
-  const [state, formAction, pending] = useActionState<EmailLinkState, FormData>(emailLinkAction.bind(null, slug, id), {});
+  const [state, formAction, pending] = useActionState<EmailLinkState, FormData>(async (prev, formData) => {
+    const next = await emailLinkAction(slug, id, prev, formData);
+    if (next.error) toast.error(next.error);
+    else if (next.sentTo) toast.success(`Payment link emailed to ${next.sentTo}`);
+    return next;
+  }, {});
   return (
-    <form action={formAction} className="grid gap-2">
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="min-w-56 flex-1">
-          <Field label="Email it to" name={`to-${id}`}>
-            <Input id={`to-${id}`} name="to" type="email" defaultValue={defaultEmail} placeholder="customer@example.com" required />
-          </Field>
-        </div>
-        <Button type="submit" variant="outline" disabled={pending}>
-          <Mail />
-          {pending ? "Sending…" : state.sentTo ? "Send again" : "Send"}
-        </Button>
+    <form action={formAction} className="flex flex-wrap items-end gap-2">
+      <div className="min-w-56 flex-1">
+        <Field label="Email it to" name={`to-${id}`}>
+          <Input id={`to-${id}`} name="to" type="email" defaultValue={defaultEmail} placeholder="customer@example.com" required />
+        </Field>
       </div>
-      {state.sentTo && (
-        <p role="status" className="text-xs text-emerald-700 dark:text-emerald-400">
-          Sent to {state.sentTo}.
-        </p>
-      )}
-      {state.error && (
-        <p role="alert" className="text-xs text-destructive">
-          {state.error}
-        </p>
-      )}
+      <Button type="submit" size="lg" variant="outline" disabled={pending}>
+        <Mail />
+        {pending ? "Sending…" : state.sentTo ? "Send again" : "Send"}
+      </Button>
     </form>
   );
 }

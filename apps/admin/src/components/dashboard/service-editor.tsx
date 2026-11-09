@@ -6,6 +6,7 @@ import { SIZE_CLASSES } from "@leadgen/core/booking/config";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import {
   GALLERY_MAX,
   poundsInput,
@@ -15,7 +16,11 @@ import {
   type EditableService,
 } from "@/lib/pricing-fields";
 import { cn } from "@/lib/utils";
-import { Check, DeleteButton, Field, FirstError, SaveForm, fieldClass, type Action, type Errors } from "./form-kit";
+import { Check, DeleteButton, Field, FirstError, SaveForm, type Action, type Errors } from "./form-kit";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // The editor for one service's page: everything a customer reads about it
 // before booking. Sections are anchors on one long form, so there is one Save
@@ -140,8 +145,8 @@ function Fields({ service, errors }: { service?: EditableService; errors: Errors
               }}
             />
           </Field>
-          <Field label="Price from (£)" name="base_price" error={errors.base_price}>
-            <Input name="base_price" inputMode="decimal" defaultValue={service ? poundsInput(service.base_price_pence) : ""} />
+          <Field label="Price from" name="base_price" error={errors.base_price}>
+            <MoneyInput name="base_price" inputMode="decimal" defaultValue={service ? poundsInput(service.base_price_pence) : ""} />
           </Field>
           <Field label="Takes (mins)" name="duration_mins" error={errors.duration_mins}>
             <Input name="duration_mins" inputMode="numeric" defaultValue={service?.duration_mins ?? 120} />
@@ -185,9 +190,6 @@ function Fields({ service, errors }: { service?: EditableService; errors: Errors
         </p>
 
         <Check name="active" label="Show on the booking page and the website" defaultChecked={service?.active ?? true} />
-        <Field label="Order in lists" name="sort_order" error={errors.sort_order} className="w-28">
-          <Input name="sort_order" inputMode="numeric" defaultValue={service?.sort_order ?? 0} />
-        </Field>
       </Section>
 
       <Section id="images" title="Images" hint="A wide header image sets the tone. Gallery photos show your work.">
@@ -197,40 +199,36 @@ function Fields({ service, errors }: { service?: EditableService; errors: Errors
 
       <Section id="details" title="Page content" hint="What a customer reads to decide this is the one.">
         <Field label="Short description" name="description" error={errors.description}>
-          <textarea
+          <Textarea
             name="description"
             rows={2}
             placeholder="A sentence or two. Shown on the booking list and under the page title."
             defaultValue={service?.description ?? ""}
-            className={cn(fieldClass, "py-2")}
           />
         </Field>
         <Field label="About this service" name="body" error={errors.body}>
-          <textarea
+          <Textarea
             name="body"
             rows={8}
             placeholder={"Tell the full story: what you do, why it matters, who it's for.\n\nLeave a blank line between paragraphs."}
             defaultValue={service?.body ?? ""}
-            className={cn(fieldClass, "py-2")}
           />
         </Field>
         <div className="grid gap-5 md:grid-cols-2">
           <Field label="What's included (one per line)" name="includes" error={errors.includes}>
-            <textarea
+            <Textarea
               name="includes"
               rows={7}
               placeholder={"Hand wash and dry\nWheels and arches cleaned\nInterior vacuum"}
               defaultValue={service?.includes?.join("\n") ?? ""}
-              className={cn(fieldClass, "py-2")}
             />
           </Field>
           <Field label="What's not included (one per line)" name="not_included" error={errors.not_included}>
-            <textarea
+            <Textarea
               name="not_included"
               rows={7}
               placeholder={"Paint correction\nEngine bay clean"}
               defaultValue={service?.not_included?.join("\n") ?? ""}
-              className={cn(fieldClass, "py-2")}
             />
           </Field>
         </div>
@@ -273,7 +271,7 @@ function Fields({ service, errors }: { service?: EditableService; errors: Errors
               <thead className="bg-muted/50 text-left text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 font-medium">Size</th>
-                  <th className="px-3 py-2 font-medium">Add (£)</th>
+                  <th className="px-3 py-2 font-medium">Add</th>
                   <th className="px-3 py-2 font-medium">Extra mins</th>
                 </tr>
               </thead>
@@ -284,7 +282,7 @@ function Fields({ service, errors }: { service?: EditableService; errors: Errors
                     <tr key={size}>
                       <td className="px-3 py-2">{SIZE_CLASSES[size].split(":")[0]}</td>
                       <td className="px-3 py-1.5">
-                        <Input
+                        <MoneyInput
                           name={`size_${size}_price`}
                           inputMode="decimal"
                           placeholder="0"
@@ -334,12 +332,11 @@ function Fields({ service, errors }: { service?: EditableService; errors: Errors
           <Counter value={seoTitle} max={70} />
         </div>
         <Field label="Page summary" name="seo_description" error={errors.seo_description}>
-          <textarea
+          <Textarea
             name="seo_description"
             rows={3}
             value={seoDescription}
             onChange={(e) => setSeoDescription(e.target.value)}
-            className={cn(fieldClass, "py-2")}
           />
         </Field>
         <div className="-mt-3 text-right">
@@ -404,16 +401,13 @@ function HeaderImage({ service, error }: { service?: EditableService; error?: st
       />
       <p className="text-xs text-muted-foreground">JPG, PNG or WebP, up to 5 MB. Landscape works best (about 16:7).</p>
       {service?.image_path && (
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            name="remove_image"
-            checked={remove}
-            onChange={(e) => setRemove(e.target.checked)}
-            className="size-4 accent-primary"
-          />
+        <Checkbox
+          name="remove_image"
+          checked={remove}
+          onChange={(e) => setRemove(e.target.checked)}
+        >
           Remove the current image
-        </label>
+        </Checkbox>
       )}
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
@@ -471,7 +465,7 @@ function NewPhoto({ file, onRemove }: { file: File; onRemove: () => void }) {
     <li className="relative overflow-hidden rounded-lg border bg-muted">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {url && <img src={url} alt="" className="aspect-[4/3] w-full object-cover" />}
-      <span className="absolute bottom-1.5 left-1.5 rounded bg-background/90 px-1.5 py-0.5 text-xs">New</span>
+      <Badge className="absolute bottom-1.5 left-1.5 bg-background/90 text-foreground">New</Badge>
       <Button type="button" size="icon-sm" variant="secondary" aria-label="Remove this photo" className="absolute top-1.5 right-1.5" onClick={onRemove}>
         <Trash2 />
       </Button>
@@ -558,7 +552,7 @@ function ListEditor<T extends Record<string, string>>({
   return (
     <div className="grid gap-3">
       <input type="hidden" name={name} value={JSON.stringify(rows.map((r) => r.value))} />
-      {rows.length === 0 && <p className="text-sm text-muted-foreground">Nothing here yet.</p>}
+      {rows.length === 0 && <EmptyState compact>Nothing here yet.</EmptyState>}
       <ol className="grid gap-3">
         {rows.map((row, i) => (
           <li key={row.id} className="grid gap-3 rounded-lg border bg-background p-3 sm:grid-cols-[1fr_auto]">
@@ -570,12 +564,11 @@ function ListEditor<T extends Record<string, string>>({
                     {f.label}
                   </label>
                   {f.multiline ? (
-                    <textarea
+                    <Textarea
                       rows={2}
                       value={row.value[f.key]}
                       placeholder={f.placeholder}
                       onChange={(e) => update(row.id, f.key, e.target.value)}
-                      className={cn(fieldClass, "py-2")}
                     />
                   ) : (
                     <Input value={row.value[f.key]} placeholder={f.placeholder} onChange={(e) => update(row.id, f.key, e.target.value)} />

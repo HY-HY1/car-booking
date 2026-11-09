@@ -1,7 +1,7 @@
 "use client";
 
-import { useId, useState, useTransition } from "react";
-import { Check, RefreshCw, Star, Trash2 } from "lucide-react";
+import { useId, useRef, useState, useTransition } from "react";
+import { RefreshCw, Star, Trash2 } from "lucide-react";
 import { BUTTON_POSITIONS, TIMEZONES, TRADES } from "@leadgen/core/settings/forms";
 import type { Branding } from "@leadgen/core/tenants";
 import { readableOn as textOn } from "@leadgen/core/branding/colors";
@@ -17,7 +17,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ACCEPTED_IMAGE_TYPES, MAX_UPLOAD_BYTES, shrinkImage } from "@/lib/shrink-image";
 import { cn } from "@/lib/utils";
-import { Check as CheckBox, Field, SaveForm, fieldClass, type Action } from "../form-kit";
+import { Field, SaveForm, type Action } from "../form-kit";
+import { BookingPagePreview, type PreviewService } from "./booking-page-preview";
+import { Select } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "@/components/ui/toast";
+import { askToConfirm } from "@/components/ui/confirm-dialog";
 
 // Settings → General and → Booking page.
 
@@ -41,13 +46,13 @@ export function GeneralForm({ values, action, readOnly }: { values: GeneralValue
               <Input name="name" defaultValue={values.name} autoComplete="organization" />
             </Field>
             <Field label="What you do" name="trade" error={errors.trade}>
-              <select name="trade" defaultValue={values.trade} className={cn(fieldClass, "h-8")}>
+              <Select name="trade" defaultValue={values.trade}>
                 {Object.entries(TRADES).map(([k, label]) => (
                   <option key={k} value={k}>
                     {label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label="Contact email (shown to customers)" name="contact_email" error={errors.contact_email}>
               <Input name="contact_email" type="email" defaultValue={values.contact_email ?? ""} placeholder="hello@yourbusiness.co.uk" />
@@ -56,13 +61,13 @@ export function GeneralForm({ values, action, readOnly }: { values: GeneralValue
               <Input name="contact_phone" type="tel" defaultValue={values.contact_phone ?? ""} placeholder="07700 900123" />
             </Field>
             <Field label="Time zone" name="timezone" error={errors.timezone}>
-              <select name="timezone" defaultValue={values.timezone} className={cn(fieldClass, "h-8")}>
+              <Select name="timezone" defaultValue={values.timezone}>
                 {Object.entries(TIMEZONES).map(([k, label]) => (
                   <option key={k} value={k}>
                     {label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <div className="grid content-start gap-2">
               <p className="text-sm font-medium">Currency</p>
@@ -70,16 +75,13 @@ export function GeneralForm({ values, action, readOnly }: { values: GeneralValue
             </div>
           </div>
           <div className="grid gap-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="vat_registered"
-                checked={vat}
-                onChange={(e) => setVat(e.target.checked)}
-                className="size-4 accent-primary"
-              />
+            <Checkbox
+              name="vat_registered"
+              checked={vat}
+              onChange={(e) => setVat(e.target.checked)}
+            >
               VAT registered
-            </label>
+            </Checkbox>
             {vat && (
               <Field label="VAT number" name="vat_number" error={errors.vat_number} className="max-w-xs">
                 <Input name="vat_number" defaultValue={values.vat_number ?? ""} placeholder="GB123456789" autoComplete="off" />
@@ -100,11 +102,15 @@ export function GeneralForm({ values, action, readOnly }: { values: GeneralValue
 export function BrandingForm({
   branding,
   businessName,
+  contact,
+  services,
   action,
   readOnly,
 }: {
   branding: Branding;
   businessName: string;
+  contact: { email: string | null; phone: string | null };
+  services: PreviewService[];
   action: Action;
   readOnly: boolean;
 }) {
@@ -113,11 +119,17 @@ export function BrandingForm({
   const [secondary, setSecondary] = useState(branding.secondary_color ?? "");
   const [label, setLabel] = useState(branding.button_label ?? "");
   const [position, setPosition] = useState(branding.button_position);
+  const [tagline, setTagline] = useState(branding.tagline ?? "");
+  // A newly picked image, and whether the saved one is being taken off.
+  const [logo, setLogo] = useState<{ picked: string | null; removed: boolean }>({ picked: null, removed: false });
+  const [cover, setCover] = useState<{ picked: string | null; removed: boolean }>({ picked: null, removed: false });
+  const shown = (image: typeof logo, saved?: string) => image.picked ?? (image.removed ? undefined : saved);
 
   return (
     <SaveForm action={action} readOnly={readOnly}>
       {(errors) => (
-        <>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
+        <div className="grid gap-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <ColourField label="Main colour" name="primary_color" value={primary} onChange={setPrimary} error={errors.primary_color} />
             <ColourField label="Accent colour" name="accent_color" value={accent} onChange={setAccent} error={errors.accent_color} />
@@ -134,10 +146,19 @@ export function BrandingForm({
               Secondary: the selected item in your dashboard menu (the main colour if left blank). Each is adjusted for light and dark mode.
             </p>
             <Field label="Tagline" name="tagline" error={errors.tagline} className="sm:col-span-2">
-              <Input name="tagline" defaultValue={branding.tagline ?? ""} placeholder="Mobile valeting across Bristol" maxLength={120} />
+              <Input name="tagline" value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="Mobile valeting across Bristol" maxLength={120} />
             </Field>
             <Field label="Your website" name="website_url" error={errors.website_url} className="sm:col-span-2">
               <Input name="website_url" defaultValue={branding.website_url ?? ""} placeholder="https://yourbusiness.co.uk" />
+            </Field>
+            <Field
+              label="Your terms and conditions (optional)"
+              name="terms_url"
+              error={errors.terms_url}
+              hint="Linked when customers book. Leave it blank to use terms made from your deposit and cancellation settings."
+              className="sm:col-span-2"
+            >
+              <Input name="terms_url" defaultValue={branding.terms_url ?? ""} placeholder="https://yourbusiness.co.uk/terms" />
             </Field>
           </div>
           <p className="-mt-2 text-xs text-muted-foreground">
@@ -145,29 +166,8 @@ export function BrandingForm({
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <ImageField label="Logo" name="logo" current={branding.logo_url} error={errors.logo} />
-            <ImageField label="Cover image" name="cover" current={branding.cover_url} error={errors.cover} wide />
-          </div>
-
-          {/* What the booking page's header looks like with these choices. */}
-          <div
-            className="relative overflow-hidden rounded-xl px-6 py-8 text-center"
-            style={{ background: primary, color: readableOn(primary) }}
-            aria-label="Preview of your booking page"
-          >
-            {branding.cover_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={branding.cover_url} alt="" className="absolute inset-0 size-full object-cover opacity-30" />
-            )}
-            <div className="relative">
-              <p className="text-lg font-semibold">{businessName}</p>
-              <span
-                className="mt-3 inline-flex h-9 items-center rounded-full px-4 text-sm font-medium"
-                style={{ background: accent, color: readableOn(accent) }}
-              >
-                Get an instant quote
-              </span>
-            </div>
+            <ImageField label="Logo" name="logo" current={branding.logo_url} error={errors.logo} onChange={setLogo} />
+            <ImageField label="Cover image" name="cover" current={branding.cover_url} error={errors.cover} onChange={setCover} wide />
           </div>
 
           <fieldset className="grid gap-3 rounded-xl border p-4">
@@ -177,18 +177,17 @@ export function BrandingForm({
                 <Input name="button_label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Instant quote" maxLength={30} />
               </Field>
               <Field label="Where it sits" name="button_position">
-                <select
+                <Select
                   name="button_position"
                   value={position}
                   onChange={(e) => setPosition(e.target.value as typeof position)}
-                  className={cn(fieldClass, "h-8")}
                 >
                   {Object.entries(BUTTON_POSITIONS).map(([k, l]) => (
                     <option key={k} value={k}>
                       {l}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
             </div>
             <div className="relative h-28 overflow-hidden rounded-lg border bg-muted/40" aria-label="Preview of the website button">
@@ -208,7 +207,20 @@ export function BrandingForm({
               </span>
             </div>
           </fieldset>
-        </>
+        </div>
+        <div className="xl:sticky xl:top-4">
+          <BookingPagePreview
+            businessName={businessName}
+            primary={primary}
+            accent={accent}
+            tagline={tagline}
+            logoUrl={shown(logo, branding.logo_url)}
+            coverUrl={shown(cover, branding.cover_url)}
+            contact={contact}
+            services={services}
+          />
+        </div>
+        </div>
       )}
     </SaveForm>
   );
@@ -240,7 +252,7 @@ function ColourField({
           value={/^#[0-9a-f]{6}$/i.test(value) ? value : placeholder ? "#e4e4e7" : "#000000"}
           onChange={(e) => onChange(e.target.value)}
           aria-label={`Pick the ${label.toLowerCase()}`}
-          className="h-8 w-10 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5"
+          className="size-11 shrink-0 cursor-pointer rounded-lg border bg-transparent p-1"
         />
         <Input
           id={id}
@@ -269,26 +281,37 @@ function ImageField({
   current,
   error,
   wide,
+  onChange,
 }: {
   label: string;
   name: string;
   current?: string;
   error?: string;
   wide?: boolean;
+  // For the preview: the image picked but not saved yet, and "Remove".
+  onChange: (image: { picked: string | null; removed: boolean }) => void;
 }) {
   const [problem, setProblem] = useState<string>();
   const [shrinking, setShrinking] = useState(false);
+  const previewUrl = useRef<string | null>(null);
+  const removed = useRef(false);
+
+  function showInPreview(file?: File) {
+    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+    previewUrl.current = file ? URL.createObjectURL(file) : null;
+    onChange({ picked: previewUrl.current, removed: removed.current });
+  }
 
   // The chosen file is shrunk straight away and swapped into the input, so
   // what Save sends fits through the host's request limit (lib/shrink-image.ts).
   async function choose(input: HTMLInputElement) {
     setProblem(undefined);
     const file = input.files?.[0];
-    if (!file) return;
+    if (!file) return showInPreview();
     if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
       input.value = "";
       setProblem("Use a JPG, PNG or WebP image. For an SVG logo, save it as a PNG first.");
-      return;
+      return showInPreview();
     }
     setShrinking(true);
     try {
@@ -305,6 +328,7 @@ function ImageField({
       input.value = "";
       setProblem("That image is too large even after shrinking. Try a smaller one.");
     }
+    showInPreview(input.files?.[0]);
   }
 
   return (
@@ -326,7 +350,15 @@ function ImageField({
             alt={`Current ${label.toLowerCase()}`}
             className={cn("rounded border", wide ? "h-12 w-24 object-cover" : "h-12 w-24 object-contain")}
           />
-          <CheckBox name={`remove_${name}`} label="Remove" defaultChecked={false} />
+          <Checkbox
+            name={`remove_${name}`}
+            onChange={(e) => {
+              removed.current = e.target.checked;
+              onChange({ picked: previewUrl.current, removed: e.target.checked });
+            }}
+          >
+            Remove
+          </Checkbox>
         </div>
       )}
       <p className="text-xs text-muted-foreground">
@@ -360,12 +392,13 @@ export type DomainView = {
 export function DomainRow({ slug, domain, readOnly }: { slug: string; domain: DomainView; readOnly: boolean }) {
   const [pending, startTransition] = useTransition();
   const [check, setCheck] = useState<DomainCheckState | null>(null);
-  const [message, setMessage] = useState<string>();
   const problems = check?.problems ?? (domain.checkError ? [domain.checkError] : []);
 
-  const run = (fn: () => Promise<{ message?: string }>) =>
+  const run = (fn: () => Promise<{ message?: string }>, done: string) =>
     startTransition(async () => {
-      setMessage((await fn()).message);
+      const { message } = await fn();
+      if (message) toast.error(message);
+      else toast.success(done);
     });
 
   return (
@@ -397,7 +430,8 @@ export function DomainRow({ slug, domain, readOnly }: { slug: string; domain: Do
                   startTransition(async () => {
                     const r = await checkDomainAction(slug, domain.id);
                     setCheck(r);
-                    setMessage(r.message);
+                    if (r.message) toast.error(r.message);
+                    else if (r.ok) toast.success("Connected. Your booking page is live at this address");
                   })
                 }
               >
@@ -405,7 +439,7 @@ export function DomainRow({ slug, domain, readOnly }: { slug: string; domain: Do
               </Button>
             )}
             {domain.verified && !domain.isPrimary && !domain.isFallback && (
-              <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => run(() => makePrimaryDomainAction(slug, domain.id))}>
+              <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => run(() => makePrimaryDomainAction(slug, domain.id), "Main address changed")}>
                 <Star /> Make main address
               </Button>
             )}
@@ -416,11 +450,15 @@ export function DomainRow({ slug, domain, readOnly }: { slug: string; domain: Do
                 variant="ghost"
                 className="text-destructive"
                 disabled={pending}
-                onClick={() => {
+                onClick={async () => {
                   const after = domain.isPrimary ? " Your booking page goes back to its free address." : "";
-                  if (confirm(`Disconnect ${domain.hostname}? Customers using it will stop reaching your booking page.${after}`)) {
-                    run(() => removeDomainAction(slug, domain.id));
-                  }
+                  const confirmed = await askToConfirm({
+                    title: `Disconnect ${domain.hostname}?`,
+                    description: `Customers using it will stop reaching your booking page.${after}`,
+                    confirmLabel: "Disconnect",
+                    destructive: true,
+                  });
+                  if (confirmed) run(() => removeDomainAction(slug, domain.id), "Address disconnected");
                 }}
               >
                 <Trash2 /> Remove
@@ -464,22 +502,12 @@ export function DomainRow({ slug, domain, readOnly }: { slug: string; domain: Do
         </div>
       )}
 
-      {check?.ok && (
-        <p role="status" className="flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400">
-          <Check className="size-4" /> Connected. Your booking page is live at this address.
-        </p>
-      )}
       {!domain.verified && problems.length > 0 && !check?.ok && (
         <ul className="grid gap-1 text-sm text-amber-800 dark:text-amber-300">
           {problems.map((p) => (
             <li key={p}>{p}</li>
           ))}
         </ul>
-      )}
-      {message && (
-        <p role="alert" className="text-sm text-destructive">
-          {message}
-        </p>
       )}
     </li>
   );

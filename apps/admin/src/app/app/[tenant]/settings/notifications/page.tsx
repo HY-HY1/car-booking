@@ -16,7 +16,7 @@ export default async function NotificationsPage({ params }: PageProps<"/app/[ten
   const readOnly = !can("settings.edit");
   const supabase = await createClient();
   const [business, sender] = await Promise.all([
-    supabase.from("tenants").select("name, notification_settings").eq("id", tenant.id).single(),
+    supabase.from("tenants").select("name, notification_settings, contact_email, branding").eq("id", tenant.id).single(),
     supabase.from("email_senders").select("address, domain, status, check_error, records").eq("tenant_id", tenant.id).maybeSingle(),
   ]);
   if (business.error) throw business.error;
@@ -58,7 +58,11 @@ export default async function NotificationsPage({ params }: PageProps<"/app/[ten
       </Card>
       <NotificationsForm
         settings={notificationsOf(business.data.notification_settings)}
-        businessName={business.data.name}
+        business={{
+          name: business.data.name,
+          contactEmail: business.data.contact_email,
+          accentColor: (business.data.branding as { primary_color?: string } | null)?.primary_color,
+        }}
         ownerEmail={user.email}
         action={saveNotificationsAction.bind(null, slug)}
         readOnly={readOnly}
