@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { isPlatformAdmin } from "@leadgen/core/platform/businesses";
-import { getCurrentUser, requireUser } from "@/lib/auth";
+import { getCurrentUser, requireUser, secondFactorConfirmed } from "@/lib/auth";
 import { adminUrl } from "@/lib/urls";
 
 // Guard for the /platform pages and their actions. Anyone who isn't a
@@ -26,6 +26,8 @@ export const getIsPlatformAdmin = cache(async () => {
 
 export async function requirePlatformAdmin(next = adminUrl()) {
   const user = await requireUser(next);
-  if (!(await getIsPlatformAdmin())) notFound();
+  // Everything after this uses the secret key, so two-factor is checked with
+  // Supabase here rather than trusting the session cookie.
+  if (!(await getIsPlatformAdmin()) || !(await secondFactorConfirmed())) notFound();
   return user;
 }

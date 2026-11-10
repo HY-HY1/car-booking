@@ -344,3 +344,13 @@ export function ownerPaymentProblem(detail: string, link: string): Composed {
     body: `Stripe told us about a payment we couldn't match up:\n\n${detail}\n\nCheck it in your Stripe Dashboard. Your payments: ${link}`,
   };
 }
+
+// ---------------------------------------------------------------- accounts
+
+export function passwordReset(url: string): Composed {
+  return {
+    subject: "Reset your password",
+    body: `Use the button below to choose a new password. The link lasts for an hour and works once.\n\nIf the button doesn't work, copy this into your browser:\n${url}\n\nDidn't ask for this? You can ignore this email. Your password won't change.`,
+    button: { label: "Choose a new password", url },
+  };
+}

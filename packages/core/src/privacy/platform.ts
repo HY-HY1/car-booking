@@ -55,6 +55,16 @@ export const SUBPROCESSORS: Subprocessor[] = [
     data: "Each job's customer name, phone, email, address, car and notes. Only the times of the business's other events are read",
   },
   {
+    name: "Google (Business Profile)",
+    does: "Shows the business's Google reviews in its dashboard and posts its replies, if the business connects it",
+    data: "Reviewers' public Google names, photos and reviews. Nothing about customers is sent to Google",
+  },
+  {
+    name: "Meta (Facebook and Instagram)",
+    does: "Brings in enquiries from the business's own Facebook and Instagram lead forms, if the business connects them",
+    data: "Whatever the person filled in on the business's lead form, usually name, email, phone and answers to its questions. Nothing is sent to Meta",
+  },
+  {
     name: "postcodes.io",
     does: "Postcode lookups for service area and travel time",
     data: "Postcodes only, with no name or contact details",

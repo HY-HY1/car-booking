@@ -1,14 +1,17 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { logActivity } from "@/lib/activity";
 import { z } from "zod";
+import { formatPence } from "@leadgen/core/booking/config";
 import { allowedStatusChanges, diaryRange } from "@leadgen/core/booking/diary";
 import { driveSource, driveTimes, type DriveSource } from "@leadgen/core/booking/drive-times";
 import { moveBooking, type MoveRequest } from "@leadgen/core/booking/move";
 import { planRoute, type RouteStop } from "@leadgen/core/booking/route-plan";
 import { addDays, isIsoDate, zonedTimeToUtc } from "@leadgen/core/booking/time";
-import { syncBookingEvent } from "@leadgen/core/calendar/sync";
-import { notifyBookingCancelled, notifyBookingSecured } from "@leadgen/core/email/notify";
+import { formatShortDate } from "@leadgen/core/dates";
+import { bookingChanged } from "@leadgen/core/booking/changed";
+import { notifyBookingCancelled, notifyBookingSecured, notifySlotOpened } from "@leadgen/core/email/notify";
 import { refundDeposit } from "@leadgen/core/stripe/payments";
 import { requireTenant } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -30,6 +33,13 @@ async function timezoneOf(tenantId: string) {
 
 const statusSchema = z.enum(["confirmed", "completed", "no_show", "cancelled"]);
 
+const STATUS_SUMMARY = {
+  confirmed: "Confirmed a job",
+  completed: "Marked a job done",
+  no_show: "Marked a job as a no-show",
+  cancelled: "Cancelled a job",
+} as const;
+
 // Completed, no-show, cancelled, put back, or a hold confirmed by hand. The
 // booking is found within the business from the URL's membership check; the
 // change has to be one the current status allows, and is only applied if the
@@ -42,6 +52,8 @@ export async function setBookingStatusAction(
   bookingId: string,
   next: string,
   refundPence = 0,
+  // Why it was cancelled: for the business's own records.
+  reason = "",
 ): Promise<{ error?: string; warning?: string }> {
   const { tenant, user, can } = await requireTenant(slug);
   const status = statusSchema.safeParse(next);
@@ -75,7 +87,7 @@ export async function setBookingStatusAction(
 
   const { data: updated, error } = await supabase
     .from("bookings")
-    .update({ status: status.data })
+    .update({ status: status.data, ...(status.data === "cancelled" && reason.trim() && { cancel_reason: reason.trim().slice(0, 500) }) })
     .eq("tenant_id", tenant.id)
     .eq("id", bookingId)
     .eq("status", booking.status)
@@ -104,7 +116,10 @@ export async function setBookingStatusAction(
     }
   }
 
-  if (status.data === "cancelled") await notifyBookingCancelled(tenant.id, bookingId, { by: user.email ?? null, refundedPence });
+  if (status.data === "cancelled") {
+    await notifyBookingCancelled(tenant.id, bookingId, { by: user.email ?? null, refundedPence });
+    await notifySlotOpened(tenant.id, bookingId);
+  }
   if (booking.status === "held" && status.data === "confirmed") {
     // As if it had been paid for: the customer gets their confirmation, and
     // the enquiry it came from counts as booked.
@@ -114,7 +129,11 @@ export async function setBookingStatusAction(
     }
     await notifyBookingSecured(tenant.id, bookingId, { alertOwner: false });
   }
-  await syncBookingEvent(tenant.id, bookingId);
+  await bookingChanged(tenant.id, bookingId);
+  await logActivity(tenant.id, `booking.${status.data}`, STATUS_SUMMARY[status.data], { type: "booking", id: bookingId });
+  if (refundedPence > 0) {
+    await logActivity(tenant.id, "payment.refunded", `Refunded ${formatPence(refundedPence)} of a deposit`, { type: "booking", id: bookingId });
+  }
   refresh();
   return { warning };
 }
@@ -125,7 +144,10 @@ export async function moveBookingAction(slug: string, bookingId: string, move: M
   const { tenant, can } = await requireTenant(slug);
   if (!can("bookings.manage")) return { error: "Your access level doesn't include moving jobs. Ask the office." };
   const result = await moveBooking(tenant.id, bookingId, move);
-  if (!result.error) refresh();
+  if (!result.error) {
+    await logActivity(tenant.id, "booking.moved", "Moved a job", { type: "booking", id: bookingId });
+    refresh();
+  }
   return result;
 }
 
@@ -230,6 +252,8 @@ export async function addBlockedTime(
     return { values, message: "Couldn't save that. Try again." };
   }
 
+  await logActivity(tenant.id, "booking.time_blocked", `Blocked out time from ${formatShortDate(startsAt, timeZone)}`);
+
   // Jobs already in this time stay where they are; say so rather than let the
   // owner assume they've gone.
   let clashQuery = supabase
@@ -266,6 +290,7 @@ export async function removeBlockedTime(slug: string, id: string): Promise<{ err
     console.error("Blocked time delete failed", error);
     return { error: "Couldn't remove it. Try again." };
   }
+  await logActivity(tenant.id, "booking.time_unblocked", "Removed blocked out time");
   refresh();
   return {};
 }

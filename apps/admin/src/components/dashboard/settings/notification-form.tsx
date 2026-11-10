@@ -27,12 +27,15 @@ export function NotificationsForm({
   settings,
   business,
   ownerEmail,
+  googleReviewUrl,
   action,
   readOnly,
 }: {
   settings: NotificationSettings;
   business: EmailBusiness;
   ownerEmail: string | null;
+  // From a connected Google Business Profile: filled in when there's no link yet.
+  googleReviewUrl?: string | null;
   action: Action;
   readOnly: boolean;
 }) {
@@ -106,14 +109,27 @@ export function NotificationsForm({
                     <Input name="review_request_days_after" inputMode="numeric" defaultValue={m.review_request.days_after} />
                   </Field>
                   <Field label="Your review link (Google, Facebook…)" name="review_url" error={errors.review_url}>
-                    <Input name="review_url" defaultValue={m.review_request.review_url ?? ""} placeholder="https://g.page/r/…/review" />
+                    <Input name="review_url" defaultValue={m.review_request.review_url ?? googleReviewUrl ?? ""} placeholder="https://g.page/r/…/review" />
                   </Field>
                 </div>
               }
             />
+            <MessageEditor
+              k="quote_follow_up"
+              value={m.quote_follow_up}
+              business={business}
+              errors={errors}
+              timing={
+                <Field label="Days after the quote" name="quote_follow_up_days_after" error={errors.quote_follow_up_days_after} className="max-w-56">
+                  <Input name="quote_follow_up_days_after" inputMode="numeric" defaultValue={m.quote_follow_up.days_after} />
+                </Field>
+              }
+            />
+            <MessageEditor k="rebook_reminder" value={m.rebook_reminder} business={business} errors={errors} />
+            <MessageEditor k="slot_opened" value={m.slot_opened} business={business} errors={errors} />
             <p className="text-xs text-muted-foreground">
-              Aftercare and review requests ask customers back, so they only go to customers who ticked the box to
-              hear from you, with an unsubscribe link.
+              Aftercare, review requests, quote follow-ups and rebooking reminders ask customers back, so they only go to
+              customers who ticked the box to hear from you, with an unsubscribe link.
             </p>
             <details className="text-sm">
               <summary className="cursor-pointer text-muted-foreground">Fields you can use in messages</summary>

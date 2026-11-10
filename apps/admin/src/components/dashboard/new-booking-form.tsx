@@ -46,6 +46,8 @@ export function NewBookingForm({
   hasUnit,
   unitAddress,
   stripeReady,
+  staff,
+  leadId,
   defaults,
 }: {
   action: (state: NewBookingState, formData: FormData) => Promise<NewBookingState>;
@@ -56,6 +58,9 @@ export function NewBookingForm({
   hasUnit: boolean;
   unitAddress: string | null;
   stripeReady: boolean;
+  staff: { id: string; name: string }[];
+  // The enquiry this booking comes from, if any.
+  leadId: string;
   defaults: { date: string; time: string; resourceId: string; customer: Customer | null };
 }) {
   const [state, formAction, pending] = useActionState(action, {});
@@ -93,6 +98,9 @@ export function NewBookingForm({
   const [model, setModel] = useState("");
   const [registration, setRegistration] = useState("");
   const [notes, setNotes] = useState("");
+  const [staffId, setStaffId] = useState("");
+  const [repeatWeeks, setRepeatWeeks] = useState("");
+  const [repeatTimes, setRepeatTimes] = useState("");
   const [sendConfirmation, setSendConfirmation] = useState(true);
   const [requestDeposit, setRequestDeposit] = useState(true);
 
@@ -283,6 +291,28 @@ export function NewBookingForm({
         <p className="text-xs text-muted-foreground sm:col-span-2">
           You can book outside your hours or in time off, but not on top of another job on the same van or bay.
         </p>
+      </Section>
+
+      <Section title="Repeat and who's doing it">
+        <input type="hidden" name="lead_id" value={leadId} />
+        <Field label="Repeat every (weeks)" name="repeat_weeks" error={errors.repeat_weeks}>
+          <Input name="repeat_weeks" inputMode="numeric" placeholder="Leave blank for a one-off" value={repeatWeeks} onChange={(e) => setRepeatWeeks(e.target.value)} />
+        </Field>
+        <Field label="How many visits in all" name="repeat_times" error={errors.repeat_times}>
+          <Input name="repeat_times" inputMode="numeric" placeholder="e.g. 6" value={repeatTimes} onChange={(e) => setRepeatTimes(e.target.value)} />
+        </Field>
+        {staff.length > 0 && (
+          <Field label="Who's doing it" name="staff_id" error={errors.staff_id} className="sm:col-span-2">
+            <Select name="staff_id" value={staffId} onChange={(e) => setStaffId(e.target.value)}>
+              <option value="">Not assigned</option>
+              {staff.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
       </Section>
 
       <Section title="Price">

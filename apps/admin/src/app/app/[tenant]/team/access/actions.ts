@@ -1,8 +1,9 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { loginEmail, logActivity } from "@/lib/activity";
 import { z } from "zod";
-import { roleSchema } from "@leadgen/core/team/access";
+import { ROLES, roleSchema } from "@leadgen/core/team/access";
 import { addTeamMember, changeTeamRole, removeTeamMember } from "@leadgen/core/team/members";
 import { requireTenant } from "@/lib/auth";
 
@@ -40,6 +41,7 @@ export async function addMemberAction(slug: string, _prev: AddMemberState, formD
   try {
     const result = await addTeamMember(tenant.id, user.id, { ...parsed.data, name: parsed.data.name || null });
     if (!result.ok) return { errors: { email: result.message } };
+    await logActivity(tenant.id, "team.login_added", `Added a login for ${result.email} as ${ROLES[parsed.data.role].label}`);
     refresh();
     return { added: { email: result.email, tempPassword: result.tempPassword } };
   } catch (error) {
@@ -60,6 +62,7 @@ export async function changeRoleAction(slug: string, userId: string, role: strin
     console.error("Changing a team role failed", error);
     return { message: "Couldn't change it. Try again." };
   }
+  await logActivity(tenant.id, "team.login_changed", `Changed ${await loginEmail(userId)} to ${ROLES[parsedRole.data].label}`);
   refresh();
   return {};
 }
@@ -68,6 +71,8 @@ export async function removeMemberAction(slug: string, userId: string): Promise<
   const { tenant, can } = await requireTenant(slug);
   if (!can("team.manage")) return { message: "Only the business owner can remove logins." };
   if (!z.uuid().safeParse(userId).success) return {};
+  // Looked up first: the login may not exist afterwards.
+  const who = await loginEmail(userId);
   try {
     const result = await removeTeamMember(tenant.id, userId);
     if (!result.ok) return { message: result.message };
@@ -75,6 +80,7 @@ export async function removeMemberAction(slug: string, userId: string): Promise<
     console.error("Removing a team login failed", error);
     return { message: "Couldn't remove them. Try again." };
   }
+  await logActivity(tenant.id, "team.login_removed", `Removed the login for ${who}`);
   refresh();
   return {};
 }

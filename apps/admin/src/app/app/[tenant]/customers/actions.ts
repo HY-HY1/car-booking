@@ -1,11 +1,13 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { logActivity } from "@/lib/activity";
 import { notFound, redirect } from "next/navigation";
 import type { PostgrestError } from "@supabase/supabase-js";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { z } from "zod";
 import { eraseCustomer } from "@leadgen/core/privacy/data";
+import { createAdminClient } from "@leadgen/core/supabase/admin";
 import { requireAccess, requireTenant } from "@/lib/auth";
 import { customerSchema, getCustomer, type CustomerInput } from "@/lib/customers";
 import { deletePhotos } from "@/lib/photos";
@@ -100,6 +102,7 @@ export async function createCustomer(
     .single();
 
   if (error) return databaseError(error, values);
+  await logActivity(tenant.id, "customer.added", "Added a customer", { type: "customer", id: data.id });
   redirect(appUrl(`/${slug}/customers/${data.id}`));
 }
 
@@ -136,6 +139,7 @@ export async function updateCustomer(
     .eq("id", id);
 
   if (error) return databaseError(error, values);
+  await logActivity(tenant.id, "customer.edited", "Edited a customer", { type: "customer", id });
   refresh();
   return { values, saved: true };
 }
@@ -156,6 +160,7 @@ export async function deleteCustomer(
   try {
     const result = await eraseCustomer(tenant.id, id);
     if (result === "not_found") return { error: "That customer no longer exists." };
+    await logActivity(tenant.id, "customer.erased", "Erased a customer");
     if (result === "anonymised") {
       redirect(appUrl(`/${slug}/customers/${id}?erased=1`));
     }
@@ -167,6 +172,23 @@ export async function deleteCustomer(
   redirect(appUrl(`/${slug}/customers`));
 }
 
+// Folds a duplicate into this customer, in one transaction in the database.
+export async function mergeCustomerAction(slug: string, keepId: string, removeId: string): Promise<{ error?: string }> {
+  const { tenant, can } = await requireTenant(slug);
+  if (!can("customers.delete")) return { error: "Your access level doesn't include merging customers." };
+  if (!z.uuid().safeParse(keepId).success || !z.uuid().safeParse(removeId).success) return { error: "That customer no longer exists." };
+
+  const { data, error } = await createAdminClient().rpc("merge_customers", { p_tenant: tenant.id, p_keep: keepId, p_remove: removeId });
+  if (error) {
+    console.error("Merging customers failed", error);
+    return { error: "Couldn't merge them. Try again." };
+  }
+  if (data !== "merged") return { error: "One of them has been erased or no longer exists." };
+  await logActivity(tenant.id, "customer.merged", "Merged two customers", { type: "customer", id: keepId });
+  refresh();
+  return {};
+}
+
 export async function deletePhoto(slug: string, photoId: string): Promise<{ error?: string }> {
   const { tenant, can } = await requireTenant(slug);
   if (!can("customers.delete")) return { error: "Your access level doesn't include deleting photos." };
@@ -176,6 +198,7 @@ export async function deletePhoto(slug: string, photoId: string): Promise<{ erro
     console.error("Photo delete failed", error);
     return { error: "Couldn't delete the photo. Try again." };
   }
+  await logActivity(tenant.id, "customer.photo_deleted", "Deleted a photo");
   refresh();
   return {};
 }

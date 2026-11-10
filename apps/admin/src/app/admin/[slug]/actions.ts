@@ -3,7 +3,8 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { roleSchema } from "@leadgen/core/team/access";
-import { addDomain, addMember, getBusinessBySlug, setDomainVerified, setPrimaryDomain } from "@leadgen/core/platform/businesses";
+import { addDomain, addMember, getBusinessBySlug, resetTwoFactor, setDomainVerified, setPrimaryDomain } from "@leadgen/core/platform/businesses";
+import { logActivity } from "@/lib/activity";
 import { hostnameSchema } from "@leadgen/core/platform/rules";
 import { requirePlatformAdmin } from "@/lib/platform";
 import { adminUrl } from "@/lib/urls";
@@ -38,6 +39,21 @@ export async function addMemberAction(slug: string, _prev: AddMemberState, formD
   } catch (error) {
     console.error("Adding a member failed", error);
     return { error: "Couldn't add them. Try again." };
+  }
+}
+
+// Someone who has lost their authenticator app can't get in any other way.
+export async function resetTwoFactorAction(slug: string, userId: string): Promise<{ removed?: number; error?: string }> {
+  const b = await business(slug);
+  const member = b.members.find((m) => m.userId === userId);
+  if (!member) return { error: "They aren't on this business." };
+  try {
+    const removed = await resetTwoFactor(userId);
+    if (removed > 0) await logActivity(b.id, "account.two_factor_reset", `Reset two-factor login for ${member.email}`);
+    return { removed };
+  } catch (error) {
+    console.error("Resetting two-factor failed", error);
+    return { error: "Couldn't reset it. Try again." };
   }
 }
 

@@ -13,6 +13,7 @@ import {
   type OpenDatesRequest,
   type SlotRequest,
 } from "@leadgen/core/booking/engine";
+import { findPromo } from "@leadgen/core/booking/promo";
 import { removePendingPhoto, storePhoto } from "@leadgen/core/photos";
 import { createDepositCheckout } from "@leadgen/core/stripe/checkout";
 import { releaseHold } from "@leadgen/core/stripe/payments";
@@ -35,6 +36,10 @@ async function tenantId() {
 
 export async function checkAreaAction(postcode: string) {
   return checkArea(await tenantId(), postcode);
+}
+
+export async function checkPromoAction(code: string) {
+  return findPromo(await tenantId(), code);
 }
 
 export async function saveLeadAction(input: LeadRequest) {

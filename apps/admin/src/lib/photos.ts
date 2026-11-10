@@ -12,6 +12,7 @@ export type Photo = {
   created_at: string;
   width: number | null;
   height: number | null;
+  stage: string;
   booking: { id: string; starts_at: string } | null;
 };
 
@@ -19,7 +20,7 @@ export async function listCustomerPhotos(tenantId: string, customerId: string): 
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("photos")
-    .select("id, storage_path, created_at, width, height, booking:bookings(id, starts_at)")
+    .select("id, storage_path, created_at, width, height, stage, booking:bookings(id, starts_at)")
     .eq("tenant_id", tenantId)
     .eq("customer_id", customerId)
     .order("created_at", { ascending: false });
@@ -33,11 +34,11 @@ export async function listJobPhotos(tenantId: string, bookingId: string, custome
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("photos")
-    .select("id, storage_path, created_at, width, height, booking:bookings(id, starts_at)")
+    .select("id, storage_path, created_at, width, height, stage, booking:bookings(id, starts_at)")
     .eq("tenant_id", tenantId)
     .or(`booking_id.eq.${bookingId},and(customer_id.eq.${customerId},booking_id.is.null)`)
     .order("created_at", { ascending: false })
-    .limit(12);
+    .limit(40);
   if (error) throw error;
   return withSignedUrls(data);
 }
@@ -48,6 +49,7 @@ type PhotoRow = {
   created_at: string;
   width: number | null;
   height: number | null;
+  stage: string;
   booking: unknown;
 };
 
@@ -66,6 +68,7 @@ async function withSignedUrls(rows: PhotoRow[]): Promise<Photo[]> {
     created_at: p.created_at,
     width: p.width,
     height: p.height,
+    stage: p.stage,
     booking: p.booking as Photo["booking"],
   }));
 }

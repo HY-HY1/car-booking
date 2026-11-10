@@ -151,6 +151,9 @@ function Fields({ service, errors }: { service?: EditableService; errors: Errors
           <Field label="Takes (mins)" name="duration_mins" error={errors.duration_mins}>
             <Input name="duration_mins" inputMode="numeric" defaultValue={service?.duration_mins ?? 120} />
           </Field>
+          <Field label="Due again after (weeks)" name="rebook_weeks" error={errors.rebook_weeks}>
+            <Input name="rebook_weeks" inputMode="numeric" placeholder="None" defaultValue={service?.rebook_weeks ?? ""} />
+          </Field>
         </div>
 
         <Field label="Tagline" name="tagline" error={errors.tagline}>

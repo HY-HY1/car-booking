@@ -1,7 +1,9 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { calendarBusyByResource, syncBookingEvent } from "../calendar/sync";
+import { calendarBusyByResource } from "../calendar/sync";
+import { bookingChanged } from "./changed";
+import { sendLeadWebhook } from "../webhooks/deliver";
 import { normalizePhone, normalizePostcode } from "../customer-fields";
 import { notifyBookingSecured } from "../email/notify";
 import { attachPhotos, MAX_PHOTOS } from "../photos";
@@ -37,9 +39,12 @@ import {
   haversineMiles,
   isUkPostcode,
   lookupPostcodes,
+  type Coords,
 } from "./geo";
 import { conditionCheck } from "./condition";
 import { getQuote, QuoteError, type Quote } from "./pricing";
+import { findPromo } from "./promo";
+import { applyPromo } from "./promo-rules";
 import { isIsoDate, localDate, localTime } from "./time";
 import { detailsSchema } from "./answers";
 
@@ -216,6 +221,7 @@ export const holdRequestSchema = leadRequestSchema.extend({
   // The total the customer was shown. If prices changed while they were
   // booking, they see the new total before anything is held.
   expectedTotalPence: z.number().int().optional(),
+  promoCode: optionalText(30),
 });
 export type HoldRequest = z.input<typeof holdRequestSchema>;
 
@@ -223,7 +229,7 @@ export type HoldRequest = z.input<typeof holdRequestSchema>;
 
 // The condition level comes from the photo check the booking form sent back
 // (assess.ts), read from the stored row so the browser can't choose it.
-async function quoteFor(tenantId: string, config: BookingConfig, req: z.output<typeof quoteRequestSchema>) {
+async function quoteFor(tenantId: string, config: BookingConfig, req: z.output<typeof quoteRequestSchema>, travelMiles?: number | null) {
   const service = config.services.find((s) => s.id === req.serviceId);
   if (!service) return fail("unknown_service", "That service isn't available.");
   const assessment = req.assessmentId ? await loadAssessment(tenantId, req.assessmentId) : null;
@@ -236,6 +242,7 @@ async function quoteFor(tenantId: string, config: BookingConfig, req: z.output<t
       sizeClass: req.sizeClass,
       conditionKey: condition?.key ?? null,
       locationType: req.locationType,
+      travelMiles,
       settings: config.settings,
     });
     return { ok: true as const, quote, condition };
@@ -277,11 +284,25 @@ async function areaCheck(settings: BookingSettings, postcode: string) {
 export async function checkArea(
   tenantId: string,
   input: unknown,
-): Promise<EngineResult<{ miles?: number }>> {
+): Promise<EngineResult<{ miles?: number; travelMiles?: number | null }>> {
   const parsed = postcodeSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   const { settings } = await requireConfig(tenantId);
-  return areaCheck(settings, parsed.data);
+  const area = await areaCheck(settings, parsed.data);
+  return area.ok ? { ...area, travelMiles: await travelMilesFor(settings, parsed.data) } : area;
+}
+
+// How far a job is, for the travel fee: from the nearest territory's centre,
+// or the business's base postcode. Null when no fee is set or it can't be told.
+export async function travelMilesFor(settings: BookingSettings, postcode: string | null | undefined) {
+  if (!settings.travel_fee || !postcode) return null;
+  const lookup = await lookupPostcodes([postcode, settings.base_postcode ?? postcode]);
+  const job = coordsFor(lookup, postcode);
+  if (!job) return null;
+  const area = settings.service_area;
+  const origins: Coords[] = "territories" in area ? area.territories : [coordsFor(lookup, settings.base_postcode)].filter((c): c is Coords => !!c);
+  if (origins.length === 0) return null;
+  return Math.round(Math.min(...origins.map((o) => haversineMiles(o, job))) * 10) / 10;
 }
 
 // ---------------------------------------------------------------- check_availability
@@ -561,6 +582,7 @@ async function upsertLead(
   customerId: string,
   source: string,
   snapshot: object | null,
+  created?: { value: boolean },
 ): Promise<string> {
   const open = await db
     .from("leads")
@@ -590,6 +612,7 @@ async function upsertLead(
     .select("id")
     .single();
   if (error) throw error;
+  if (created) created.value = true;
   return data.id;
 }
 
@@ -601,9 +624,10 @@ export async function saveLead(tenantId: string, input: unknown): Promise<Engine
   const req = parsed.data;
 
   const config = await requireConfig(tenantId);
-  const quoted = await quoteFor(tenantId, config, req);
+  const quoted = await quoteFor(tenantId, config, req, await travelMilesFor(config.settings, req.postcode));
   const db = createAdminClient();
   const customerId = await upsertCustomer(db, tenantId, req.contact, req);
+  const created = { value: false };
   const leadId = await upsertLead(
     db,
     tenantId,
@@ -612,8 +636,10 @@ export async function saveLead(tenantId: string, input: unknown): Promise<Engine
     quoted.ok
       ? { ...quoted.quote, condition: quoted.condition, postcode: req.postcode ?? null, answers: req.draft ?? {} }
       : null,
+    created,
   );
   await attachPhotos(db, tenantId, req.photoIds, { customerId, leadId });
+  if (created.value) await sendLeadWebhook(tenantId, leadId);
   return { ok: true, leadId };
 }
 
@@ -658,9 +684,16 @@ export async function holdSlot(
 
   const config = await requireConfig(tenantId);
   const { settings } = config;
-  const quoted = await quoteFor(tenantId, config, req);
+  const quoted = await quoteFor(tenantId, config, req, req.locationType === "mobile" ? await travelMilesFor(settings, req.postcode) : null);
   if (!quoted.ok) return quoted;
-  const { quote } = quoted;
+  let { quote } = quoted;
+  let promoCodeId: string | null = null;
+  if (req.promoCode) {
+    const found = await findPromo(tenantId, req.promoCode);
+    if (!found.ok) return fail("promo_invalid", found.message);
+    quote = applyPromo(quote, found.promo, settings.deposit);
+    promoCodeId = found.promo.id;
+  }
   if (req.expectedTotalPence !== undefined && req.expectedTotalPence !== quote.total_pence) {
     return fail(
       "price_changed",
@@ -768,6 +801,8 @@ export async function holdSlot(
     deposit_pence: quote.deposit_pence,
     deposit_status: quote.deposit_pence > 0 ? "pending" : "none",
     source: req.source,
+    // Only sent when used, so nothing here depends on it otherwise.
+    ...(promoCodeId && { promo_code_id: promoCodeId }),
   };
   // 23P01: bookings_resource_no_overlap. Someone else took that van or bay in
   // the moment between our check and the insert; try the next free one.
@@ -841,7 +876,7 @@ export async function confirmBooking(
     if (lead.error) throw lead.error;
   }
   await notifyBookingSecured(tenantId, data.id);
-  await syncBookingEvent(tenantId, data.id);
+  await bookingChanged(tenantId, data.id);
   return { ok: true, bookingId: data.id, status };
 }
 

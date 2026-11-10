@@ -1,6 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { logActivity } from "@/lib/activity";
 import { senderAddressSchema, type SenderStatus } from "@leadgen/core/email/senders";
 import { checkSender, removeSender, setSender } from "@leadgen/core/email/senders-server";
 import { parseNotificationsForm } from "@leadgen/core/settings/forms";
@@ -18,6 +19,7 @@ export async function saveNotificationsAction(slug: string, formData: FormData):
   const supabase = await createClient();
   const { error } = await supabase.from("tenants").update({ notification_settings: parsed.data }).eq("id", tenant.id);
   if (error) return failed("your notification settings", error);
+  await logActivity(tenant.id, "settings.notifications", "Changed the notification settings");
   refresh();
   return { saved: true };
 }
@@ -35,6 +37,7 @@ export async function saveSenderAction(slug: string, formData: FormData): Promis
   } catch (error) {
     return failed("your email address", error);
   }
+  await logActivity(tenant.id, "settings.sender_saved", `Set the sending address to ${parsed.data}`);
   refresh();
   return { saved: true };
 }
@@ -61,6 +64,7 @@ export async function removeSenderAction(slug: string): Promise<{ message?: stri
     console.error("Removing an email sender failed", error);
     return { message: "Couldn't remove it. Try again." };
   }
+  await logActivity(tenant.id, "settings.sender_removed", "Removed the sending address");
   refresh();
   return {};
 }

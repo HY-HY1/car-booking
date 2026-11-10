@@ -37,6 +37,8 @@ export type PanelJob = {
   postcode: string;
   access_notes: Record<string, unknown> | null;
   customer_notes: string | null;
+  internal_notes: string | null;
+  staff: { name: string } | null;
   quote_snapshot: unknown;
   price_pence: number;
   deposit_pence: number;
@@ -219,6 +221,18 @@ export function JobPanel({
           </p>
           {quote && <ConditionNote condition={quote.condition} needsInspection={quote.needsInspection} size="xs" />}
         </Section>
+
+        {b.staff && (
+          <Section title="Who's doing it">
+            <p>{b.staff.name}</p>
+          </Section>
+        )}
+
+        {b.internal_notes && (
+          <Section title="Team notes">
+            <p className="whitespace-pre-wrap">{b.internal_notes}</p>
+          </Section>
+        )}
 
         <Section title="Customer's notes">
           {b.customer_notes ? (

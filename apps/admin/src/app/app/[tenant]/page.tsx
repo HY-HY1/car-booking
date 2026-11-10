@@ -2,18 +2,27 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { formatPence } from "@leadgen/core/booking/config";
+import { CalendarPlus, Send } from "lucide-react";
 import { getOverview, type IncomeState } from "@leadgen/core/stats/overview";
 import { parseOffset, parsePeriod } from "@leadgen/core/stats/periods";
+import { getToday } from "@leadgen/core/stats/today";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { BarChart } from "@/components/dashboard/overview/bar-chart";
+import { BlockTimeDialog } from "@/components/dashboard/overview/block-time-dialog";
+import { Panel } from "@/components/dashboard/overview/panel";
 import { PeriodControls } from "@/components/dashboard/overview/period-controls";
+import { NeedsAttention, TodaysJobs } from "@/components/dashboard/overview/today-panels";
 import { SetupNudge } from "@/components/dashboard/setup-nudge";
 import { StatTile } from "@/components/dashboard/overview/stat-tile";
+import { buttonVariants } from "@/components/ui/button";
 import { requireTenant } from "@/lib/auth";
 import { PAYMENT_SOURCE, PAYMENT_STATUS } from "@/lib/payment-labels";
+import { createClient } from "@/lib/supabase/server";
 import { appUrl } from "@/lib/urls";
+import { cn } from "@/lib/utils";
 import { formatDayTime } from "@leadgen/core/dates";
 import { Badge } from "@/components/ui/badge";
+import { addBlockedTime } from "./diary/actions";
 
 export const metadata: Metadata = { title: "Overview" };
 
@@ -28,20 +37,59 @@ export default async function OverviewPage({
   const period = parsePeriod(sp.period);
   const offset = parseOffset(sp.n);
 
+  const canManage = can("bookings.manage");
+  const allowed = { approvals: canManage, unpaid: isOwner, leads: can("leads.view") };
+  const supabase = await createClient();
+
   // Income is money: owners and managers, as on the Payments tab.
-  const o = await getOverview(tenant.id, period, offset, { includeIncome: isOwner });
+  const [o, today, resources] = await Promise.all([
+    getOverview(tenant.id, period, offset, { includeIncome: isOwner }),
+    getToday(tenant.id, allowed),
+    canManage
+      ? supabase.from("resources").select("id, name").eq("tenant_id", tenant.id).eq("active", true).order("sort_order").order("created_at")
+      : null,
+  ]);
+  if (resources?.error) throw resources.error;
   const income = o.income;
   const ok = income.state === "ok" ? income : null;
   const pounds = (pence: number) => formatPence(pence);
+  const seesAttention = allowed.approvals || allowed.unpaid || allowed.leads;
 
   return (
     <>
-      <PageHeader title="Overview" />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <PageHeader title="Overview" />
+        {(canManage || isOwner) && (
+          <div className="flex flex-wrap gap-2">
+            {canManage && (
+              <Link href={appUrl(`/${slug}/bookings/new`)} className={buttonVariants({ size: "lg" })}>
+                <CalendarPlus />
+                New booking
+              </Link>
+            )}
+            {canManage && (
+              <BlockTimeDialog action={addBlockedTime.bind(null, slug)} defaultDate={today.date} resources={resources?.data ?? []} />
+            )}
+            {isOwner && (
+              <Link href={appUrl(`/${slug}/payments/links`)} className={cn(buttonVariants({ variant: "outline", size: "lg" }))}>
+                <Send />
+                Send payment link
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
       {isOwner && (
         <Suspense>
           <SetupNudge tenantId={tenant.id} slug={slug} />
         </Suspense>
       )}
+
+      <div className={`mb-8 grid grid-cols-1 items-start gap-4 ${seesAttention ? "lg:grid-cols-2" : ""}`}>
+        <TodaysJobs slug={slug} jobs={today.jobs} timeZone={today.timezone} />
+        {seesAttention && <NeedsAttention slug={slug} today={today} />}
+      </div>
+
       <PeriodControls slug={slug} period={period} offset={offset} label={o.label} />
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-3">
@@ -206,10 +254,6 @@ export default async function OverviewPage({
       </div>
     </>
   );
-}
-
-function Panel({ children }: { children: React.ReactNode }) {
-  return <section className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">{children}</section>;
 }
 
 function Empty({ title, message }: { title: string; message: { text: string; href?: string; cta?: string } }) {

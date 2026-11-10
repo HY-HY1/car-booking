@@ -41,7 +41,8 @@ import {
   type Composed,
   type OwnerFacts,
 } from "./compose";
-import { afterJobDue, leadAlertDue, reminderDue, scheduledWindows } from "./schedule";
+import { flexibleJobs } from "../booking/waitlist";
+import { afterJobDue, CATCH_UP_DAYS, leadAlertDue, reminderDue, scheduledWindows } from "./schedule";
 import { verifiedSender } from "./senders-server";
 import { deliver, fromAddress, type SendResult } from "./transport";
 
@@ -69,6 +70,10 @@ export type EmailKind =
   | "payment_received"
   | "rescheduled"
   | "deposit_request"
+  | "quote_follow_up"
+  | "rebook_reminder"
+  | "slot_opened"
+  | "campaign"
   | "owner_new_booking"
   | "owner_cancellation"
   | "owner_new_lead"
@@ -378,6 +383,50 @@ function customerAddress(t: TenantContext, b: BookingContext) {
 
 function manageButton(url: string | null) {
   return url ? { label: "Manage your booking", url } : undefined;
+}
+
+// ---------------------------------------------------------------- the waiting list
+
+const SLOT_OFFERS = 3;
+
+// A job was cancelled: tells the customers who asked to come earlier and
+// could fit in that time. Several hear, so it's first come, first served, and
+// moving the booking checks the time is still free. It's off unless the
+// business switches it on, and only for a time that's still ahead.
+export async function notifySlotOpened(tenantId: string, bookingId: string) {
+  await quietly("earlier time", async () => {
+    const db = createAdminClient();
+    const t = await loadTenant(db, tenantId);
+    const template = t?.settings.messages.slot_opened;
+    if (!t || !template?.enabled || !t.settings.channels.email) return;
+
+    const { data: freed, error } = await db
+      .from("bookings")
+      .select("starts_at, ends_at, location_type")
+      .eq("tenant_id", tenantId)
+      .eq("id", bookingId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!freed || new Date(freed.starts_at).getTime() <= Date.now()) return;
+
+    const candidates = await flexibleJobs(tenantId, { startsAt: freed.starts_at, endsAt: freed.ends_at, locationType: freed.location_type }, SLOT_OFFERS);
+    const start = new Date(freed.starts_at);
+    for (const job of candidates) {
+      const b = await loadBooking(db, tenantId, job.id);
+      if (!b?.customer.email) continue;
+      const manage = await manageBookingUrl(t, b.id);
+      if (!manage) continue;
+      const values = { ...templateValues(t, b, manage), date: formatDay(start, t.timezone), time: formatClock(start, t.timezone) };
+      await send(db, t, {
+        kind: "slot_opened",
+        dedupeKey: `slot_opened:${b.id}:${freed.starts_at}`,
+        bookingId: b.id,
+        customerId: b.customer.id,
+        to: b.customer.email,
+        content: { subject: renderTemplate(template.subject, values), body: renderTemplate(template.body, values), button: manageButton(manage) },
+      });
+    }
+  });
 }
 
 // ---------------------------------------------------------------- booking events
@@ -840,6 +889,103 @@ export async function runScheduledEmails(now = new Date()) {
     }
   });
 
+  // Someone got a price and didn't book. Inviting them back is marketing, so
+  // only those who opted in, and only once.
+  await quietly("quote follow-ups", async () => {
+    const { data, error } = await db
+      .from("leads")
+      .select("id, tenant_id, created_at, quote_snapshot, customer:customers(id, name, email, email_marketing)")
+      .eq("status", "quoted")
+      .gt("created_at", new Date(now.getTime() - (30 + CATCH_UP_DAYS) * 86_400_000).toISOString())
+      .limit(1000);
+    if (error) throw error;
+    const leads = data as unknown as {
+      id: string;
+      tenant_id: string;
+      created_at: string;
+      quote_snapshot: { service_name?: string } | null;
+      customer: { id: string; name: string; email: string | null; email_marketing: boolean } | null;
+    }[];
+    if (!leads.length) return;
+    const done = await alreadySent("lead_id", leads.map((l) => l.id), ["quote_follow_up"]);
+    for (const lead of leads) {
+      const c = lead.customer;
+      if (done.has(`quote_follow_up:${lead.id}`) || !c?.email || !c.email_marketing) continue;
+      const t = await tenantOf(lead.tenant_id);
+      const template = t?.settings.messages.quote_follow_up;
+      if (!t || !template?.enabled || !t.settings.channels.email) continue;
+      if (!afterJobDue(new Date(lead.created_at), template.days_after, now)) continue;
+      const values = { customer_name: firstName(c.name), business_name: t.name, service: lead.quote_snapshot?.service_name ?? "booking", booking_link: t.siteUrl };
+      await tally(() =>
+        send(db, t, {
+          kind: "quote_follow_up",
+          dedupeKey: `quote_follow_up:${lead.id}`,
+          leadId: lead.id,
+          customerId: c.id,
+          to: c.email as string,
+          content: { subject: renderTemplate(template.subject, values), body: renderTemplate(template.body, values) },
+          marketing: { customerId: c.id },
+        }),
+      );
+    }
+  });
+
+  // A service is due again. Also marketing; skipped if they've booked since.
+  await quietly("rebooking reminders", async () => {
+    const { data: services, error } = await db.from("services").select("id, tenant_id, rebook_weeks").not("rebook_weeks", "is", null).limit(2000);
+    if (error) throw error;
+    for (const service of services as { id: string; tenant_id: string; rebook_weeks: number }[]) {
+      const t = await tenantOf(service.tenant_id);
+      const template = t?.settings.messages.rebook_reminder;
+      if (!t || !template?.enabled || !t.settings.channels.email) continue;
+      const due = now.getTime() - service.rebook_weeks * 7 * 86_400_000;
+      const { data: rows, error: rowsError } = await db
+        .from("bookings")
+        .select(BOOKING_FIELDS)
+        .eq("tenant_id", service.tenant_id)
+        .eq("service_id", service.id)
+        .eq("status", "completed")
+        .gt("ends_at", new Date(due - CATCH_UP_DAYS * 86_400_000).toISOString())
+        .lte("ends_at", new Date(due).toISOString())
+        .limit(500);
+      if (rowsError) throw rowsError;
+      const list = rows as unknown as BookingRow[];
+      if (!list.length) continue;
+      const done = await alreadySent("booking_id", list.map((r) => r.id), ["rebook_reminder"]);
+      for (const row of list) {
+        const b = toBooking(row);
+        if (!b || done.has(`rebook_reminder:${b.id}`) || !b.customer.email || !b.customer.emailMarketing) continue;
+        const later = await db
+          .from("bookings")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", service.tenant_id)
+          .eq("customer_id", b.customer.id)
+          .in("status", ["held", "requested", "confirmed", "completed"])
+          .gt("starts_at", row.ends_at);
+        if (later.error) throw later.error;
+        if (later.count) continue;
+        const values = templateValues(t, b);
+        await tally(() =>
+          send(db, t, {
+            kind: "rebook_reminder",
+            dedupeKey: `rebook_reminder:${b.id}`,
+            bookingId: b.id,
+            customerId: b.customer.id,
+            to: b.customer.email as string,
+            content: { subject: renderTemplate(template.subject, values), body: renderTemplate(template.body, values) },
+            marketing: { customerId: b.customer.id },
+          }),
+        );
+      }
+    }
+  });
+
+  await quietly("campaigns", async () => {
+    const { data, error } = await db.from("campaigns").select("id").eq("status", "sending").limit(5);
+    if (error) throw error;
+    for (const campaign of data) await sendCampaignBatch(campaign.id);
+  });
+
   await quietly("enquiry alerts", async () => {
     const { data, error } = await db
       .from("leads")
@@ -904,6 +1050,90 @@ export async function runScheduledEmails(now = new Date()) {
   });
 
   return counts;
+}
+
+// ---------------------------------------------------------------- campaigns
+
+const CAMPAIGN_BATCH = 150;
+// Resend allows about two sends a second.
+const CAMPAIGN_PAUSE_MS = 550;
+
+// Sends the next batch of one campaign, to customers who opted in. Picks up
+// where it left off, so it can run again and again until everyone's had it;
+// the email log's dedupe key means nobody gets it twice. Never throws.
+export async function sendCampaignBatch(campaignId: string) {
+  await quietly("campaign", async () => {
+    const db = createAdminClient();
+    const { data: campaign, error } = await db
+      .from("campaigns")
+      .select("id, tenant_id, subject, body, status, last_customer_id, sent_count")
+      .eq("id", campaignId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!campaign || campaign.status !== "sending") return;
+    const t = await loadTenant(db, campaign.tenant_id);
+    if (!t) return;
+
+    let query = db
+      .from("customers")
+      .select("id, name, email")
+      .eq("tenant_id", campaign.tenant_id)
+      .eq("email_marketing", true)
+      .is("anonymised_at", null)
+      .not("email", "is", null)
+      .order("id")
+      .limit(CAMPAIGN_BATCH);
+    if (campaign.last_customer_id) query = query.gt("id", campaign.last_customer_id);
+    const { data: customers, error: customerError } = await query;
+    if (customerError) throw customerError;
+
+    let sent = 0;
+    for (const c of customers) {
+      const values = { customer_name: firstName(c.name), business_name: t.name, booking_link: t.siteUrl };
+      const result = await send(db, t, {
+        kind: "campaign",
+        dedupeKey: `campaign:${campaign.id}:${c.id}`,
+        customerId: c.id,
+        to: c.email as string,
+        content: { subject: renderTemplate(campaign.subject, values), body: renderTemplate(campaign.body, values) },
+        marketing: { customerId: c.id },
+      });
+      if (result === "sent") sent += 1;
+      await new Promise((resolve) => setTimeout(resolve, CAMPAIGN_PAUSE_MS));
+    }
+
+    const done = customers.length < CAMPAIGN_BATCH;
+    const saved = await db
+      .from("campaigns")
+      .update({
+        sent_count: campaign.sent_count + sent,
+        last_customer_id: customers.at(-1)?.id ?? campaign.last_customer_id,
+        ...(done && { status: "sent", finished_at: new Date().toISOString() }),
+      })
+      .eq("id", campaign.id);
+    if (saved.error) throw saved.error;
+  });
+}
+
+// A campaign to the person writing it, reported back. Not marketing to a
+// customer, so it carries no unsubscribe link; the real ones do.
+export async function sendCampaignTest(tenantId: string, campaign: { id: string; subject: string; body: string }, to: string) {
+  try {
+    const db = createAdminClient();
+    const t = await loadTenant(db, tenantId);
+    if (!t) return { ok: false as const, message: "Couldn't load your business." };
+    const values = { customer_name: "Sam", business_name: t.name, booking_link: t.siteUrl };
+    const result = await send(db, t, {
+      kind: "campaign",
+      dedupeKey: `campaign_test:${campaign.id}:${Date.now()}`,
+      to,
+      content: { subject: `[Test] ${renderTemplate(campaign.subject, values)}`, body: renderTemplate(campaign.body, values) },
+    });
+    return result === "sent" ? { ok: true as const } : { ok: false as const, message: "Couldn't send the test. Check your sending address under Settings → Notifications." };
+  } catch (error) {
+    console.error("[email] campaign test failed", error);
+    return { ok: false as const, message: "Couldn't send the test. Try again." };
+  }
 }
 
 // ---------------------------------------------------------------- payment links

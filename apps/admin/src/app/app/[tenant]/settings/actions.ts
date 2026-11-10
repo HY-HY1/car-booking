@@ -1,6 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { logActivity } from "@/lib/activity";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { customHostnameSchema } from "@leadgen/core/settings/domains";
@@ -36,6 +37,7 @@ export async function saveGeneralAction(slug: string, formData: FormData): Promi
     .update({ timezone: parsed.data.timezone })
     .eq("tenant_id", tenant.id);
   if (tz.error) return failed("the time zone", tz.error);
+  await logActivity(tenant.id, "settings.business", "Changed the business details");
   refresh();
   return { saved: true };
 }
@@ -104,6 +106,7 @@ export async function saveBrandingAction(slug: string, formData: FormData): Prom
   const { error } = await supabase.from("tenants").update({ branding }).eq("id", tenant.id);
   if (error) return failed("your booking page", error);
   if (stale.length) await supabase.storage.from(IMAGE_BUCKET).remove(stale);
+  await logActivity(tenant.id, "settings.booking_page", "Changed the booking page");
   refresh();
   return { saved: true };
 }
@@ -121,6 +124,7 @@ export async function addDomainAction(slug: string, formData: FormData): Promise
   } catch (error) {
     return failed("that address", error);
   }
+  await logActivity(tenant.id, "settings.domain_added", `Added the address ${parsed.data}`);
   refresh();
   return { saved: true };
 }
@@ -151,6 +155,7 @@ export async function removeDomainAction(slug: string, domainId: string): Promis
     console.error("Removing a domain failed", error);
     return { message: "Couldn't remove it. Try again." };
   }
+  await logActivity(tenant.id, "settings.domain_removed", "Removed a web address");
   refresh();
   return {};
 }
@@ -166,6 +171,7 @@ export async function makePrimaryDomainAction(slug: string, domainId: string): P
     console.error("Changing the main address failed", error);
     return { message: "Couldn't change it. Try again." };
   }
+  await logActivity(tenant.id, "settings.domain_primary", "Changed the main web address");
   refresh();
   return {};
 }

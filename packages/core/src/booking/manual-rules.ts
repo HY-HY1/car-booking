@@ -2,6 +2,7 @@ import { z } from "zod";
 import { normalizePhone, normalizePostcode } from "../customer-fields";
 import { locationTypeSchema, sizeClassSchema, type DepositRule } from "./config";
 import { isUkPostcode } from "./geo";
+import { MAX_REPEATS } from "./edit-rules";
 import { depositFor, type Quote, type QuoteLine } from "./pricing";
 import { isIsoDate } from "./time";
 
@@ -76,6 +77,23 @@ export const manualBookingFormSchema = z
     registration: optional(10, "the registration").transform((v) => v?.replace(/\s/g, "").toUpperCase() || null),
     notes: optional(1000, "the notes"),
 
+    // Who's doing it; blank for no one in particular.
+    staff_id: z.string().trim().default(""),
+    // The enquiry this came from ("Turn into booking" on a lead).
+    lead_id: z.string().trim().default(""),
+    repeat_weeks: z
+      .string()
+      .trim()
+      .default("")
+      .refine((v) => v === "" || (/^\d+$/.test(v) && Number(v) >= 1 && Number(v) <= 52), "Repeat every 1 to 52 weeks, or leave it blank.")
+      .transform((v) => (v === "" ? null : Number(v))),
+    repeat_times: z
+      .string()
+      .trim()
+      .default("")
+      .refine((v) => v === "" || (/^\d+$/.test(v) && Number(v) >= 2 && Number(v) <= MAX_REPEATS), `Book it 2 to ${MAX_REPEATS} times in all.`)
+      .transform((v) => (v === "" ? null : Number(v))),
+
     send_confirmation: z
       .string()
       .optional()
@@ -92,6 +110,11 @@ export const manualBookingFormSchema = z
     };
     if (v.customer_id && !z.uuid().safeParse(v.customer_id).success) return problem("name", "Pick the customer again.");
     if (v.resource_id && !z.uuid().safeParse(v.resource_id).success) return problem("resource_id", "Pick a van or bay.");
+    if (v.staff_id && !z.uuid().safeParse(v.staff_id).success) return problem("staff_id", "Pick someone from the list.");
+    if (v.lead_id && !z.uuid().safeParse(v.lead_id).success) return problem("name", "Open the lead again.");
+    if ((v.repeat_weeks === null) !== (v.repeat_times === null)) {
+      return problem(v.repeat_weeks === null ? "repeat_weeks" : "repeat_times", "Fill in both to repeat it, or leave both blank.");
+    }
     const addOnIds = v.add_on_ids.split(",").map((s) => s.trim()).filter(Boolean);
     if (addOnIds.some((id) => !z.uuid().safeParse(id).success)) return problem("add_on_ids", "Pick the extras again.");
 
@@ -118,6 +141,9 @@ export const manualBookingFormSchema = z
       date: v.date,
       time: v.time,
       resourceId: v.resource_id || null,
+      staffId: v.staff_id || null,
+      leadId: v.lead_id || null,
+      repeat: v.repeat_weeks !== null && v.repeat_times !== null ? { everyWeeks: v.repeat_weeks, times: v.repeat_times } : null,
       durationMins: v.duration_mins,
       pricePence: v.price,
       depositPence: v.deposit,

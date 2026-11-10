@@ -16,6 +16,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
     items: [
       { path: "", label: "Business details", permission: view },
       { path: "/privacy", label: "Privacy & data", permission: view },
+      { path: "/activity", label: "Activity log", permission: "activity.view" },
       { path: "/billing", label: "Billing", permission: view },
     ],
   },

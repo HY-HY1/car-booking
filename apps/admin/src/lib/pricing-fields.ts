@@ -13,6 +13,7 @@ import {
 export const SIZES = Object.keys(SIZE_CLASSES) as SizeClass[];
 
 export const editableServiceSchema = serviceSchema.extend({
+  rebook_weeks: z.number().int().nullable().default(null),
   active: z.boolean(),
   sort_order: z.number().int(),
 });
@@ -28,6 +29,7 @@ export const pricingRulesSchema = bookingSettingsSchema.pick({
   deposit: true,
   min_price_pence: true,
   mobile_surcharge_pence: true,
+  travel_fee: true,
   condition_tiers: true,
   offers_mobile: true,
   offers_unit: true,

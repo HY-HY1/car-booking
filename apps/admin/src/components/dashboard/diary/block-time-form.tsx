@@ -17,15 +17,21 @@ export function BlockTimeForm({
   action,
   defaultDate,
   resources,
+  onSaved,
 }: {
   action: (state: BlockTimeState, formData: FormData) => Promise<BlockTimeState>;
   defaultDate: string;
   // Offered when there is more than one: block everything, or just one.
   resources: { id: string; name: string }[];
+  // Saved with nothing further to say.
+  onSaved?: () => void;
 }) {
   const [state, formAction, pending] = useActionState(async (prev: BlockTimeState, formData: FormData) => {
     const next = await action(prev, formData);
-    if (next.saved && !next.message) toast.success("Time blocked out");
+    if (next.saved && !next.message) {
+      toast.success("Time blocked out");
+      onSaved?.();
+    }
     return next;
   }, {});
   const { errors = {}, values } = state;

@@ -4,12 +4,14 @@ import { Camera } from "lucide-react";
 import { formatPence } from "@leadgen/core/booking/config";
 import { formatPhone } from "@leadgen/core/customer-fields";
 import { formatDate } from "@leadgen/core/dates";
+import { conversionBySource, LOST_REASONS, lostReasonCounts } from "@leadgen/core/leads/rules";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import { appUrl } from "@/lib/urls";
 import { EmptyState } from "@/components/ui/empty-state";
+import { BOOKING_SOURCE } from "@/lib/booking-display";
 
 export const metadata: Metadata = { title: "Leads" };
 
@@ -53,6 +55,14 @@ export default async function LeadsPage({
   if (error) throw error;
   const leads = data as unknown as LeadRow[];
 
+  // How the last 90 days went. A fixed window, so the numbers don't change
+  // with the tab being looked at.
+  const since = new Date(new Date().getTime() - 90 * 86_400_000).toISOString();
+  const recent = await supabase.from("leads").select("source, status, lost_reason").eq("tenant_id", tenant.id).gte("created_at", since).limit(5000);
+  if (recent.error) throw recent.error;
+  const bySource = conversionBySource(recent.data);
+  const lost = lostReasonCounts(recent.data);
+
   const base = appUrl(`/${slug}/leads`);
 
   return (
@@ -74,6 +84,39 @@ export default async function LeadsPage({
           </Link>
         ))}
       </nav>
+
+      {bySource.length > 0 && (
+        <section aria-label="Last 90 days" className="mb-4 grid gap-4 rounded-xl border p-4 text-sm sm:grid-cols-2">
+          <div>
+            <h2 className="mb-2 font-medium">Where leads came from, last 90 days</h2>
+            <ul className="grid gap-1">
+              {bySource.map((s) => (
+                <li key={s.source} className="flex justify-between gap-3">
+                  <span>{BOOKING_SOURCE[s.source] ?? s.source}</span>
+                  <span className="text-muted-foreground">
+                    {s.total} {s.total === 1 ? "lead" : "leads"} · {s.rate}% booked
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h2 className="mb-2 font-medium">Why leads were lost</h2>
+            {lost.length === 0 ? (
+              <p className="text-muted-foreground">None marked as lost.</p>
+            ) : (
+              <ul className="grid gap-1">
+                {lost.map((l) => (
+                  <li key={l.reason} className="flex justify-between gap-3">
+                    <span>{LOST_REASONS[l.reason as keyof typeof LOST_REASONS] ?? "No reason given"}</span>
+                    <span className="text-muted-foreground">{l.count}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+      )}
 
       {leads.length === 0 ? (
         <EmptyState>

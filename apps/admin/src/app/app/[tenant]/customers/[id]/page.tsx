@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Form from "next/form";
 import Link from "next/link";
 import { CalendarPlus, Download } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -13,9 +14,16 @@ import {
   MARKETING_BASES,
 } from "@leadgen/core/customer-fields";
 import { formatDate } from "@leadgen/core/dates";
-import { getCustomer } from "@/lib/customers";
+import { formatPence } from "@leadgen/core/booking/config";
+import { vehicleHistory, type HistoryJob } from "@leadgen/core/vehicles/history";
+import { MergeCustomerButton } from "@/components/dashboard/merge-customer";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { BOOKING_STATUS, BOOKING_STATUS_TONE } from "@/lib/booking-display";
+import { createClient } from "@/lib/supabase/server";
+import { getCustomer, listCustomers } from "@/lib/customers";
 import { listCustomerPhotos } from "@/lib/photos";
-import { deleteCustomer, deletePhoto, updateCustomer } from "../actions";
+import { deleteCustomer, deletePhoto, mergeCustomerAction, updateCustomer } from "../actions";
 import { appUrl } from "@/lib/urls";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -23,12 +31,30 @@ export const metadata: Metadata = { title: "Customer" };
 
 export default async function CustomerPage({
   params,
+  searchParams,
 }: PageProps<"/app/[tenant]/customers/[id]">) {
   const { tenant: slug, id } = await params;
   const { tenant, can } = await requireAccess(slug, "customers.view");
   const customer = await getCustomer(tenant.id, id);
   if (!customer) notFound();
   const photos = await listCustomerPhotos(tenant.id, customer.id);
+
+  const supabase = await createClient();
+  const history = await supabase
+    .from("bookings")
+    .select("id, starts_at, status, price_pence, service:services(name), vehicle:vehicles(make, model, registration), extras:booking_vehicles(make, model, registration)")
+    .eq("tenant_id", tenant.id)
+    .eq("customer_id", customer.id)
+    .order("starts_at", { ascending: false })
+    .limit(300);
+  if (history.error) throw history.error;
+  type Row = Omit<HistoryJob, "serviceName"> & { service: { name: string } | null };
+  const cars = vehicleHistory((history.data as unknown as Row[]).map((b) => ({ ...b, serviceName: b.service?.name ?? null })));
+
+  // Looking for a duplicate to fold in.
+  const mergeTerm = typeof (await searchParams).merge === "string" ? ((await searchParams).merge as string).trim() : "";
+  const canMerge = can("customers.delete") && !customer.anonymised_at;
+  const matches = canMerge && mergeTerm ? (await listCustomers(tenant.id, { q: mergeTerm, page: 1 })).customers.filter((c) => c.id !== customer.id).slice(0, 10) : [];
 
   const source =
     CUSTOMER_SOURCES[customer.source as keyof typeof CUSTOMER_SOURCES] ??
@@ -102,10 +128,65 @@ export default async function CustomerPage({
           <h2 id="history-heading" className="mb-4 font-medium">
             Vehicles and bookings
           </h2>
-          <EmptyState>
-            Their vehicles and past jobs will show here.
-          </EmptyState>
+          {cars.length === 0 ? (
+            <EmptyState>Their vehicles and past jobs will show here.</EmptyState>
+          ) : (
+            <div className="grid gap-4">
+              {cars.map((car) => (
+                <div key={car.key} className="rounded-xl border">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2 border-b px-4 py-2">
+                    <span className="font-medium">{car.label}</span>
+                    {car.registration && <span className="font-mono text-sm text-muted-foreground">{car.registration}</span>}
+                  </div>
+                  <ul className="divide-y">
+                    {car.jobs.map((j) => (
+                      <li key={j.id}>
+                        <Link href={appUrl(`/${slug}/bookings/${j.id}`)} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 text-sm hover:bg-muted/40">
+                          <span>
+                            {formatDate(j.starts_at)}
+                            {j.serviceName && <span className="text-muted-foreground"> · {j.serviceName}</span>}
+                          </span>
+                          <span className="flex items-center gap-2">
+                            <span className="text-muted-foreground">{formatPence(j.price_pence)}</span>
+                            <Badge tone={BOOKING_STATUS_TONE[j.status]}>{BOOKING_STATUS[j.status] ?? j.status}</Badge>
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
+
+        {canMerge && (
+          <section aria-labelledby="merge-heading">
+            <h2 id="merge-heading" className="mb-1 font-medium">
+              Duplicate customer?
+            </h2>
+            <p className="mb-3 text-sm text-muted-foreground">Find the other record to fold into this one.</p>
+            <Form action={appUrl(`/${slug}/customers/${customer.id}`)} className="mb-3 max-w-sm">
+              <Input name="merge" type="search" defaultValue={mergeTerm} placeholder="Name, email, phone or postcode" aria-label="Find a duplicate" className="h-9" />
+            </Form>
+            {mergeTerm &&
+              (matches.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nobody else matches that.</p>
+              ) : (
+                <ul className="divide-y rounded-xl border">
+                  {matches.map((m) => (
+                    <li key={m.id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium">{m.name}</span>
+                        <span className="block truncate text-muted-foreground">{[m.email, m.phone, m.postcode].filter(Boolean).join(" · ")}</span>
+                      </span>
+                      <MergeCustomerButton keepName={customer.name} removeName={m.name} action={mergeCustomerAction.bind(null, slug, customer.id, m.id)} />
+                    </li>
+                  ))}
+                </ul>
+              ))}
+          </section>
+        )}
 
         {can("customers.delete") && !customer.anonymised_at && (
           <section aria-labelledby="privacy-heading" className="border-t pt-6">

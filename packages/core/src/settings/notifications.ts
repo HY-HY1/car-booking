@@ -13,7 +13,7 @@ export const TEMPLATE_FIELDS = {
   time: "Start time, e.g. 9:30am",
   address: "Where the job is",
   booking_link: "Link to the booking page",
-  manage_link: "The customer's link to change or cancel this booking (confirmation and reminder only)",
+  manage_link: "The customer's link to change or cancel this booking (confirmation, reminder and earlier-time messages only)",
   review_link: "Your review link",
 } as const;
 export type TemplateField = keyof typeof TEMPLATE_FIELDS;
@@ -23,6 +23,9 @@ export const CUSTOMER_MESSAGES = {
   reminder: { label: "Reminder", when: "Sent before the appointment." },
   follow_up: { label: "Aftercare follow-up", when: "Sent after the job is marked complete." },
   review_request: { label: "Review request", when: "Sent after the job is marked complete." },
+  quote_follow_up: { label: "Quote follow-up", when: "Sent to someone who got a price but didn't book." },
+  rebook_reminder: { label: "Time to book again", when: "Sent when a service is due again (set the weeks on each service)." },
+  slot_opened: { label: "An earlier time has opened up", when: "Sent to customers who said they're flexible, when a job is cancelled." },
 } as const;
 export type CustomerMessage = keyof typeof CUSTOMER_MESSAGES;
 
@@ -42,6 +45,18 @@ const DEFAULT_TEMPLATES: Record<CustomerMessage, { subject: string; body: string
   review_request: {
     subject: "How did we do?",
     body: "Hi {customer_name},\n\nThanks again for booking {service}. If you were happy with the job, a quick review would really help a small business like ours: {review_link}",
+  },
+  quote_follow_up: {
+    subject: "Still thinking about your {service}?",
+    body: "Hi {customer_name},\n\nThanks for getting a price from {business_name}. If you'd like to go ahead, you can pick a time here: {booking_link}\n\nAny questions, just reply to this email.",
+  },
+  rebook_reminder: {
+    subject: "Time for another {service}?",
+    body: "Hi {customer_name},\n\nIt's about time your car had another {service}. You can pick a time that suits you here: {booking_link}",
+  },
+  slot_opened: {
+    subject: "An earlier time has opened up",
+    body: "Hi {customer_name},\n\nYou said you'd like to know if an earlier time came up for your {service}. We now have {date} at {time}.\n\nIf that suits you, move your booking here while it's still free: {manage_link}\n\nOtherwise you don't need to do anything, and your booking stays as it is.",
   },
 };
 
@@ -85,6 +100,17 @@ export const notificationSettingsSchema = z.object({
           review_url: z.url().optional().catch(undefined),
         })
         .prefault({}),
+      // These reach customers without anyone pressing a button, so each is
+      // off until the business chooses to send it.
+      quote_follow_up: z
+        .object({
+          ...templateSchema("quote_follow_up"),
+          enabled: z.boolean().default(false).catch(false),
+          days_after: z.number().int().min(1).max(30).default(2).catch(2),
+        })
+        .prefault({}),
+      rebook_reminder: z.object({ ...templateSchema("rebook_reminder"), enabled: z.boolean().default(false).catch(false) }).prefault({}),
+      slot_opened: z.object({ ...templateSchema("slot_opened"), enabled: z.boolean().default(false).catch(false) }).prefault({}),
     })
     .prefault({}),
   // Alerts to the owner.

@@ -3,15 +3,36 @@ import { connection } from "next/server";
 import { listApiKeys } from "@leadgen/core/api/keys";
 import { googleCalendarConfigured } from "@leadgen/core/calendar/google";
 import { loadCalendarSettings } from "@leadgen/core/calendar/sync";
+import { formatDateTime } from "@leadgen/core/dates";
+import { metaConfigured } from "@leadgen/core/meta/graph";
+import { listPageOptions, loadMetaSettings } from "@leadgen/core/meta/leads";
+import { listLocationOptions, loadReviewSettings } from "@leadgen/core/reviews/sync";
+import { listEndpoints, MAX_ENDPOINTS } from "@leadgen/core/webhooks/deliver";
 import { ApiKeys } from "@/components/dashboard/api-keys";
 import { GoogleCalendarCard } from "@/components/dashboard/settings/google-calendar-card";
+import { GoogleReviewsCard } from "@/components/dashboard/settings/google-reviews-card";
+import { MetaLeadsCard } from "@/components/dashboard/settings/meta-leads-card";
+import { Webhooks } from "@/components/dashboard/settings/webhooks";
 import { CopyText } from "@/components/platform/copy-text";
 import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createKeyAction, revokeKeyAction } from "../api/actions";
-import { disconnectCalendarAction, saveCalendarAction } from "./actions";
-import { apiUrl, docsUrl } from "@/lib/urls";
-import { Badge } from "@/components/ui/badge";
+import {
+  chooseMetaPageAction,
+  chooseReviewLocationAction,
+  createWebhookAction,
+  deleteWebhookAction,
+  disconnectCalendarAction,
+  disconnectMetaAction,
+  disconnectReviewsAction,
+  refreshReviewsAction,
+  resendDeliveryAction,
+  rollWebhookSecretAction,
+  saveCalendarAction,
+  testWebhookAction,
+  updateWebhookAction,
+} from "./actions";
+import { apiUrl, appUrl, docsUrl } from "@/lib/urls";
 
 export const metadata: Metadata = { title: "Integrations" };
 
@@ -20,6 +41,20 @@ function calendarMissing() {
   if (process.env.NODE_ENV === "production") return null;
   const missing = ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "CALENDAR_TOKEN_SECRET"].filter((n) => !process.env[n]);
   return missing.length ? `Development: set ${missing.join(", ")} in the root .env.local (see .env.example).` : null;
+}
+
+function metaMissing() {
+  if (process.env.NODE_ENV === "production") return null;
+  const missing = ["META_APP_ID", "META_APP_SECRET", "META_WEBHOOK_VERIFY_TOKEN", "CALENDAR_TOKEN_SECRET"].filter((n) => !process.env[n]);
+  return missing.length ? `Development: set ${missing.join(", ")} in the root .env.local (see .env.example).` : null;
+}
+
+// Each card still shows if its own tables can't be read (a migration not run yet).
+function orNull<T>(what: string, promise: Promise<T>): Promise<T | null> {
+  return promise.catch((error) => {
+    console.error(`Loading ${what} failed`, error);
+    return null;
+  });
 }
 
 export default async function IntegrationsPage({ params, searchParams }: PageProps<"/app/[tenant]/settings/integrations">) {
@@ -31,15 +66,22 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
   // must never be prerendered.
   await connection();
   const developer = can("api");
-  const [keys, calendar] = await Promise.all([
+  const [keys, calendar, reviews, meta, webhooks] = await Promise.all([
     developer ? listApiKeys(await createClient(), tenant.id) : [],
-    // The rest of the page still works if the calendar tables can't be read.
-    loadCalendarSettings(tenant.id).catch((error) => {
-      console.error("Loading Google Calendar settings failed", error);
-      return null;
-    }),
+    orNull("Google Calendar settings", loadCalendarSettings(tenant.id)),
+    orNull("Google Business settings", loadReviewSettings(tenant.id)),
+    orNull("Facebook settings", loadMetaSettings(tenant.id)),
+    developer ? orNull("webhooks", listEndpoints(tenant.id)) : null,
   ]);
-  const configured = googleCalendarConfigured() && Boolean(process.env.CALENDAR_TOKEN_SECRET);
+  const sealing = Boolean(process.env.CALENDAR_TOKEN_SECRET);
+  const configured = googleCalendarConfigured() && sealing;
+  const metaReady = metaConfigured() && sealing && Boolean(process.env.META_WEBHOOK_VERIFY_TOKEN);
+  // Asked of Google or Facebook only while something still has to be picked.
+  const [locations, pages] = await Promise.all([
+    reviews?.status === "active" && !reviews.locationChosen ? listLocationOptions(tenant.id) : null,
+    meta?.status === "choose_page" ? listPageOptions(tenant.id) : null,
+  ]);
+  const outcome = (key: string) => (typeof sp[key] === "string" ? (sp[key] as string) : null);
   const endpoint = apiUrl("/v1/catalog", { absolute: true });
   const docs = docsUrl();
 
@@ -56,21 +98,37 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
               missingHint={calendarMissing()}
               canEdit={can("settings.edit")}
               connectHref={apiUrl(`/google/calendar/connect?tenant=${encodeURIComponent(slug)}`)}
-              outcome={typeof sp.google === "string" ? sp.google : null}
+              outcome={outcome("google")}
               {...calendar}
               saveAction={saveCalendarAction.bind(null, slug)}
               disconnectAction={disconnectCalendarAction.bind(null, slug)}
             />
           )}
-          {COMING.map((c) => (
-            <li key={c.name} className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-card p-4">
-              <span className="min-w-0">
-                <span className="font-medium">{c.name}</span>
-                <span className="block text-sm text-muted-foreground">{c.detail}</span>
-              </span>
-              <Badge tone="info">Coming soon</Badge>
-            </li>
-          ))}
+          <GoogleReviewsCard
+            configured={configured}
+            canEdit={can("settings.edit")}
+            connectHref={apiUrl(`/google/business/connect?tenant=${encodeURIComponent(slug)}`)}
+            reviewsHref={appUrl(`/${slug}/reviews`)}
+            outcome={outcome("reviews")}
+            connection={reviews}
+            locations={locations}
+            chooseAction={chooseReviewLocationAction.bind(null, slug)}
+            refreshAction={refreshReviewsAction.bind(null, slug)}
+            disconnectAction={disconnectReviewsAction.bind(null, slug)}
+          />
+          <MetaLeadsCard
+            configured={metaReady}
+            missingHint={metaMissing()}
+            canEdit={can("settings.edit")}
+            connectHref={apiUrl(`/meta/connect?tenant=${encodeURIComponent(slug)}`)}
+            leadsHref={appUrl(`/${slug}/leads`)}
+            outcome={outcome("meta")}
+            connection={meta}
+            pages={pages}
+            lastLeadLabel={meta?.lastLeadAt ? formatDateTime(meta.lastLeadAt) : null}
+            chooseAction={chooseMetaPageAction.bind(null, slug)}
+            disconnectAction={disconnectMetaAction.bind(null, slug)}
+          />
         </ul>
       </section>
 
@@ -143,13 +201,36 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
             )}
           </section>
 
-          <section aria-labelledby="webhooks" className="grid gap-2 text-sm">
-            <h2 id="webhooks" className="flex items-center gap-2 font-medium">
-              Webhooks <Badge tone="info">Coming soon</Badge>
+          <section aria-labelledby="webhooks" className="grid gap-3 text-sm">
+            <h2 id="webhooks" className="font-medium">
+              Webhooks
             </h2>
             <p className="text-muted-foreground">
-              Have new bookings, cancellations and enquiries sent to your own system as they happen.
+              New bookings, changes, cancellations and enquiries sent to your own system (or Zapier, Make and the like) as
+              they happen, as signed JSON. Anything that doesn&apos;t get through is tried again for a day.
             </p>
+            {webhooks === null ? (
+              <p className="text-muted-foreground">Webhooks can&apos;t be loaded just now.</p>
+            ) : (
+              <Webhooks
+                endpoints={webhooks}
+                max={MAX_ENDPOINTS}
+                createAction={createWebhookAction.bind(null, slug)}
+                updateAction={updateWebhookAction.bind(null, slug)}
+                deleteAction={deleteWebhookAction.bind(null, slug)}
+                rollAction={rollWebhookSecretAction.bind(null, slug)}
+                testAction={testWebhookAction.bind(null, slug)}
+                resendAction={resendDeliveryAction.bind(null, slug)}
+              />
+            )}
+            {docs && (
+              <p>
+                <a href={docsUrl("/api/webhooks")} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                  How to check the signature
+                </a>{" "}
+                <span className="text-muted-foreground">and what each event contains.</span>
+              </p>
+            )}
           </section>
         </div>
       </details>
@@ -157,8 +238,3 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
     </div>
   );
 }
-
-const COMING = [
-  { name: "Google Business reviews", detail: "See new reviews here and reply to them." },
-  { name: "Facebook and Instagram lead forms", detail: "Enquiries from Meta lead ads arrive as leads here." },
-];

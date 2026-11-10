@@ -6,6 +6,7 @@ import {
   findRescheduleDates,
   findRescheduleSlots,
   rescheduleBooking,
+  startBalancePayment,
   startDepositPayment,
 } from "@leadgen/core/booking/manage";
 import { requireRequestTenant } from "@/lib/tenant";
@@ -32,6 +33,13 @@ export async function rescheduleAction(token: string, startsAt: string) {
 export async function cancelAction(token: string) {
   const tenant = await requireRequestTenant();
   return cancelBookingAsCustomer(tenant.id, token);
+}
+
+// "Pay the balance": off to Stripe, or back to the page saying why not.
+export async function payBalanceAction(token: string) {
+  const tenant = await requireRequestTenant();
+  const result = await startBalancePayment(tenant.id, token);
+  redirect(result.ok ? result.url : pageUrl(tenant, `/manage/${token}?pay=unavailable`));
 }
 
 // "Pay deposit": off to Stripe, or back to the page saying why not.

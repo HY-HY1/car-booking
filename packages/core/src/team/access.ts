@@ -50,6 +50,10 @@ export const PERMISSIONS = {
   "staff.edit": MANAGEMENT,
   // Income, the Payments pages, payment links and refunds.
   money: MANAGEMENT,
+  // Replying to Google reviews in public, as the business.
+  "reviews.reply": MANAGEMENT,
+  // Who changed what, across the whole business.
+  "activity.view": MANAGEMENT,
   setup: MANAGEMENT,
   billing: OWNER,
   "team.manage": OWNER,

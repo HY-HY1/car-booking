@@ -1,6 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { logActivity } from "@/lib/activity";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireTenant } from "@/lib/auth";
@@ -128,6 +129,7 @@ export async function saveService(slug: string, id: string | null, formData: For
     return failed("images", error);
   }
 
+  await logActivity(tenant.id, id ? "pricing.service_edited" : "pricing.service_added", `${id ? "Edited" : "Added"} the service ${parsed.data.name}`);
   refresh();
   if (!id) redirect(appUrl(`/${slug}/pricing/services/${serviceId}`));
   return { saved: true };
@@ -159,6 +161,7 @@ export async function deleteService(slug: string, id: string): Promise<SaveState
       .eq("tenant_id", tenant.id)
       .eq("id", a.id);
   }
+  await logActivity(tenant.id, "pricing.service_deleted", "Deleted a service");
   refresh();
   redirect(appUrl(`/${slug}/pricing`));
 }
@@ -174,6 +177,7 @@ export async function saveAddOn(slug: string, id: string | null, formData: FormD
     ? await supabase.from("add_ons").update(parsed.data).eq("tenant_id", tenant.id).eq("id", id)
     : await supabase.from("add_ons").insert({ ...parsed.data, sort_order: await nextOrder("add_ons", tenant.id), tenant_id: tenant.id });
   if (error) return failed("extra", error);
+  await logActivity(tenant.id, id ? "pricing.extra_edited" : "pricing.extra_added", `${id ? "Edited" : "Added"} the extra ${parsed.data.name}`);
   refresh();
   return { saved: true };
 }
@@ -184,6 +188,7 @@ export async function deleteAddOn(slug: string, id: string): Promise<SaveState> 
   const supabase = await createClient();
   const { error } = await supabase.from("add_ons").delete().eq("tenant_id", tenant.id).eq("id", id);
   if (error) return failed("extra", error);
+  await logActivity(tenant.id, "pricing.extra_deleted", "Deleted an extra");
   refresh();
   return { saved: true };
 }
@@ -197,6 +202,7 @@ export async function savePricingRules(slug: string, formData: FormData): Promis
   const supabase = await createClient();
   const { error } = await supabase.from("booking_settings").update(parsed.data).eq("tenant_id", tenant.id);
   if (error) return failed("pricing rules", error);
+  await logActivity(tenant.id, "pricing.rules", "Changed the pricing rules");
   refresh();
   return { saved: true };
 }

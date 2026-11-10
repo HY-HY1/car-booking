@@ -23,7 +23,8 @@ export default async function NewBookingPage({ params, searchParams }: PageProps
   const config = await getBookingConfig(tenant.id);
   const supabase = await createClient();
   const customerId = z.uuid().safeParse(param("customer")).success ? param("customer") : null;
-  const [payments, customer] = await Promise.all([
+  const leadId = z.uuid().safeParse(param("lead")).success ? param("lead") : "";
+  const [payments, customer, staff] = await Promise.all([
     supabase.from("tenants").select("stripe_ready").eq("id", tenant.id).single(),
     customerId
       ? supabase
@@ -33,7 +34,9 @@ export default async function NewBookingPage({ params, searchParams }: PageProps
           .eq("id", customerId)
           .maybeSingle()
       : null,
+    supabase.from("staff").select("id, name").eq("tenant_id", tenant.id).eq("active", true).order("sort_order"),
   ]);
+  if (staff.error) throw staff.error;
   if (payments.error) throw payments.error;
   if (customer?.error) throw customer.error;
 
@@ -85,6 +88,8 @@ export default async function NewBookingPage({ params, searchParams }: PageProps
         hasUnit={!!settings.unit_postcode}
         unitAddress={settings.unit_address}
         stripeReady={payments.data.stripe_ready}
+        staff={staff.data}
+        leadId={leadId}
         defaults={{
           date: isIsoDate(param("date")) ? param("date") : today,
           time,

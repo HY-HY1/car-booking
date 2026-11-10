@@ -115,6 +115,16 @@ export async function attachPhotos(
 
 // Deletes uploads that never became an enquiry. Runs on each upload for that
 // tenant, and for every tenant from the daily jobs route.
+// A photo the team took on the job, filed against the booking as before or after.
+export async function attachJobPhoto(tenantId: string, photoId: string, bookingId: string, customerId: string, stage: "before" | "after") {
+  const { error } = await createAdminClient()
+    .from("photos")
+    .update({ booking_id: bookingId, customer_id: customerId, stage })
+    .eq("tenant_id", tenantId)
+    .eq("id", photoId);
+  if (error) throw error;
+}
+
 export async function cleanupPendingPhotos(tenantId?: string, olderThanHours = PENDING_TTL_HOURS) {
   const db = createAdminClient();
   const cutoff = new Date(Date.now() - olderThanHours * 3_600_000).toISOString();

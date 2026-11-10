@@ -89,6 +89,7 @@ export default async function QuotePage({ searchParams }: PageProps<"/sites/[ten
             deposit: settings.deposit,
             min_price_pence: settings.min_price_pence,
             mobile_surcharge_pence: settings.mobile_surcharge_pence,
+            travel_fee: settings.travel_fee,
             condition_tiers: settings.condition_tiers,
           }}
           unitAddress={

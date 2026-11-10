@@ -1,5 +1,5 @@
 import "server-only";
-import { syncBookingEvent } from "../calendar/sync";
+import { bookingChanged } from "./changed";
 import {
   depositStatusAfterOffline,
   OFFLINE_METHODS,
@@ -52,7 +52,7 @@ async function settleDeposit(tenantId: string, booking: Booking) {
     if (update.error) throw update.error;
   }
   // The calendar event shows what's paid.
-  await syncBookingEvent(tenantId, booking.id);
+  await bookingChanged(tenantId, booking.id);
 }
 
 export async function recordOfflinePayment(

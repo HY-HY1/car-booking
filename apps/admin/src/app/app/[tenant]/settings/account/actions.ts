@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { profileFormSchema } from "@leadgen/core/settings/forms";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
-import { requireUser } from "@/lib/auth";
+import { cleanCode } from "@leadgen/core/account/rules";
+import { logActivity } from "@/lib/activity";
+import { requireTenant, requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { fieldErrors, plain } from "../shared";
 import { appUrl } from "@/lib/urls";
@@ -44,11 +46,13 @@ export async function changeEmailAction(slug: string, formData: FormData): Promi
     console.error("Email change failed", error);
     return { message: error.code === "email_exists" ? "Another account already uses that email." : "Couldn't change your email. Try again." };
   }
+  const { tenant } = await requireTenant(slug);
+  await logActivity(tenant.id, "account.email_change_requested", "Asked to change their email address");
   return { saved: true };
 }
 
-export async function changePasswordAction(formData: FormData): Promise<SaveState> {
-  await requireUser();
+export async function changePasswordAction(slug: string, formData: FormData): Promise<SaveState> {
+  const { tenant } = await requireTenant(slug);
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
   if (password.length < 10) return { errors: { password: "Use at least 10 characters." } };
@@ -63,7 +67,72 @@ export async function changePasswordAction(formData: FormData): Promise<SaveStat
       },
     };
   }
+  await logActivity(tenant.id, "account.password_changed", "Changed their password");
   return { saved: true };
+}
+
+// ------------------------------------------------------------- two-factor
+
+export type TwoFactorSetup = { factorId: string; qr: string; secret: string };
+export type TwoFactorResult = { error?: string };
+
+// Shows the code to scan. It isn't on until a code from the app proves the
+// scan worked, and anything left over from a setup not finished goes first.
+export async function startTwoFactorAction(): Promise<{ setup?: TwoFactorSetup; error?: string }> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+  if (listError) {
+    console.error("Listing two-factor methods failed", listError);
+    return { error: "Couldn't start that just now. Try again." };
+  }
+  for (const f of factors.all.filter((f) => f.status === "unverified")) {
+    await supabase.auth.mfa.unenroll({ factorId: f.id });
+  }
+
+  const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: "Authenticator app" });
+  if (error) {
+    console.error("Starting two-factor setup failed", error);
+    return { error: "Couldn't start that just now. Try again." };
+  }
+  return { setup: { factorId: data.id, qr: data.totp.qr_code, secret: data.totp.secret } };
+}
+
+const WRONG_CODE = "That code isn't right. Try the one showing now.";
+
+export async function confirmTwoFactorAction(slug: string, factorId: string, code: string): Promise<TwoFactorResult> {
+  const { tenant } = await requireTenant(slug);
+  const clean = cleanCode(code);
+  if (!clean) return { error: "Enter the 6-digit code from your app." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code: clean });
+  if (error) return { error: WRONG_CODE };
+  await logActivity(tenant.id, "account.two_factor_on", "Turned on two-factor login");
+  refresh();
+  return {};
+}
+
+export async function disableTwoFactorAction(slug: string, code: string): Promise<TwoFactorResult> {
+  const { tenant } = await requireTenant(slug);
+  const clean = cleanCode(code);
+  if (!clean) return { error: "Enter the 6-digit code from your app." };
+
+  const supabase = await createClient();
+  const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+  const factor = factors?.totp[0];
+  if (listError || !factor) return { error: "Couldn't turn it off just now. Try again." };
+
+  const check = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code: clean });
+  if (check.error) return { error: WRONG_CODE };
+  const { error } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+  if (error) {
+    console.error("Turning off two-factor failed", error);
+    return { error: "Couldn't turn it off just now. Try again." };
+  }
+  await logActivity(tenant.id, "account.two_factor_off", "Turned off two-factor login");
+  refresh();
+  return {};
 }
 
 // Signs this account out on every device, this one included.

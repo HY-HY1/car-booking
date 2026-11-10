@@ -1,11 +1,12 @@
 import "server-only";
 import { securedStatus } from "../booking/engine";
-import { syncBookingEvent } from "../calendar/sync";
+import { bookingChanged } from "../booking/changed";
 import { notifyBookingSecured } from "../email/notify";
 import { createAdminClient } from "../supabase/admin";
+import { getTenantPayments } from "./accounts";
 import { raiseAlert } from "./alerts";
 import { getStripe } from "./client";
-import { recordPaidSession } from "./ledger";
+import { recordPaidSession, recordRefund } from "./ledger";
 
 // What Stripe payment events do to bookings (info/stripe.md, sections 4 to 6).
 // Every function takes the connected account the event came from and resolves
@@ -87,7 +88,7 @@ export async function confirmPaidBooking(paid: PaidSession): Promise<"confirmed"
     const { error } = await db.from("bookings").update(paidFields).eq("tenant_id", tenantId).eq("id", booking.id);
     if (error) throw error;
     // The event shows the deposit as paid.
-    await syncBookingEvent(tenantId, booking.id);
+    await bookingChanged(tenantId, booking.id);
     return "already_confirmed";
   }
 
@@ -112,7 +113,7 @@ export async function confirmPaidBooking(paid: PaidSession): Promise<"confirmed"
       if (lead.error) throw lead.error;
     }
     await notifyBookingSecured(tenantId, booking.id);
-    await syncBookingEvent(tenantId, booking.id);
+    await bookingChanged(tenantId, booking.id);
     return "confirmed";
   }
 
@@ -207,6 +208,56 @@ export async function refundDeposit(tenantId: string, bookingId: string, amountP
     .eq("tenant_id", tenantId)
     .eq("id", booking.id);
   if (updated.error) throw updated.error;
+  return { ok: true as const };
+}
+
+// Refunds any card payment on a booking other than the deposit, in full or
+// part: a balance paid by link, say. The deposit has its own button, which
+// also keeps the booking's deposit status right. Cash and bank transfers are
+// handed back by hand and removed from the booking instead.
+export async function refundPayment(tenantId: string, bookingId: string, chargeId: string, amountPence: number) {
+  const db = createAdminClient();
+  const { data: payment, error } = await db
+    .from("booking_payments")
+    .select("kind, amount_pence, refunded_pence")
+    .eq("tenant_id", tenantId)
+    .eq("booking_id", bookingId)
+    .eq("stripe_charge_id", chargeId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!payment) return { ok: false as const, message: "That payment wasn't found on this booking." };
+  if (payment.kind === "deposit") return { ok: false as const, message: "Use the deposit refund for this one." };
+  if (payment.kind === "cash" || payment.kind === "bank_transfer") {
+    return { ok: false as const, message: "That wasn't a card payment. Give it back yourself, then remove it from the booking." };
+  }
+  const remaining = payment.amount_pence - payment.refunded_pence;
+  if (!Number.isInteger(amountPence) || amountPence <= 0 || amountPence > remaining) {
+    return { ok: false as const, message: "Refund between 1p and what's left of this payment." };
+  }
+
+  const { accountId } = await getTenantPayments(tenantId);
+  if (!accountId) return { ok: false as const, message: "Stripe isn't connected." };
+  const stripe = getStripe();
+  try {
+    const charge = await stripe.charges.retrieve(chargeId, {}, { stripeAccount: accountId });
+    await stripe.refunds.create(
+      {
+        charge: chargeId,
+        amount: amountPence,
+        // Otherwise the detailer would lose the platform's fee as well.
+        ...(charge.application_fee_amount ? { refund_application_fee: true } : {}),
+        metadata: { booking_id: bookingId, reason: "owner_payment_refund" },
+      },
+      // Includes what's already refunded, so a second refund of the same amount is a new one.
+      { stripeAccount: accountId, idempotencyKey: `payment-refund-${chargeId}-${payment.refunded_pence}-${amountPence}` },
+    );
+  } catch (err) {
+    console.error("Payment refund failed", err);
+    return { ok: false as const, message: "Stripe couldn't refund this payment. Check your Stripe dashboard." };
+  }
+
+  // The webhook does this too; done here so the page is right straight away.
+  await recordRefund(accountId, chargeId, payment.refunded_pence + amountPence);
   return { ok: true as const };
 }
 

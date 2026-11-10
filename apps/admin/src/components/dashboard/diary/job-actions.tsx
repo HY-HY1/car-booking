@@ -72,7 +72,7 @@ export function JobActions({
   status: string;
   depositPaid: boolean;
   customer: string;
-  action: (next: string, refundPence?: number) => Promise<{ error?: string; warning?: string }>;
+  action: (next: string, refundPence?: number, reason?: string) => Promise<{ error?: string; warning?: string }>;
   // Technicians can't cancel or put back jobs; the server checks again.
   canManage: boolean;
   // Set when this person can give the deposit back while cancelling.
@@ -87,16 +87,6 @@ export function JobActions({
   const confirmingHold = (next: keyof typeof ACTIONS) => next === "confirmed" && status === "held";
 
   async function goAhead(next: keyof typeof ACTIONS) {
-    if (next === "cancelled") {
-      const note = depositPaid ? " Their deposit stays paid until you refund it from the booking." : "";
-      return askToConfirm({
-        title: `Cancel ${customer}'s job?`,
-        description: `This frees the time for other customers, and we'll email them to say it's cancelled.${note}`,
-        confirmLabel: "Cancel job",
-        cancelLabel: "Keep job",
-        destructive: true,
-      });
-    }
     if (next === "no_show") {
       return askToConfirm({ title: `Mark ${customer} as a no-show?`, confirmLabel: "Mark as no-show" });
     }
@@ -112,23 +102,27 @@ export function JobActions({
 
   async function run(next: keyof typeof ACTIONS) {
     let refundPence = 0;
-    if (next === "cancelled" && refund) {
+    let reason = "";
+    if (next === "cancelled") {
+      const note = !refund && depositPaid ? " Their deposit stays paid until you refund it from the booking." : "";
       const answer = await askToConfirmWith(
         {
           title: `Cancel ${customer}'s job?`,
-          description: "This frees the time for other customers, and we'll email them to say it's cancelled.",
+          description: `This frees the time for other customers, and we'll email them to say it's cancelled.${note}`,
+          confirmLabel: refund ? undefined : "Cancel job",
           cancelLabel: "Keep job",
           destructive: true,
         },
-        { choices: refundChoices(refund) },
+        { ...(refund && { choices: refundChoices(refund) }), text: { label: "Reason (optional, just for your records)", maxLength: 500 } },
       );
       if (!answer) return;
-      refundPence = Number(answer.choice);
+      reason = answer.text;
+      if (refund) refundPence = Number(answer.choice);
     } else if (!(await goAhead(next))) {
       return;
     }
     startTransition(async () => {
-      const { error, warning } = await action(next, refundPence);
+      const { error, warning } = await action(next, refundPence, reason);
       if (error) toast.error(error);
       else if (warning) toast.error(warning);
       else if (refundPence) toast.success(`Job cancelled and ${formatPence(refundPence)} refunded`);

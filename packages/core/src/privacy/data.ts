@@ -1,5 +1,7 @@
 import "server-only";
+import { ACTIVITY_RETENTION_MONTHS } from "../activity/rules";
 import { syncCustomerEvents } from "../calendar/sync";
+import { forgetCustomerDeliveries } from "../webhooks/deliver";
 import { PHOTO_BUCKET } from "../photos";
 import { createAdminClient } from "../supabase/admin";
 import type { MarketingChannel, PublicRequest } from "./rules";
@@ -30,6 +32,8 @@ export async function eraseCustomer(tenantId: string, customerId: string): Promi
   if (error) throw error;
   // Their name, phone and address come out of the business's Google Calendar too.
   if (data === "anonymised") await syncCustomerEvents(tenantId, customerId);
+  // Copies of what webhooks sent about them (their own system keeps its own).
+  await forgetCustomerDeliveries(tenantId, customerId);
   return data as EraseResult;
 }
 
@@ -130,5 +134,15 @@ export async function runRetention(limit = 200) {
       console.error("Retention erase failed", row.customer_id, e);
     }
   }
+
+  // Staff email addresses in the activity log, and reset throttling that has
+  // long since expired, aren't kept for ever either.
+  const logCutoff = new Date();
+  logCutoff.setMonth(logCutoff.getMonth() - ACTIVITY_RETENTION_MONTHS);
+  const oldLog = await db.from("activity_log").delete().lt("created_at", logCutoff.toISOString());
+  if (oldLog.error) console.error("Retention: couldn't clear the activity log", oldLog.error);
+  const oldResets = await db.from("password_reset_requests").delete().lt("sent_at", new Date(Date.now() - 30 * 86_400_000).toISOString());
+  if (oldResets.error) console.error("Retention: couldn't clear password reset requests", oldResets.error);
+
   return { found: (data as unknown[]).length, erased };
 }

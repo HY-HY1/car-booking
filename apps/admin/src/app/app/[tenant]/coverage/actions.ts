@@ -1,6 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { logActivity } from "@/lib/activity";
 import { territoriesSchema } from "@leadgen/core/booking/config";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { requireTenant } from "@/lib/auth";
@@ -29,6 +30,7 @@ export async function saveCoverage(slug: string, input: unknown): Promise<SaveSt
     return { message: "Couldn't save the coverage area. Try again." };
   }
   if (!data?.length) return { message: "Booking isn't set up for this business yet." };
+  await logActivity(tenant.id, "settings.coverage", "Changed the coverage area");
   refresh();
   return { saved: true };
 }

@@ -87,6 +87,10 @@ export function OverviewSkeleton() {
   return (
     <Loading>
       <TitleSkeleton />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Skeleton className="h-56 rounded-xl" />
+        <Skeleton className="h-56 rounded-xl" />
+      </div>
       <Skeleton className="h-11 rounded-lg" />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (

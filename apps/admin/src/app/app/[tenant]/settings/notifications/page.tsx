@@ -15,9 +15,11 @@ export default async function NotificationsPage({ params }: PageProps<"/app/[ten
   const { tenant, can, user } = await requireAccess(slug, "settings.view");
   const readOnly = !can("settings.edit");
   const supabase = await createClient();
-  const [business, sender] = await Promise.all([
+  const [business, sender, google] = await Promise.all([
     supabase.from("tenants").select("name, notification_settings, contact_email, branding").eq("id", tenant.id).single(),
     supabase.from("email_senders").select("address, domain, status, check_error, records").eq("tenant_id", tenant.id).maybeSingle(),
+    // The review link from a connected Google Business Profile, to offer.
+    supabase.from("google_business_connections").select("review_url").eq("tenant_id", tenant.id).maybeSingle(),
   ]);
   if (business.error) throw business.error;
   if (sender.error) throw sender.error;
@@ -64,6 +66,7 @@ export default async function NotificationsPage({ params }: PageProps<"/app/[ten
           accentColor: (business.data.branding as { primary_color?: string } | null)?.primary_color,
         }}
         ownerEmail={user.email}
+        googleReviewUrl={google.data?.review_url ?? null}
         action={saveNotificationsAction.bind(null, slug)}
         readOnly={readOnly}
       />

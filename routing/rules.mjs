@@ -86,6 +86,7 @@ export function vercelConfig(env) {
       { path: "/api/jobs/retention", schedule: "0 4 * * 1" },
       { path: "/api/jobs/emails", schedule: "0 7 * * *" },
       { path: "/api/jobs/calendar", schedule: "30 5 * * *" },
+      { path: "/api/jobs/integrations", schedule: "0 6 * * *" },
     ],
   };
 }

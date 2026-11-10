@@ -1,9 +1,10 @@
 import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
+import { awaitingSecondFactor } from "@leadgen/core/account/rules";
 import { hasAccess } from "@leadgen/core/billing/rules";
 import { can, type Permission, type Role } from "@leadgen/core/team/access";
 import { createClient } from "@/lib/supabase/server";
-import { appUrl, loginUrl } from "@/lib/urls";
+import { appUrl, loginUrl, secondFactorUrl } from "@/lib/urls";
 
 // Data access layer for the owner dashboard. Every dashboard page goes
 // through these helpers; RLS enforces the same rules again in the database.
@@ -26,8 +27,28 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 export async function requireUser(next = appUrl()) {
   const user = await getCurrentUser();
   if (!user) redirect(loginUrl(next));
+  if (await needsSecondFactor()) redirect(secondFactorUrl(next));
   return user;
 }
+
+// Password entered, code not yet. Read from the session cookie, so it's quick
+// but only good for sending people to the right page: what actually stops them
+// is the database, which refuses their reads (20261110120000_account_security.sql).
+export const needsSecondFactor = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  return awaitingSecondFactor(data);
+});
+
+// The same question asked of Supabase itself, for the few places that go on to
+// use the secret key without the database checking anything first.
+export const secondFactorConfirmed = cache(async () => {
+  const supabase = await createClient();
+  const [{ data: claims }, { data: fresh }] = await Promise.all([supabase.auth.getClaims(), supabase.auth.getUser()]);
+  if (!claims?.claims || !fresh.user) return false;
+  const hasFactor = fresh.user.factors?.some((f) => f.status === "verified") ?? false;
+  return !hasFactor || claims.claims.aal === "aal2";
+});
 
 // The tenants the signed-in user belongs to, oldest membership first.
 export const getMemberships = cache(async (): Promise<Membership[]> => {

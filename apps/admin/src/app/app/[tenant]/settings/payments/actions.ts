@@ -1,6 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { logActivity } from "@/lib/activity";
 import { depositFormSchema, parseRefundForm } from "@leadgen/core/settings/forms";
 import { policyOf } from "@leadgen/core/settings/policy";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
@@ -23,6 +24,7 @@ export async function saveDepositAction(slug: string, formData: FormData): Promi
     .select("tenant_id");
   if (error) return failed("the deposit", error);
   if (!data?.length) return { message: "Booking isn't set up for this business yet." };
+  await logActivity(tenant.id, "settings.deposit", "Changed the deposit settings");
   refresh();
   return { saved: true };
 }
@@ -49,6 +51,7 @@ export async function saveRefundRulesAction(slug: string, formData: FormData): P
     .update({ cancellation_policy: parsed.data })
     .eq("tenant_id", tenant.id);
   if (error) return failed("the refund rules", error);
+  await logActivity(tenant.id, "settings.refund_rules", "Changed the refund rules");
   refresh();
   return { saved: true };
 }

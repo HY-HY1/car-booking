@@ -27,6 +27,11 @@ export default function LoginPage() {
           <Suspense fallback={<div className="h-52" />}>
             <LoginForm />
           </Suspense>
+          <p className="text-center text-sm">
+            <Link href={appUrl("/forgot-password")} className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+              Forgotten your password?
+            </Link>
+          </p>
           <p className="text-center text-sm text-muted-foreground">
             New here?{" "}
             <Link href={appUrl("/signup")} className="underline underline-offset-4">

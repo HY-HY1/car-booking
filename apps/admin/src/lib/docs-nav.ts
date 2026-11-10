@@ -31,6 +31,7 @@ export const DOCS_NAV: DocsSection[] = [
       { href: "/api", title: "Overview" },
       { href: "/api/keys", title: "API keys" },
       { href: "/api/catalog", title: "Get the catalogue" },
+      { href: "/api/webhooks", title: "Webhooks" },
       { href: "/api/examples", title: "Examples" },
     ],
   },

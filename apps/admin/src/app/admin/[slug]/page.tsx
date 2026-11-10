@@ -12,7 +12,8 @@ import { MemberForm } from "@/components/platform/member-form";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePlatformAdmin } from "@/lib/platform";
-import { makePrimaryAction, setVerifiedAction } from "./actions";
+import { ResetTwoFactor } from "@/components/platform/reset-two-factor";
+import { makePrimaryAction, resetTwoFactorAction, setVerifiedAction } from "./actions";
 import { adminUrl, appUrl, tenantUrl } from "@/lib/urls";
 
 export const metadata: Metadata = { title: "Business" };
@@ -132,7 +133,10 @@ async function Business({ params }: { params: Promise<{ slug: string }> }) {
               {b.members.map((m) => (
                 <li key={m.userId} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                   <span className="truncate">{m.email}</span>
-                  <span className="shrink-0 text-xs capitalize text-muted-foreground">{m.role}</span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <ResetTwoFactor action={resetTwoFactorAction.bind(null, b.slug, m.userId)} email={m.email} />
+                    <span className="text-xs capitalize text-muted-foreground">{m.role}</span>
+                  </span>
                 </li>
               ))}
               {b.members.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">Nobody yet.</li>}

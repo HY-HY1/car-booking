@@ -14,6 +14,7 @@ export default async function PaymentsLayout({
         tabs={[
           { path: "", label: "Payments" },
           { path: "/links", label: "Payment links" },
+          { path: "/export", label: "Export" },
         ]}
       />
       {children}

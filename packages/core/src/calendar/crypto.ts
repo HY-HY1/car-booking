@@ -1,7 +1,8 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
-// Google tokens are stored sealed (AES-256-GCM), so a copy of the database
-// alone doesn't give anyone access to a business's calendar. The key comes
+// Google and Facebook tokens and webhook signing secrets are stored sealed
+// (AES-256-GCM), so a copy of the database alone doesn't give anyone access
+// to a business's calendar, reviews, leads or webhooks. The key comes
 // from CALENDAR_TOKEN_SECRET (any long random string); changing it means
 // every business has to connect Google again.
 
@@ -13,7 +14,7 @@ function keyOf(secret: string) {
 
 export function tokenSecret() {
   const secret = process.env.CALENDAR_TOKEN_SECRET;
-  if (!secret) throw new Error("CALENDAR_TOKEN_SECRET must be set to connect Google Calendar.");
+  if (!secret) throw new Error("CALENDAR_TOKEN_SECRET must be set to connect Google or Facebook, or to add webhooks.");
   return secret;
 }
 

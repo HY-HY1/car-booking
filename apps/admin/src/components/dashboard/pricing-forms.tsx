@@ -173,6 +173,21 @@ export function RulesForm({ rules, action, readOnly }: { rules: PricingRules; ac
                 />
               </Field>
             )}
+            {rules.offers_mobile && (
+              <Field label="Travel fee per mile" name="travel_per_mile" error={errors.travel_per_mile}>
+                <MoneyInput
+                  name="travel_per_mile"
+                  inputMode="decimal"
+                  placeholder="0"
+                  defaultValue={rules.travel_fee?.pence_per_mile ? poundsInput(rules.travel_fee.pence_per_mile) : ""}
+                />
+              </Field>
+            )}
+            {rules.offers_mobile && (
+              <Field label="Miles before it applies" name="travel_free_miles" error={errors.travel_free_miles}>
+                <Input name="travel_free_miles" inputMode="numeric" placeholder="0" defaultValue={rules.travel_fee?.free_miles || ""} />
+              </Field>
+            )}
           </div>
 
           <fieldset className="grid gap-2">

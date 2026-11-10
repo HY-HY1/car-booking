@@ -6,7 +6,9 @@ import { z } from "zod";
 import { answersOf } from "@leadgen/core/booking/answers";
 import { formatDuration, formatPence } from "@leadgen/core/booking/config";
 import { bookingReference } from "@leadgen/core/booking/confirmation";
+import { canEditBooking } from "@leadgen/core/booking/edit-rules";
 import { depositOwed } from "@leadgen/core/booking/manage-rules";
+import { flexibleJobs } from "@leadgen/core/booking/waitlist";
 import { loadBookingPayments } from "@leadgen/core/stripe/ledger";
 import { policyOf, refundAdvice } from "@leadgen/core/settings/policy";
 import { isOffline, PAYABLE_BOOKING_STATUSES, paymentSummary, takesOfflinePayment } from "@leadgen/core/stripe/payment-rules";
@@ -14,6 +16,8 @@ import { ApprovalActions } from "@/components/dashboard/approval-actions";
 import { BookingPaymentActions } from "@/components/dashboard/booking-payment-actions";
 import { RecordPayment, RemovePayment } from "@/components/dashboard/offline-payment";
 import { DepositRequestButton } from "@/components/dashboard/deposit-request-button";
+import { CancelRepeats, InternalNotes, RefundPayment } from "@/components/dashboard/booking-extras";
+import { JobPhotos } from "@/components/dashboard/job-photos";
 import { PhotoThumbs } from "@/components/dashboard/photo-thumbs";
 import { JobActions } from "@/components/dashboard/diary/job-actions";
 import { BackLink } from "@/components/dashboard/page-header";
@@ -39,6 +43,7 @@ import { PAYMENT_SOURCE, PAYMENT_STATUS } from "@/lib/payment-labels";
 import { createClient } from "@/lib/supabase/server";
 import { appUrl } from "@/lib/urls";
 import { setBookingStatusAction } from "../../diary/actions";
+import { cancelRepeatsAction, refundPaymentAction, saveInternalNotesAction, uploadJobPhotosAction } from "./actions";
 import { formatDateTime, formatFullDate, formatTime } from "@leadgen/core/dates";
 import { Badge } from "@/components/ui/badge";
 
@@ -63,6 +68,10 @@ type BookingRow = {
   postcode: string;
   access_notes: Record<string, unknown> | null;
   customer_notes: string | null;
+  internal_notes: string | null;
+  cancel_reason: string | null;
+  series_id: string | null;
+  staff: { name: string } | null;
   quote_snapshot: unknown;
   source: string;
   price_pence: number;
@@ -88,7 +97,7 @@ export default async function BookingPage({ params }: PageProps<"/app/[tenant]/b
     supabase
       .from("bookings")
       .select(
-        "id, starts_at, ends_at, created_at, updated_at, status, decline_reason, cancelled_at, cancelled_by, rescheduled_at, rescheduled_from, reschedule_count, resource_id, location_type, address_line, postcode, access_notes, customer_notes, quote_snapshot, source, price_pence, deposit_pence, deposit_status, stripe_payment_intent_id, customer:customers(id, name, email, phone, email_marketing), service:services(name, description), vehicle:vehicles(make, model, registration, size_class), lead:leads(status)",
+        "id, starts_at, ends_at, created_at, updated_at, status, decline_reason, cancelled_at, cancelled_by, rescheduled_at, rescheduled_from, reschedule_count, resource_id, location_type, address_line, postcode, access_notes, customer_notes, internal_notes, cancel_reason, series_id, staff:staff(name), quote_snapshot, source, price_pence, deposit_pence, deposit_status, stripe_payment_intent_id, customer:customers(id, name, email, phone, email_marketing), service:services(name, description), vehicle:vehicles(make, model, registration, size_class), lead:leads(status)",
       )
       .eq("tenant_id", tenant.id)
       .eq("id", id)
@@ -110,6 +119,24 @@ export default async function BookingPage({ params }: PageProps<"/app/[tenant]/b
   if (vans.error) throw vans.error;
   if (!booking.data) notFound();
   const b = booking.data as unknown as BookingRow;
+
+  const canManage = can("bookings.manage");
+  const now = new Date();
+  const startsAhead = new Date(b.starts_at) > now;
+  const editable = canManage && canEditBooking(b.status);
+  const [extraCars, repeats, flexible] = await Promise.all([
+    supabase.from("booking_vehicles").select("id, make, model, registration, price_pence").eq("tenant_id", tenant.id).eq("booking_id", b.id).order("created_at"),
+    b.series_id
+      ? supabase.from("bookings").select("id, starts_at, status").eq("tenant_id", tenant.id).eq("series_id", b.series_id).order("starts_at")
+      : null,
+    // Freed up and still ahead: who might like this time instead.
+    b.status === "cancelled" && startsAhead && canManage
+      ? flexibleJobs(tenant.id, { startsAt: b.starts_at, endsAt: b.ends_at, locationType: b.location_type })
+      : [],
+  ]);
+  if (extraCars.error) throw extraCars.error;
+  if (repeats?.error) throw repeats.error;
+  const repeatsAhead = (repeats?.data ?? []).filter((r) => r.status === "confirmed" && new Date(r.starts_at) > now);
   // Which van or bay has it, worth saying only when there's a choice.
   const van = vans.data.length > 1 ? vans.data.find((v) => v.id === b.resource_id)?.name : undefined;
 
@@ -136,12 +163,15 @@ export default async function BookingPage({ params }: PageProps<"/app/[tenant]/b
     .filter((g) => g.rows.length > 0);
   const car = [b.vehicle?.make, b.vehicle?.model].filter(Boolean).join(" ");
   // Extra: the page still opens if the photos can't be read.
-  const photos = b.customer
+  const allPhotos = b.customer
     ? await listJobPhotos(tenant.id, b.id, b.customer.id).catch((err) => {
         console.error("Booking photos read failed", err);
         return [];
       })
     : [];
+  const photos = allPhotos.filter((p) => p.stage === "customer");
+  const beforePhotos = allPhotos.filter((p) => p.stage === "before");
+  const afterPhotos = allPhotos.filter((p) => p.stage === "after");
   const minutes = Math.round((new Date(b.ends_at).getTime() - new Date(b.starts_at).getTime()) / 60_000);
 
   const payable = (PAYABLE_BOOKING_STATUSES as readonly string[]).includes(b.status);
@@ -173,7 +203,25 @@ export default async function BookingPage({ params }: PageProps<"/app/[tenant]/b
           <p className="mt-1 text-sm text-muted-foreground">
             {formatFullDate(b.starts_at)}, {formatTime(b.starts_at)} to {formatTime(b.ends_at)} · {formatDuration(minutes)}
             {van && <> · {van}</>}
+            {b.staff && <> · {b.staff.name}</>}
           </p>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {editable && (
+              <Link href={appUrl(`/${slug}/bookings/${b.id}/edit`)} className="underline underline-offset-4">
+                Change booking
+              </Link>
+            )}
+            {editable && (
+              <Link href={appUrl(`/${slug}/diary?view=day&date=${b.starts_at.slice(0, 10)}&job=${b.id}`)} className="underline underline-offset-4">
+                Change the time
+              </Link>
+            )}
+            {isOwner && payable && (
+              <a href={appUrl(`/${slug}/bookings/${b.id}/invoice`)} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">
+                Invoice
+              </a>
+            )}
+          </div>
           {b.service?.description && <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{b.service.description}</p>}
         </div>
         <Badge tone={BOOKING_STATUS_TONE[b.status]}>{BOOKING_STATUS[b.status] ?? b.status}</Badge>
@@ -272,9 +320,89 @@ export default async function BookingPage({ params }: PageProps<"/app/[tenant]/b
                 <p className="text-muted-foreground">Not recorded.</p>
               )}
               {quote && <ConditionNote condition={quote.condition} needsInspection={quote.needsInspection} />}
+              {extraCars.data.length > 0 && (
+                <div className="grid gap-1 border-t pt-3">
+                  <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Also on this booking</p>
+                  {extraCars.data.map((c) => (
+                    <p key={c.id}>
+                      {[c.make, c.model].filter(Boolean).join(" ") || "Car"}
+                      {c.registration && <span className="ml-2 font-mono">{c.registration}</span>}
+                    </p>
+                  ))}
+                </div>
+              )}
               {photos.length > 0 && <PhotoThumbs photos={photos} className="sm:grid-cols-4" />}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Team notes</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-2">
+              <p className="text-xs text-muted-foreground">Only your team sees these. They&apos;re never sent to the customer.</p>
+              <InternalNotes initial={b.internal_notes ?? ""} save={saveInternalNotesAction.bind(null, slug, b.id)} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Job photos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <JobPhotos before={beforePhotos} after={afterPhotos} upload={uploadJobPhotosAction.bind(null, slug, b.id)} canAdd={!!b.customer} />
+            </CardContent>
+          </Card>
+
+          {repeats && repeats.data.length > 1 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Repeat booking</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3">
+                <ul className="grid gap-1">
+                  {repeats.data.map((r) => (
+                    <li key={r.id} className="flex justify-between gap-3">
+                      {r.id === b.id ? (
+                        <span className="font-medium">{formatFullDate(r.starts_at)}</span>
+                      ) : (
+                        <Link href={appUrl(`/${slug}/bookings/${r.id}`)} className="underline-offset-4 hover:underline">
+                          {formatFullDate(r.starts_at)}
+                        </Link>
+                      )}
+                      <span className="text-muted-foreground">{BOOKING_STATUS[r.status] ?? r.status}</span>
+                    </li>
+                  ))}
+                </ul>
+                {canManage && repeatsAhead.length > 0 && b.series_id && (
+                  <div>
+                    <CancelRepeats count={repeatsAhead.length} action={cancelRepeatsAction.bind(null, slug, b.id, b.series_id)} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {flexible.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Who might take this time</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                <p className="text-xs text-muted-foreground">Later bookings where the customer said they&apos;d like an earlier time, and the job would fit.</p>
+                <ul className="grid gap-1">
+                  {flexible.map((j) => (
+                    <li key={j.id}>
+                      <Link href={appUrl(`/${slug}/bookings/${j.id}`)} className="underline-offset-4 hover:underline">
+                        {j.customerName ?? "Customer"}
+                      </Link>
+                      <span className="text-muted-foreground"> · {formatDateTime(j.startsAt)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
 
           {submitted.length > 0 && (
             <Card>
@@ -333,6 +461,9 @@ export default async function BookingPage({ params }: PageProps<"/app/[tenant]/b
                       </span>
                       <span className="flex items-center gap-2">
                         {isOffline(p.source) && isOwner && <RemovePayment slug={slug} bookingId={b.id} paymentId={p.id} />}
+                        {isOwner && !isOffline(p.source) && p.source !== "deposit" && p.status !== "failed" && p.amountPence > p.refundedPence && (
+                          <RefundPayment remainingPence={p.amountPence - p.refundedPence} action={refundPaymentAction.bind(null, slug, b.id, p.id)} />
+                        )}
                         <Badge tone={PAYMENT_STATUS[p.status].tone}>{PAYMENT_STATUS[p.status].label}</Badge>
                         {p.receiptUrl && (
                           <a
@@ -437,6 +568,7 @@ export default async function BookingPage({ params }: PageProps<"/app/[tenant]/b
                   </Row>
                 )}
                 {b.decline_reason && <Row label="Declined because">{b.decline_reason}</Row>}
+                {b.cancel_reason && <Row label="Cancelled because">{b.cancel_reason}</Row>}
                 {b.rescheduled_at && b.rescheduled_from && (
                   <Row label="Moved">
                     {formatDateTime(b.rescheduled_at)}

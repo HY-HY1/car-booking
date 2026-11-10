@@ -52,6 +52,11 @@ export default async function PricingPage({ params }: PageProps<"/app/[tenant]/p
 
       <div className="grid max-w-5xl gap-10">
         <Tiles services={services} addOns={addOns} rules={rules} />
+        <p className="-mt-6 text-sm">
+          <Link href={`${base}/promos`} className="underline underline-offset-4">
+            Discount codes and vouchers
+          </Link>
+        </p>
 
         <section aria-labelledby="services-heading" className="grid gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">

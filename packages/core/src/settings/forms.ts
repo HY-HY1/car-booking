@@ -266,6 +266,7 @@ const notificationFieldsSchema = z.object({
   follow_up_days_after: whole("The follow-up delay", 1, 60),
   review_request_days_after: whole("The review request delay", 0, 30),
   review_url: optionalUrl,
+  quote_follow_up_days_after: whole("The quote follow-up delay", 1, 30),
   alerts_new_lead: checkbox,
   alerts_new_booking: checkbox,
   alerts_cancellation: checkbox,
@@ -321,6 +322,9 @@ export function parseNotificationsForm(input: Record<string, string>):
         reminder: { ...messages.reminder, hours_before: v.reminder_hours_before },
         follow_up: { ...messages.follow_up, days_after: v.follow_up_days_after },
         review_request: { ...messages.review_request, days_after: v.review_request_days_after, review_url: v.review_url ?? undefined },
+        quote_follow_up: { ...messages.quote_follow_up, days_after: v.quote_follow_up_days_after },
+        rebook_reminder: messages.rebook_reminder,
+        slot_opened: messages.slot_opened,
       },
       alerts: {
         new_lead: v.alerts_new_lead,

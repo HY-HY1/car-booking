@@ -1,6 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { logActivity } from "@/lib/activity";
 import { z } from "zod";
 import {
   bookingRulesFormSchema,
@@ -62,6 +63,7 @@ async function updateSettings(slug: string, schema: z.ZodType<Record<string, unk
     return failed(what, error);
   }
   if (!data?.length) return { message: "Booking isn't set up for this business yet." };
+  await logActivity(tenant.id, "settings.booking_rules", `Changed ${what.replace(/^your /, "the ")}`);
   refresh();
   return { saved: true };
 }
@@ -104,6 +106,7 @@ export async function savePolicy(slug: string, formData: FormData): Promise<Save
     .update({ cancellation_policy: parsed.data })
     .eq("tenant_id", tenant.id);
   if (error) return failed("the cancellation policy", error);
+  await logActivity(tenant.id, "settings.cancellation", "Changed the cancellation policy");
   refresh();
   return { saved: true };
 }
@@ -132,6 +135,7 @@ export async function saveResource(slug: string, id: string | null, formData: Fo
       .insert({ ...fields, sort_order: await nextOrder("resources", tenant.id), tenant_id: tenant.id });
     if (error) return failed("that", error);
   }
+  await logActivity(tenant.id, "settings.resource_saved", `${id ? "Edited" : "Added"} ${fields.name}`);
   refresh();
   return { saved: true };
 }
@@ -168,6 +172,7 @@ export async function deleteResource(slug: string, id: string): Promise<SaveStat
     if (error.code === "23503") return { message: "It has bookings on record, so it can't be deleted. Switch it off instead." };
     return failed("that", error);
   }
+  await logActivity(tenant.id, "settings.resource_deleted", "Deleted a van or bay");
   refresh();
   return { saved: true };
 }

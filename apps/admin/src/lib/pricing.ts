@@ -19,12 +19,12 @@ export async function loadPricing(tenantId: string) {
   const [settings, services, addOns] = await Promise.all([
     supabase
       .from("booking_settings")
-      .select("deposit, min_price_pence, mobile_surcharge_pence, condition_tiers, offers_mobile, offers_unit")
+      .select("deposit, min_price_pence, mobile_surcharge_pence, travel_fee, condition_tiers, offers_mobile, offers_unit")
       .eq("tenant_id", tenantId)
       .maybeSingle(),
     supabase
       .from("services")
-      .select("id, name, description, tagline, includes, image_path, slug, badge, body, not_included, gallery, steps, faqs, seo_title, seo_description, duration_mins, base_price_pence, size_adjustments, location_types, active, sort_order")
+      .select("id, name, description, tagline, includes, image_path, slug, badge, body, not_included, gallery, steps, faqs, seo_title, seo_description, duration_mins, base_price_pence, size_adjustments, location_types, rebook_weeks, active, sort_order")
       .eq("tenant_id", tenantId)
       .order("sort_order")
       .order("name"),
@@ -127,6 +127,7 @@ export const serviceFormSchema = z
     seo_description: optionalText.pipe(z.string().max(160, "Keep the page summary under 160 characters.").nullable()),
     base_price: pounds("a price"),
     duration_mins: wholeNumber("Duration", { min: 15, max: 1440 }),
+    rebook_weeks: wholeNumber("Weeks until it's due again", { max: 104, optional: true }),
     location_mobile: checkbox,
     location_unit: checkbox,
     active: checkbox,
@@ -155,6 +156,7 @@ export const serviceFormSchema = z
     seo_description: s.seo_description,
     base_price_pence: s.base_price,
     duration_mins: s.duration_mins,
+    rebook_weeks: s.rebook_weeks || null,
     location_types: [s.location_mobile && "mobile", s.location_unit && "unit"].filter(Boolean) as string[],
     active: s.active,
     // Only sizes that change something are stored.
@@ -196,6 +198,8 @@ export const rulesFormSchema = z
   .object({
     min_price: pounds("a minimum", { optional: true }),
     mobile_surcharge: pounds("a call-out fee", { optional: true }),
+    travel_free_miles: wholeNumber("Free miles", { max: 500, optional: true }),
+    travel_per_mile: pounds("a fee per mile", { optional: true }),
     condition_tiers: z.string().transform((v, ctx) => {
       try {
         return JSON.parse(v) as unknown;
@@ -212,6 +216,7 @@ export const rulesFormSchema = z
   .transform((r) => ({
     min_price_pence: r.min_price,
     mobile_surcharge_pence: r.mobile_surcharge,
+    travel_fee: r.travel_per_mile ? { free_miles: r.travel_free_miles ?? 0, pence_per_mile: r.travel_per_mile } : null,
     condition_tiers: r.condition_tiers,
   }));
 

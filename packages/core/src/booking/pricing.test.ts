@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AddOn, Service } from "./config";
-import { depositFor, getQuote, QuoteError, type PricingSettings } from "./pricing";
+import { depositFor, getQuote, QuoteError, travelFeeFor, type PricingSettings } from "./pricing";
 
 const valet: Service = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -168,5 +168,23 @@ describe("depositFor", () => {
     expect(depositFor(14550, { type: "percent", value: 25 })).toBe(3638);
     expect(depositFor(14000, { type: "fixed", value_pence: 2000 })).toBe(2000);
     expect(depositFor(1500, { type: "fixed", value_pence: 2000 })).toBe(1500);
+  });
+});
+
+describe("travelFeeFor", () => {
+  const fee = { free_miles: 5, pence_per_mile: 100 };
+
+  it("charges whole miles past the free distance, rounded up", () => {
+    expect(travelFeeFor(fee, 7.2)).toEqual({ miles: 3, pence: 300 });
+  });
+
+  it("charges nothing inside the free distance", () => {
+    expect(travelFeeFor(fee, 5)).toBeNull();
+  });
+
+  it("charges nothing when there's no fee or the distance is unknown", () => {
+    expect(travelFeeFor(null, 20)).toBeNull();
+    expect(travelFeeFor(fee, null)).toBeNull();
+    expect(travelFeeFor({ free_miles: 0, pence_per_mile: 0 }, 20)).toBeNull();
   });
 });

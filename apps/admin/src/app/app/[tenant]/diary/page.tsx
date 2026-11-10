@@ -101,7 +101,7 @@ export default async function DiaryPage({
     supabase
       .from("bookings")
       .select(
-        "id, status, starts_at, ends_at, hold_expires_at, resource_id, location_type, address_line, postcode, access_notes, customer_notes, quote_snapshot, price_pence, deposit_pence, deposit_status, stripe_payment_intent_id, customer:customers(id, name, email, phone), service:services(name), vehicle:vehicles(make, model, registration, size_class)",
+        "id, status, starts_at, ends_at, hold_expires_at, resource_id, location_type, address_line, postcode, access_notes, customer_notes, internal_notes, staff:staff(name), quote_snapshot, price_pence, deposit_pence, deposit_status, stripe_payment_intent_id, customer:customers(id, name, email, phone), service:services(name), vehicle:vehicles(make, model, registration, size_class)",
       )
       .eq("tenant_id", tenant.id)
       .in("status", [...DIARY_STATUSES])
@@ -269,6 +269,13 @@ export default async function DiaryPage({
           </Link>
         )}
       </div>
+
+      {typeof sp.repeats === "string" && (
+        <p className="mb-4 rounded-lg bg-muted px-3 py-2 text-sm">
+          Repeats booked: {sp.repeats}.
+          {typeof sp.skipped === "string" && ` ${sp.skipped.split(",").length} couldn't be booked because something's already there: ${sp.skipped.split(",").join(", ")}.`}
+        </p>
+      )}
 
       {sp.deposit === "failed" && (
         <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:bg-amber-950/60 dark:text-amber-100">

@@ -1,6 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { logActivity } from "@/lib/activity";
 import { z } from "zod";
 import { createApiKey, revokeApiKey } from "@leadgen/core/api/keys";
 import { requireTenant } from "@/lib/auth";
@@ -19,6 +20,7 @@ export async function createKeyAction(slug: string, formData: FormData): Promise
 
   try {
     const key = await createApiKey(tenant.id, name.data, user.id);
+    await logActivity(tenant.id, "settings.api_key_created", `Created the API key ${name.data}`);
     refresh();
     return { key };
   } catch (error) {
@@ -34,6 +36,7 @@ export async function revokeKeyAction(slug: string, id: string): Promise<{ error
 
   try {
     await revokeApiKey(tenant.id, id);
+    await logActivity(tenant.id, "settings.api_key_revoked", "Revoked an API key");
     refresh();
     return {};
   } catch (error) {

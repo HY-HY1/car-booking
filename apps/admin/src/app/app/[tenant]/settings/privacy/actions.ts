@@ -1,6 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { logActivity } from "@/lib/activity";
 import { z } from "zod";
 import { privacySettingsSchema, REQUEST_KINDS, REQUEST_STATUSES } from "@leadgen/core/privacy/rules";
 import { cancelClosure, requestClosure } from "@leadgen/core/settings/account";
@@ -45,6 +46,7 @@ export async function savePrivacySettings(slug: string, formData: FormData): Pro
     console.error("Privacy settings save failed", error);
     return { message: "Couldn't save. Try again." };
   }
+  await logActivity(tenant.id, "settings.privacy", "Changed the privacy settings");
   refresh();
   return { saved: true };
 }
@@ -67,6 +69,7 @@ export async function savePrivacyExtras(slug: string, formData: FormData): Promi
     console.error("Privacy extras save failed", error);
     return { message: "Couldn't save. Try again." };
   }
+  await logActivity(tenant.id, "settings.privacy", "Changed the privacy settings");
   refresh();
   return { saved: true };
 }
@@ -86,6 +89,7 @@ export async function requestClosureAction(slug: string, formData: FormData): Pr
     console.error("Account closure request failed", error);
     return { message: "Couldn't do that just now. Try again, or contact us." };
   }
+  await logActivity(tenant.id, "settings.closure_requested", "Asked to close the account");
   refresh();
   return { saved: true };
 }
@@ -99,6 +103,7 @@ export async function cancelClosureAction(slug: string): Promise<SaveState> {
     console.error("Cancelling account closure failed", error);
     return { message: "Couldn't do that just now. Try again, or contact us." };
   }
+  await logActivity(tenant.id, "settings.closure_cancelled", "Cancelled closing the account");
   refresh();
   return { saved: true };
 }
@@ -146,6 +151,7 @@ export async function logRequest(slug: string, formData: FormData): Promise<Save
     console.error("Log request failed", error);
     return { message: "Couldn't log the request. Try again." };
   }
+  await logActivity(tenant.id, "customer.data_request_logged", "Logged a data request");
   refresh();
   return { saved: true };
 }
@@ -173,6 +179,7 @@ export async function updateRequest(slug: string, id: string, formData: FormData
     console.error("Update request failed", error);
     return { message: "Couldn't save. Try again." };
   }
+  await logActivity(tenant.id, "customer.data_request_updated", "Updated a data request");
   refresh();
   return { saved: true };
 }

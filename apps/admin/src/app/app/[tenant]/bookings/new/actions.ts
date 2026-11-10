@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { logActivity } from "@/lib/activity";
 import { z } from "zod";
 import { createManualBooking } from "@leadgen/core/booking/manual";
 import { manualBookingFormSchema } from "@leadgen/core/booking/manual-rules";
@@ -41,7 +42,12 @@ export async function createBookingAction(slug: string, _prev: NewBookingState, 
     return field ? { errors: { [field]: result.message }, message: result.message } : { message: result.message };
   }
 
+  await logActivity(tenant.id, "booking.added", "Added a booking by hand", { type: "booking", id: result.bookingId });
+
   // Back to the diary on that day, with the new job open.
   const deposit = result.depositEmailed === false ? "&deposit=failed" : "";
-  redirect(appUrl(`/${slug}/diary?view=day&date=${parsed.data.date}&job=${result.bookingId}${deposit}`));
+  const repeats = parsed.data.repeat
+    ? `&repeats=${result.repeatsMade}${result.repeatsSkipped.length ? `&skipped=${result.repeatsSkipped.join(",")}` : ""}`
+    : "";
+  redirect(appUrl(`/${slug}/diary?view=day&date=${parsed.data.date}&job=${result.bookingId}${deposit}${repeats}`));
 }

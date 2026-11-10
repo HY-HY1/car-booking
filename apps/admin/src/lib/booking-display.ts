@@ -36,7 +36,12 @@ export const DEPOSIT_STATUS: Record<string, string> = {
   waived: "Waived",
 };
 
-export const BOOKING_SOURCE: Record<string, string> = { booking_page: "Booking page", manual: "Added by you" };
+export const BOOKING_SOURCE: Record<string, string> = {
+  booking_page: "Booking page",
+  manual: "Added by you",
+  facebook_lead_form: "Facebook lead form",
+  instagram_lead_form: "Instagram lead form",
+};
 
 const YES_NO: Record<string, string> = { yes: "Yes", no: "No", unsure: "Not sure" };
 const PARKING: Record<string, string> = {

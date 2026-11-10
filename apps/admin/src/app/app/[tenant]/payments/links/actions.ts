@@ -1,6 +1,8 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { formatPence } from "@leadgen/core/booking/config";
+import { logActivity } from "@/lib/activity";
 import { z } from "zod";
 import { createPaymentLink, deactivatePaymentLink, paymentLinkSchema, type CreatedPaymentLink } from "@leadgen/core/stripe/payment-links";
 import { emailPaymentLink } from "@leadgen/core/email/notify";
@@ -42,6 +44,7 @@ export async function createLinkAction(slug: string, _prev: CreateLinkState, for
   try {
     const result = await createPaymentLink(tenant.id, user.id, parsed.data);
     if (!result.ok) return { message: result.message, values };
+    await logActivity(tenant.id, "payment.link_created", `Created a payment link for ${formatPence(result.link.amountPence)}`);
     refresh();
     return { created: result.link };
   } catch (error) {
@@ -57,6 +60,7 @@ export async function deactivateLinkAction(slug: string, id: string): Promise<{ 
 
   const result = await deactivatePaymentLink(tenant.id, id);
   if (!result.ok) return { message: result.message };
+  await logActivity(tenant.id, "payment.link_switched_off", "Switched off a payment link");
   refresh();
   return {};
 }
@@ -73,6 +77,7 @@ export async function emailLinkAction(slug: string, id: string, _prev: EmailLink
 
   const result = await emailPaymentLink(tenant.id, id, to.data);
   if (!result.ok) return { error: result.message };
+  await logActivity(tenant.id, "payment.link_emailed", "Emailed a payment link");
   refresh();
   return { sentTo: to.data };
 }

@@ -38,12 +38,13 @@ function credentials() {
 // Google's consent screen. Offline access with a fresh consent every time,
 // so Google always hands back a refresh token, even to an account that
 // connected before.
-export function consentUrl(opts: { redirectUri: string; state: string; loginHint?: string | null }) {
+// `scopes`: Calendar's, unless another connection (Business Profile) asks for its own.
+export function consentUrl(opts: { redirectUri: string; state: string; loginHint?: string | null; scopes?: readonly string[] }) {
   const params = new URLSearchParams({
     client_id: credentials().id,
     redirect_uri: opts.redirectUri,
     response_type: "code",
-    scope: GOOGLE_SCOPES.join(" "),
+    scope: (opts.scopes ?? GOOGLE_SCOPES).join(" "),
     access_type: "offline",
     prompt: "consent",
     include_granted_scopes: "true",
@@ -134,6 +135,20 @@ async function call<T>(accessToken: string, method: string, path: string, body?:
   if (!res.ok) throw await failure(res, `${method} ${path.split("?")[0]}`);
   if (res.status === 204) return {} as T;
   return (await res.json()) as T;
+}
+
+// Any other Google API, by full address. Null for 404/410.
+export async function googleRequest<T>(accessToken: string, method: string, url: string, body?: unknown): Promise<T | null> {
+  const res = await fetch(url, {
+    method,
+    headers: { Authorization: `Bearer ${accessToken}`, ...(body !== undefined && { "Content-Type": "application/json" }) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (res.status === 404 || res.status === 410) return null;
+  if (!res.ok) throw await failure(res, `${method} ${new URL(url).pathname}`);
+  const text = await res.text();
+  return (text ? JSON.parse(text) : {}) as T;
 }
 
 const cal = (calendarId: string) => `/calendars/${encodeURIComponent(calendarId)}`;

@@ -9,8 +9,17 @@ export * from "@leadgen/core/urls";
 // made it: see lib/supabase), everyone else on app.domain.com. Path mode has
 // one origin, so there it's always /app/login.
 export function loginUrl(next?: string) {
+  return signInPage("/login", next);
+}
+
+// Where someone enters their two-factor code, on the same host as their session.
+export function secondFactorUrl(next?: string) {
+  return signInPage("/login/verify", next);
+}
+
+function signInPage(path: string, next?: string) {
   const admin = adminUrl();
   const forAdmin = URL.canParse(admin) && !!next && URL.canParse(next) && new URL(next).origin === new URL(admin).origin;
-  const page = forAdmin ? adminUrl("/login") : appUrl("/login");
+  const page = forAdmin ? adminUrl(path) : appUrl(path);
   return next ? `${page}?next=${encodeURIComponent(next)}` : page;
 }

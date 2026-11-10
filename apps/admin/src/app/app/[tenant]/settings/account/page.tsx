@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
 import { ROLES } from "@leadgen/core/team/access";
 import { EmailForm, PasswordForm, ProfileForm } from "@/components/dashboard/settings/account-forms";
+import { TwoFactor } from "@/components/dashboard/settings/two-factor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireTenant } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { changeEmailAction, changePasswordAction, saveProfileAction, signOutEverywhereAction } from "./actions";
+import {
+  changeEmailAction,
+  changePasswordAction,
+  confirmTwoFactorAction,
+  disableTwoFactorAction,
+  saveProfileAction,
+  signOutEverywhereAction,
+  startTwoFactorAction,
+} from "./actions";
 
 export const metadata: Metadata = { title: "Account" };
 
@@ -20,6 +29,7 @@ export default async function AccountPage({ params }: PageProps<"/app/[tenant]/s
   if (error || !data.user) throw error ?? new Error("No user");
   const user = data.user;
   const meta = (user.user_metadata ?? {}) as { full_name?: string; phone?: string };
+  const twoFactorOn = user.factors?.some((f) => f.factor_type === "totp" && f.status === "verified") ?? false;
 
   return (
     <div className="grid max-w-3xl gap-4">
@@ -54,19 +64,27 @@ export default async function AccountPage({ params }: PageProps<"/app/[tenant]/s
           <CardDescription>At least 10 characters. Changing it keeps you signed in here.</CardDescription>
         </CardHeader>
         <CardContent>
-          <PasswordForm action={changePasswordAction} />
+          <PasswordForm action={changePasswordAction.bind(null, slug)} />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            Two-factor login <Badge tone="info">Coming soon</Badge>
+            Two-factor login <Badge tone={twoFactorOn ? "success" : "neutral"}>{twoFactorOn ? "On" : "Off"}</Badge>
           </CardTitle>
           <CardDescription>
             A code from an authenticator app each time you sign in, so a stolen password isn&apos;t enough.
           </CardDescription>
         </CardHeader>
+        <CardContent>
+          <TwoFactor
+            enabled={twoFactorOn}
+            start={startTwoFactorAction}
+            confirm={confirmTwoFactorAction.bind(null, slug)}
+            disable={disableTwoFactorAction.bind(null, slug)}
+          />
+        </CardContent>
       </Card>
 
       <Card>

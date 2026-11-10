@@ -1,6 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { logActivity } from "@/lib/activity";
 import { z } from "zod";
 import { serviceAreaSchema } from "@leadgen/core/booking/config";
 import { staffFormSchema } from "@leadgen/core/staff/rules";
@@ -79,6 +80,7 @@ export async function saveStaff(slug: string, id: string | null, formData: FormD
       .insert({ ...fields, sort_order: (last?.sort_order ?? -1) + 1, tenant_id: tenant.id });
     if (error) return failed(error);
   }
+  await logActivity(tenant.id, "team.staff_saved", `${id ? "Edited" : "Added"} ${fields.name}`);
   refresh();
   return { saved: true };
 }
@@ -91,6 +93,7 @@ export async function deleteStaff(slug: string, id: string): Promise<SaveState> 
   const supabase = await createClient();
   const { error } = await supabase.from("staff").delete().eq("tenant_id", tenant.id).eq("id", id);
   if (error) return failed(error);
+  await logActivity(tenant.id, "team.staff_deleted", "Removed someone from the staff list");
   refresh();
   return { saved: true };
 }

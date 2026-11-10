@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { syncBookingEvent } from "../calendar/sync";
+import { bookingChanged } from "./changed";
 import { notifyBookingMoved } from "../email/notify";
 import { createAdminClient } from "../supabase/admin";
 import { canMoveJob } from "./diary";
@@ -87,6 +87,6 @@ export async function moveBooking(tenantId: string, bookingId: string, input: Mo
   if (!data.length) return { error: CHANGED };
 
   if (notify && timeChanged && start.getTime() > Date.now()) await notifyBookingMoved(tenantId, bookingId, { from: booking.starts_at });
-  await syncBookingEvent(tenantId, bookingId);
+  await bookingChanged(tenantId, bookingId);
   return {};
 }

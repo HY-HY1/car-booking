@@ -29,6 +29,7 @@ import {
 import type { ConditionAssessment } from "@leadgen/core/booking/condition";
 import type { Questions } from "@leadgen/core/settings/questions";
 import { getQuote, type PricingSettings, type Quote } from "@leadgen/core/booking/pricing";
+import { applyPromo, type Promo } from "@leadgen/core/booking/promo-rules";
 import { collectsDepositOnline } from "@leadgen/core/stripe/rules";
 import type { Slot } from "@leadgen/core/booking/engine";
 import { shortDate } from "@leadgen/core/booking/calendar";
@@ -42,6 +43,7 @@ import {
   assessPhotosAction,
   bookAction,
   checkAreaAction,
+  checkPromoAction,
   findOpenDatesAction,
   findSlotsAction,
   saveLeadAction,
@@ -146,6 +148,8 @@ type Answers = {
   carLocation: string;
   notes: string;
   flexible: boolean;
+  // How far away they are, for the travel fee; set when the postcode's checked.
+  travelMiles?: number | null;
   date?: string;
   slot?: Slot;
 };
@@ -244,6 +248,8 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
   const [checking, setChecking] = useState(false);
   const check = assessment?.photoKey === photoKey ? assessment : null;
   const [pending, startTransition] = useTransition();
+  const [promo, setPromo] = useState<Promo | null>(null);
+  const [promoCode, setPromoCode] = useState("");
   const router = useRouter();
 
   const service = services.find((s) => s.id === a.serviceId);
@@ -276,15 +282,18 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
   const quote = ((): Quote | null => {
     if (!service || !a.sizeClass) return null;
     try {
-      return getQuote({
+      const location = a.locationType ?? locations[0] ?? "mobile";
+      const priced = getQuote({
         service,
         addOns,
         addOnIds: a.addOnIds,
         sizeClass: a.sizeClass,
         conditionKey: conditionTier?.key ?? null,
-        locationType: a.locationType ?? locations[0] ?? "mobile",
+        locationType: location,
+        travelMiles: location === "mobile" ? (a.travelMiles ?? null) : null,
         settings: pricing,
       });
+      return promo ? applyPromo(priced, promo, pricing.deposit) : priced;
     } catch {
       return null;
     }
@@ -812,7 +821,15 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                       next();
                       loadOpenDates();
                     };
-                    if (a.locationType === "mobile") run(() => checkAreaAction(a.postcode), toTimes);
+                    if (a.locationType === "mobile") {
+                      run(
+                        () => checkAreaAction(a.postcode),
+                        (result) => {
+                          set({ travelMiles: "travelMiles" in result ? (result.travelMiles ?? null) : null });
+                          toTimes();
+                        },
+                      );
+                    }
                     else toTimes();
                   }}
                 />
@@ -989,6 +1006,45 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                       ))}
                     </div>
                   )}
+                  <div className="grid gap-2 rounded-xl border bg-white p-3 text-sm">
+                    <label htmlFor="promo-code" className="font-medium text-neutral-900">Discount code</label>
+                    {promo ? (
+                      <p className="flex items-center justify-between gap-3">
+                        <span className="font-mono">{promo.code}</span>
+                        <button type="button" className="text-neutral-500 underline underline-offset-4" onClick={() => setPromo(null)}>
+                          Remove
+                        </button>
+                      </p>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          id="promo-code"
+                          value={promoCode}
+                          onChange={(e) => setPromoCode(e.target.value)}
+                          autoComplete="off"
+                          className="h-10 min-w-0 flex-1 rounded-lg border px-3 font-mono uppercase"
+                        />
+                        <button
+                          type="button"
+                          disabled={pending || !promoCode.trim()}
+                          className="h-10 rounded-lg border px-4 font-medium disabled:opacity-50"
+                          onClick={() =>
+                            run(
+                              () => checkPromoAction(promoCode),
+                              (result) => {
+                                if ("promo" in result) {
+                                  setPromo(result.promo);
+                                  setPromoCode("");
+                                }
+                              },
+                            )
+                          }
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   {payOnline && (
                     <p className="text-sm text-neutral-500">
                       You&apos;ll pay the {formatPence(quote.deposit_pence)} deposit securely on the next page. Your
@@ -1018,6 +1074,7 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                             details: details(true),
                             notes: a.notes,
                             expectedTotalPence: quote.total_pence,
+                            promoCode: promo?.code,
                           }),
                         (result) => {
                           const url = "checkoutUrl" in result ? result.checkoutUrl : null;

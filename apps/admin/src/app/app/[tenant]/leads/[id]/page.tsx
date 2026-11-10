@@ -15,10 +15,22 @@ import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { appUrl } from "@/lib/urls";
 import { formatDateTime } from "@leadgen/core/dates";
+import { LOST_REASONS } from "@leadgen/core/leads/rules";
+import { LeadActions } from "@/components/dashboard/lead-actions";
+import { markLeadLostAction, recordContactAction, reopenLeadAction, saveLeadNotesAction } from "../actions";
 
 export const metadata: Metadata = { title: "Lead" };
 
 const STATUS: Record<string, string> = { new: "New", quoted: "Quoted", booked: "Booked", lost: "Lost" };
+
+// From a Facebook or Instagram lead form (meta/leads.ts).
+type FormAnswers = {
+  form?: string | null;
+  ad?: string | null;
+  campaign?: string | null;
+  organic?: boolean | null;
+  answers?: { question: string; answer: string }[];
+};
 
 type LeadRow = {
   id: string;
@@ -26,6 +38,11 @@ type LeadRow = {
   source: string;
   created_at: string;
   updated_at: string;
+  notes: string | null;
+  form_answers: FormAnswers | null;
+  lost_reason: string | null;
+  last_contacted_at: string | null;
+  attempts: number;
   quote_snapshot: (Record<string, unknown> & { postcode?: string | null; location_type?: "mobile" | "unit"; size_class?: string }) | null;
   customer: { id: string; name: string; email: string | null; phone: string | null; email_marketing: boolean } | null;
   photos: { count: number }[];
@@ -40,7 +57,7 @@ export default async function LeadPage({ params }: PageProps<"/app/[tenant]/lead
   const { data, error } = await supabase
     .from("leads")
     .select(
-      "id, status, source, created_at, updated_at, quote_snapshot, customer:customers(id, name, email, phone, email_marketing), photos(count)",
+      "id, status, source, created_at, updated_at, notes, form_answers, lost_reason, last_contacted_at, attempts, quote_snapshot, customer:customers(id, name, email, phone, email_marketing), photos(count)",
     )
     .eq("tenant_id", tenant.id)
     .eq("id", id)
@@ -78,6 +95,36 @@ export default async function LeadPage({ params }: PageProps<"/app/[tenant]/lead
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="grid content-start gap-4 lg:col-span-2">
+          {lead.form_answers && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Their answers on the form</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3 text-sm">
+                <dl className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                  {(lead.form_answers.answers ?? []).map((a, i) => (
+                    <div key={i} className="contents">
+                      <dt className="text-muted-foreground">{a.question}</dt>
+                      <dd className="break-words">{a.answer}</dd>
+                    </div>
+                  ))}
+                </dl>
+                {(lead.form_answers.form || lead.form_answers.ad || lead.form_answers.campaign) && (
+                  <p className="border-t pt-2 text-muted-foreground">
+                    {[
+                      lead.form_answers.form && `Form: ${lead.form_answers.form}`,
+                      lead.form_answers.ad && `Ad: ${lead.form_answers.ad}`,
+                      lead.form_answers.campaign && `Campaign: ${lead.form_answers.campaign}`,
+                      lead.form_answers.organic && "Not from an ad",
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+          {!lead.form_answers && (
           <Card>
             <CardHeader>
               <CardTitle>Everything they submitted</CardTitle>
@@ -94,6 +141,7 @@ export default async function LeadPage({ params }: PageProps<"/app/[tenant]/lead
               )}
             </CardContent>
           </Card>
+          )}
 
           {quote && quote.lines.length > 0 && (
             <Card>
@@ -123,6 +171,32 @@ export default async function LeadPage({ params }: PageProps<"/app/[tenant]/lead
             </Card>
           )}
         </div>
+
+        <div className="grid content-start gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Follow this up</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <LeadActions
+              open={lead.status === "new" || lead.status === "quoted"}
+              lost={lead.status === "lost"}
+              notes={lead.notes ?? ""}
+              contactLine={
+                lead.status === "lost" && lead.lost_reason
+                  ? `Lost: ${LOST_REASONS[lead.lost_reason as keyof typeof LOST_REASONS] ?? lead.lost_reason}`
+                  : lead.last_contacted_at
+                    ? `Contacted ${lead.attempts} ${lead.attempts === 1 ? "time" : "times"}, last on ${formatDateTime(lead.last_contacted_at)}`
+                    : "Not contacted yet."
+              }
+              bookHref={lead.customer ? appUrl(`/${slug}/bookings/new?customer=${lead.customer.id}&lead=${lead.id}`) : null}
+              saveNotes={saveLeadNotesAction.bind(null, slug, lead.id)}
+              recordContact={recordContactAction.bind(null, slug, lead.id, lead.attempts)}
+              markLost={markLeadLostAction.bind(null, slug, lead.id)}
+              reopen={reopenLeadAction.bind(null, slug, lead.id)}
+            />
+          </CardContent>
+        </Card>
 
         <Card className="self-start">
           <CardHeader>
@@ -155,6 +229,7 @@ export default async function LeadPage({ params }: PageProps<"/app/[tenant]/lead
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
     </>
   );

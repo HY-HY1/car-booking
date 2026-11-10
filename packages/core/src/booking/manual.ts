@@ -1,10 +1,12 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { syncBookingEvent } from "../calendar/sync";
+import { bookingChanged } from "./changed";
 import { emailDepositRequest, notifyBookingSecured } from "../email/notify";
 import { createAdminClient } from "../supabase/admin";
 import { resourcesFor } from "./config";
 import { getBookingConfig, type EngineResult } from "./engine";
+import { repeatDates } from "./edit-rules";
 import type { ManualBooking } from "./manual-rules";
 import { settleManualPrice } from "./manual-rules";
 import { getQuote, QuoteError } from "./pricing";
@@ -72,10 +74,42 @@ async function customerFor(db: SupabaseClient, tenantId: string, m: ManualBookin
   return data.id;
 }
 
+// The first booking, then each repeat. A repeat that clashes is skipped and
+// listed, rather than losing the rest; only the first emails the customer
+// or asks for a deposit, and the repeats are for the customer the first found.
 export async function createManualBooking(
   tenantId: string,
   m: ManualBooking,
-): Promise<EngineResult<{ bookingId: string; depositEmailed: boolean | null }>> {
+): Promise<EngineResult<{ bookingId: string; depositEmailed: boolean | null; repeatsMade: number; repeatsSkipped: string[] }>> {
+  const seriesId = m.repeat ? randomUUID() : null;
+  const first = await createOne(tenantId, m, seriesId);
+  if (!first.ok) return first;
+
+  let repeatsMade = 0;
+  const repeatsSkipped: string[] = [];
+  if (m.repeat) {
+    for (const date of repeatDates(m.date, m.repeat.everyWeeks, m.repeat.times)) {
+      const repeat = await createOne(
+        tenantId,
+        { ...m, date, customerId: first.customerId, leadId: null, depositPence: 0, sendConfirmation: false, requestDeposit: false },
+        seriesId,
+      );
+      if (repeat.ok) repeatsMade += 1;
+      else repeatsSkipped.push(date);
+    }
+  }
+  if (m.leadId) {
+    const { error } = await createAdminClient().from("leads").update({ status: "booked" }).eq("tenant_id", tenantId).eq("id", m.leadId);
+    if (error) console.error("Marking the lead booked failed", error);
+  }
+  return { ok: true, bookingId: first.bookingId, depositEmailed: first.depositEmailed, repeatsMade, repeatsSkipped };
+}
+
+async function createOne(
+  tenantId: string,
+  m: ManualBooking,
+  seriesId: string | null,
+): Promise<EngineResult<{ bookingId: string; customerId: string; depositEmailed: boolean | null }>> {
   const config = await getBookingConfig(tenantId);
   if (!config) return fail("not_set_up", "Set up booking under Settings → Hours & rules first.");
   const { settings } = config;
@@ -160,6 +194,10 @@ export async function createManualBooking(
     deposit_pence: price.depositPence,
     deposit_status: price.depositPence > 0 ? "pending" : "none",
     source: "manual",
+    // Only sent when used.
+    ...(m.staffId && { staff_id: m.staffId }),
+    ...(m.leadId && { lead_id: m.leadId }),
+    ...(seriesId && { series_id: seriesId }),
   };
 
   // 23P01: that van or bay already has a job then; try the next.
@@ -186,8 +224,8 @@ export async function createManualBooking(
     );
   }
 
-  await syncBookingEvent(tenantId, bookingId);
+  await bookingChanged(tenantId, bookingId);
   if (m.sendConfirmation) await notifyBookingSecured(tenantId, bookingId, { alertOwner: false });
   const depositEmailed = m.requestDeposit && price.depositPence > 0 ? (await emailDepositRequest(tenantId, bookingId)).ok : null;
-  return { ok: true, bookingId, depositEmailed };
+  return { ok: true, bookingId, customerId, depositEmailed };
 }

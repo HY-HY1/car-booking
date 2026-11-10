@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withSession } from "@/lib/supabase/proxy";
-import { adminUrl, appUrl, loginUrl, routingConfig, surfaceForHost } from "@/lib/urls";
+import { adminUrl, appUrl, loginUrl, routingConfig, secondFactorUrl, surfaceForHost } from "@/lib/urls";
 
 // Maps public URLs onto this app's folders, then keeps the Supabase session
 // fresh and sends signed-out visitors to sign in (packages/core/src/urls.ts
@@ -36,7 +36,7 @@ export async function proxy(request: NextRequest) {
     } else if (host === "app") {
       internal = `/app${pathname === "/" ? "" : pathname}`;
     } else if (host === "admin") {
-      internal = pathname === "/login" ? "/app/login" : `/admin${pathname === "/" ? "" : pathname}`;
+      internal = pathname === "/login" || pathname === "/login/verify" ? `/app${pathname}` : `/admin${pathname === "/" ? "" : pathname}`;
     }
   }
 
@@ -49,11 +49,13 @@ export async function proxy(request: NextRequest) {
   const here =
     cfg.mode === "subdomain" ? (host === "admin" ? adminUrl : appUrl)(pathname + search) : pathname + search;
   const signingIn = internal === "/app/login";
-  const isPublic = signingIn || isUnder(internal, "/app/signup");
+  const isPublic =
+    signingIn || isUnder(internal, "/app/signup") || isUnder(internal, "/app/forgot-password") || isUnder(internal, "/app/reset-password");
   const isProtected = (isUnder(internal, "/app") || isUnder(internal, "/admin")) && !isPublic;
 
   return withSession(request, respond, {
     signIn: isProtected ? loginUrl(here) : undefined,
+    secondFactor: isProtected && internal !== "/app/login/verify" ? secondFactorUrl(here) : undefined,
     home: signingIn ? (host === "admin" ? adminUrl() : appUrl()) : undefined,
   });
 }

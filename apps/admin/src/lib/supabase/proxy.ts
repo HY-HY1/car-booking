@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { awaitingSecondFactor } from "@leadgen/core/account/rules";
 
 // Refreshes the Supabase auth session on each request and writes any
 // updated auth cookies to both the request and the response.
@@ -16,7 +17,7 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function withSession(
   request: NextRequest,
   respond: (init: { request: NextRequest }) => NextResponse,
-  rules: { signIn?: string; home?: string } = {},
+  rules: { signIn?: string; secondFactor?: string; home?: string } = {},
 ) {
   let response = respond({ request });
 
@@ -47,6 +48,10 @@ export async function withSession(
   const signedIn = Boolean(data?.claims);
 
   if (!signedIn && rules.signIn) return redirectWithCookies(new URL(rules.signIn, request.url), response);
+  if (signedIn && rules.secondFactor) {
+    const { data: level } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (awaitingSecondFactor(level)) return redirectWithCookies(new URL(rules.secondFactor, request.url), response);
+  }
   if (signedIn && rules.home) return redirectWithCookies(new URL(rules.home, request.url), response);
   return response;
 }

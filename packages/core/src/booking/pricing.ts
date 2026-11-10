@@ -11,6 +11,8 @@ import {
 // Booking Agent and the dashboard all call this, so a price is the same
 // whoever asks. No database access; the caller passes in the tenant's rows.
 
+export type TravelFee = { free_miles: number; pence_per_mile: number };
+
 export type PricingSettings = Pick<
   BookingSettings,
   | "offers_mobile"
@@ -19,7 +21,7 @@ export type PricingSettings = Pick<
   | "min_price_pence"
   | "mobile_surcharge_pence"
   | "condition_tiers"
->;
+> & { travel_fee?: TravelFee | null };
 
 export type QuoteInput = {
   service: Service;
@@ -30,6 +32,8 @@ export type QuoteInput = {
   // From the photo check (condition.ts), never chosen by the customer.
   conditionKey?: string | null;
   locationType: LocationType;
+  // How far the job is from the business, when it's known and matters.
+  travelMiles?: number | null;
   settings: PricingSettings;
 };
 
@@ -75,6 +79,13 @@ const SIZE_LABELS: Record<SizeClass, string> = {
 // prices a detailer would say, not £161.37.
 function roundToPound(pence: number) {
   return Math.round(pence / 100) * 100;
+}
+
+// Whole miles past the free distance, rounded up. Null when nothing's due.
+export function travelFeeFor(fee: TravelFee | null | undefined, miles: number | null | undefined) {
+  if (!fee || !fee.pence_per_mile || miles === null || miles === undefined) return null;
+  const charged = Math.ceil(Math.max(miles - fee.free_miles, 0));
+  return charged > 0 ? { miles: charged, pence: charged * fee.pence_per_mile } : null;
 }
 
 export function getQuote(input: QuoteInput): Quote {
@@ -134,6 +145,9 @@ export function getQuote(input: QuoteInput): Quote {
   if (locationType === "mobile" && settings.mobile_surcharge_pence) {
     lines.push({ label: "Mobile call-out", amount_pence: settings.mobile_surcharge_pence });
   }
+
+  const travel = locationType === "mobile" ? travelFeeFor(settings.travel_fee, input.travelMiles) : null;
+  if (travel) lines.push({ label: `Travel (${travel.miles} ${travel.miles === 1 ? "mile" : "miles"})`, amount_pence: travel.pence });
 
   let total = lines.reduce((sum, l) => sum + l.amount_pence, 0);
   if (total < settings.min_price_pence) {

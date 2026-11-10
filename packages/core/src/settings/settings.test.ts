@@ -156,6 +156,10 @@ describe("notifications", () => {
     expect(n.messages.reminder.hours_before).toBe(48);
     expect(n.messages.reminder.enabled).toBe(true);
     expect(n.messages.review_request.enabled).toBe(false);
+    // Anything that reaches customers on its own stays off until it's chosen.
+    expect(n.messages.quote_follow_up.enabled).toBe(false);
+    expect(n.messages.rebook_reminder.enabled).toBe(false);
+    expect(n.messages.slot_opened.enabled).toBe(false);
     expect(n.channels).toEqual({ email: true, sms: false });
     expect(notificationsOf(null).alerts.new_booking).toBe(true);
   });
@@ -176,10 +180,11 @@ describe("notifications", () => {
       follow_up_days_after: "3",
       review_request_days_after: "1",
       review_url: "",
+      quote_follow_up_days_after: "2",
       alerts_new_booking: "on",
       alerts_email: "",
     };
-    for (const k of ["confirmation", "reminder", "follow_up", "review_request"]) {
+    for (const k of ["confirmation", "reminder", "follow_up", "review_request", "quote_follow_up", "rebook_reminder", "slot_opened"]) {
       input[`${k}_enabled`] = "on";
       input[`${k}_subject`] = "Hi {customer_name}";
       input[`${k}_body`] = "See you on {date}.";

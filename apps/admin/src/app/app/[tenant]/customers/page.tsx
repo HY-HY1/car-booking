@@ -20,7 +20,7 @@ export default async function CustomersPage({
   searchParams,
 }: PageProps<"/app/[tenant]/customers">) {
   const { tenant: slug } = await params;
-  const { tenant } = await requireAccess(slug, "customers.view");
+  const { tenant, can } = await requireAccess(slug, "customers.view");
 
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q : "";
@@ -36,10 +36,27 @@ export default async function CustomersPage({
     <>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PageHeader title="Customers" />
-        <Link href={`${base}/new`} className={buttonVariants({ size: "lg" })}>
-          <Plus />
-          Add customer
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {can("settings.edit") && (
+            <Link href={`${base}/campaigns`} className={cn(buttonVariants({ variant: "ghost", size: "lg" }))}>
+              Campaigns
+            </Link>
+          )}
+          {can("customers.delete") && (
+            <>
+              <Link href={`${base}/import`} className={cn(buttonVariants({ variant: "ghost", size: "lg" }))}>
+                Import
+              </Link>
+              <a href={`${base}/export`} className={cn(buttonVariants({ variant: "ghost", size: "lg" }))}>
+                Export
+              </a>
+            </>
+          )}
+          <Link href={`${base}/new`} className={buttonVariants({ size: "lg" })}>
+            <Plus />
+            Add customer
+          </Link>
+        </div>
       </div>
 
       <Form action={base} className="relative mb-4 max-w-sm">

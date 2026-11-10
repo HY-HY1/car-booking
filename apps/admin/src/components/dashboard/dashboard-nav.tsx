@@ -11,6 +11,7 @@ import {
   MapPin,
   Package,
   Settings,
+  Star,
   Users,
   UsersRound,
   Wrench,
@@ -32,6 +33,7 @@ const sections: { title?: string; items: NavItem[] }[] = [
       { href: "/bookings", label: "Bookings", icon: ClipboardList, permission: "diary.view" },
       { href: "/leads", label: "Leads", icon: Inbox, permission: "leads.view" },
       { href: "/customers", label: "Customers", icon: Users, permission: "customers.view" },
+      { href: "/reviews", label: "Reviews", icon: Star, permission: "customers.view" },
     ],
   },
   {

@@ -82,6 +82,11 @@ export const conditionTierSchema = z.object({
 });
 export type ConditionTier = z.infer<typeof conditionTierSchema>;
 
+export const travelFeeSchema = z.object({
+  free_miles: z.number().min(0).max(500),
+  pence_per_mile: z.number().int().min(0).max(100_000),
+});
+
 export const bookingSettingsSchema = z.object({
   tenant_id: z.uuid(),
   timezone: z.string(),
@@ -100,6 +105,7 @@ export const bookingSettingsSchema = z.object({
   deposit: depositSchema,
   min_price_pence: z.number().int(),
   mobile_surcharge_pence: z.number().int(),
+  travel_fee: travelFeeSchema.nullable().default(null),
   condition_tiers: z.array(conditionTierSchema),
   // The shop's own hours; null = the same as mobile (weekly_hours).
   unit_weekly_hours: weeklyHoursSchema.nullable(),

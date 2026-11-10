@@ -265,6 +265,19 @@ export async function addMember(tenantId: string, email: string, role: Role): Pr
   return { email, tempPassword: user.tempPassword, alreadyMember: data.length === 0 };
 }
 
+// Takes two-factor login off an account, for someone who has lost their app.
+// Returns how many methods were removed. The caller checks who's asking.
+export async function resetTwoFactor(userId: string) {
+  const db = createAdminClient();
+  const { data, error } = await db.auth.admin.mfa.listFactors({ userId });
+  if (error) throw error;
+  for (const factor of data.factors) {
+    const removed = await db.auth.admin.mfa.deleteFactor({ id: factor.id, userId });
+    if (removed.error) throw removed.error;
+  }
+  return data.factors.length;
+}
+
 export async function addDomain(tenantId: string, hostname: string) {
   if (!isCustomHostname(hostname)) return { ok: false as const, message: "That's one of the platform's own addresses." };
   const db = createAdminClient();

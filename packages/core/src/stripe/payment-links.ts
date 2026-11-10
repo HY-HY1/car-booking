@@ -15,7 +15,8 @@ export type CreatedPaymentLink = { id: string; url: string; description: string;
 
 export async function createPaymentLink(
   tenantId: string,
-  userId: string,
+  // Null when the customer started it from their own booking page.
+  userId: string | null,
   input: PaymentLinkInput,
 ): Promise<{ ok: true; link: CreatedPaymentLink } | { ok: false; message: string }> {
   const { accountId, ready } = await getTenantPayments(tenantId);
@@ -133,7 +134,7 @@ export async function deactivatePaymentLink(tenantId: string, id: string) {
 // has been paid; the browser only says which booking. With `reuse` (emailing
 // it), a live one-off link already made for that same amount is sent again
 // rather than making another.
-export async function createBookingBalanceLink(tenantId: string, userId: string, bookingId: string, opts: { reuse?: boolean } = {}) {
+export async function createBookingBalanceLink(tenantId: string, userId: string | null, bookingId: string, opts: { reuse?: boolean } = {}) {
   const { data: booking, error } = await createAdminClient()
     .from("bookings")
     .select("id, status, starts_at, price_pence, deposit_pence, deposit_status, service:services(name)")

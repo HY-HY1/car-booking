@@ -1,10 +1,13 @@
 import "server-only";
 import { z } from "zod";
-import { syncBookingEvent } from "../calendar/sync";
-import { notifyCustomerCancelled, notifyCustomerRescheduled } from "../email/notify";
+import { bookingChanged } from "./changed";
+import { notifyCustomerCancelled, notifyCustomerRescheduled, notifySlotOpened } from "../email/notify";
 import { policyLines, policyOf, refundAdvice, type CancellationPolicy } from "../settings/policy";
 import { getTenantPayments } from "../stripe/accounts";
 import { createDepositCheckout, depositDescription } from "../stripe/checkout";
+import { loadBookingPayments } from "../stripe/ledger";
+import { createBookingBalanceLink } from "../stripe/payment-links";
+import { PAYABLE_BOOKING_STATUSES, paymentSummary } from "../stripe/payment-rules";
 import { createAdminClient } from "../supabase/admin";
 import { tenantUrl } from "../urls";
 import { dayRange } from "./availability";
@@ -104,6 +107,11 @@ export type ManagedBooking = {
   refundLine: string | null;
   // The deposit is still to pay, and can be paid online now.
   canPayDeposit: boolean;
+  // What's still owed once any deposit is sorted; 0 when nothing can be paid here.
+  balanceToPayPence: number;
+  bookingId: string;
+  // Whether there's anything to bill yet.
+  hasInvoice: boolean;
 };
 
 export async function getManagedBooking(tenantId: string, token: string): Promise<ManagedBooking | null> {
@@ -111,8 +119,17 @@ export async function getManagedBooking(tenantId: string, token: string): Promis
   if (!l) return null;
   const { row, policy } = l;
   const paid = paidDeposit(row);
-  const canPayDeposit = owes(row) && (await getTenantPayments(tenantId)).ready;
+  const payments = await getTenantPayments(tenantId);
+  const canPayDeposit = owes(row) && payments.ready;
+  const payable = (PAYABLE_BOOKING_STATUSES as readonly string[]).includes(row.status);
+  // The balance waits until any deposit has been dealt with, so nobody is
+  // offered two ways to pay the same money.
+  const balanceToPayPence =
+    payable && payments.ready && !owes(row) ? paymentSummary(row, await loadBookingPayments(tenantId, row.id)).balancePence : 0;
   return {
+    bookingId: row.id,
+    hasInvoice: payable,
+    balanceToPayPence,
     status: row.status,
     serviceName: row.service?.name ?? null,
     customerName: row.customer?.name ?? null,
@@ -130,6 +147,23 @@ export async function getManagedBooking(tenantId: string, token: string): Promis
     refundLine: refundLine(refundAdvice(policy, { startsAt: row.starts_at, depositPaidPence: paid }), paid),
     canPayDeposit,
   };
+}
+
+// ---------------------------------------------------------------- the balance
+
+// "Pay the balance": the same one-off Stripe link the business would send for
+// what's owed. The amount is worked out on the server from the booking.
+export async function startBalancePayment(tenantId: string, token: string): Promise<EngineResult<{ url: string }>> {
+  const l = await load(tenantId, token);
+  if (!l) return fail("not_found", "We couldn't find that booking.");
+  const link = await createBookingBalanceLink(tenantId, null, l.row.id, { reuse: true });
+  if (!link.ok) return fail("unavailable", link.message);
+  return { ok: true, url: link.link.url };
+}
+
+// The verified booking id behind a link, for the invoice.
+export async function bookingIdFromToken(tenantId: string, token: string) {
+  return (await load(tenantId, token))?.row.id ?? null;
 }
 
 // ---------------------------------------------------------------- the deposit
@@ -296,7 +330,7 @@ export async function rescheduleBooking(
     if (!data.length) return fail("changed", "Your booking has just changed. Reload the page to see it.");
 
     await notifyCustomerRescheduled(tenantId, row.id, { from: row.starts_at });
-    await syncBookingEvent(tenantId, row.id);
+    await bookingChanged(tenantId, row.id);
     return { ok: true, startsAt: patch.starts_at };
   }
   return fail("slot_taken", "Sorry, that time has just gone. Pick another.");
@@ -325,6 +359,7 @@ export async function cancelBookingAsCustomer(
   const paid = paidDeposit(l.row);
   const advice = refundAdvice(l.policy, { startsAt: l.row.starts_at, depositPaidPence: paid });
   await notifyCustomerCancelled(tenantId, l.row.id, { advice });
-  await syncBookingEvent(tenantId, l.row.id);
+  await bookingChanged(tenantId, l.row.id);
+  await notifySlotOpened(tenantId, l.row.id);
   return { ok: true, refundLine: refundLine(advice, paid) };
 }

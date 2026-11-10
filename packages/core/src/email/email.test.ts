@@ -8,6 +8,7 @@ import {
   formatDay,
   fromHeader,
   ownerNewBooking,
+  passwordReset,
   paymentReceived,
   paymentRequest,
   renderEmail,
@@ -195,5 +196,15 @@ describe("schedule", () => {
     expect(leadAlertDue(new Date(now.getTime() - 20 * 60_000), now)).toBe(false);
     expect(leadAlertDue(new Date(now.getTime() - 40 * 60_000), now)).toBe(true);
     expect(leadAlertDue(hours(-49), now)).toBe(false);
+  });
+});
+
+describe("passwordReset", () => {
+  it("carries the link as a button and in the text, for when buttons don't work", () => {
+    const url = "https://app.example.com/reset-password?token=abc";
+    const email = passwordReset(url);
+    expect(email.button?.url).toBe(url);
+    expect(email.body).toContain(url);
+    expect(email.body).toContain("ignore this email");
   });
 });
