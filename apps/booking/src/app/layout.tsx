@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { getRequestTenant } from "@/lib/tenant";
 import { themeStyle } from "@/lib/theme";
-import { pageUrl } from "@/lib/urls";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -27,16 +26,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         className="flex min-h-full flex-col font-sans"
         style={tenant ? themeStyle(tenant.branding) : undefined}
       >
+        {/* Each page draws its own header and footer (components/site.tsx),
+            as pages inside the embed panel leave them out. */}
         {children}
-        {tenant && (
-          <footer className="px-4 py-6 text-center text-xs text-neutral-500">
-            <a href={tenant.branding.terms_url ?? pageUrl(tenant, "/terms")} className="underline">Booking terms</a>
-            <span aria-hidden> · </span>
-            <a href={pageUrl(tenant, "/privacy")} className="underline">Privacy notice</a>
-            <span aria-hidden> · </span>
-            <a href={pageUrl(tenant, "/privacy/request")} className="underline">Your data rights</a>
-          </footer>
-        )}
       </body>
     </html>
   );

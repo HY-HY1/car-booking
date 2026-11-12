@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { coverPositionSchema } from "./branding/cover";
 import { createAdminClient } from "./supabase/admin";
 import { hostnameOf, routingConfig } from "./urls";
 
@@ -34,6 +35,8 @@ export const brandingSchema = z.object({
   logo_url: z.url().optional().catch(undefined),
   // Behind the heading on the booking page's home.
   cover_url: z.url().optional().catch(undefined),
+  // Which part of the cover stays in view (branding/cover.ts). Unset is the middle.
+  cover_position: coverPositionSchema.optional().catch(undefined),
   tagline: z.string().optional().catch(undefined),
   // The floating button the embed script adds to the owner's website.
   button_label: z.string().min(1).max(30).optional().catch(undefined),

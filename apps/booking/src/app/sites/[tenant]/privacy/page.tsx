@@ -19,7 +19,7 @@ export default async function PrivacyPage() {
   const months = privacy.retentionMonths;
 
   return (
-    <LegalPage title="Privacy notice" updated={TERMS_VERSION}>
+    <LegalPage tenant={tenant} title="Privacy notice" updated={TERMS_VERSION}>
       <p>
         This explains how {who} (&ldquo;we&rdquo;) uses your personal data when you ask for a quote or
         book a detail with us. We are the controller of that data.

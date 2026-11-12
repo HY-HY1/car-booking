@@ -4,6 +4,7 @@ import { dnsRecords, hasSubdomain, customHostnameSchema } from "./domains";
 import {
   askingFormSchema,
   assistantFormSchema,
+  brandingFormSchema,
   depositFormSchema,
   generalFormSchema,
   parseNotificationsForm,
@@ -139,6 +140,23 @@ describe("general form", () => {
     expect(off.success && off.data.tenant.vat_number).toBeNull();
     const bad = generalFormSchema.safeParse({ ...base, vat_registered: "on", vat_number: "12" });
     expect(bad.success).toBe(false);
+  });
+});
+
+describe("booking page form", () => {
+  const base = { primary_color: "#111111", accent_color: "#3b82f6", website_url: "", terms_url: "" };
+
+  it("turns the cover's hidden fields into a position", () => {
+    const parsed = brandingFormSchema.safeParse({ ...base, cover_x: "25", cover_y: "80.04" });
+    expect(parsed.success && parsed.data.cover_position).toEqual({ x: 25, y: 80 });
+    expect(parsed.success && "cover_x" in parsed.data).toBe(false);
+  });
+
+  it("leaves the position unset when it isn't a percentage", () => {
+    for (const [x, y] of [["", "50"], ["120", "50"], ["left", "50"], [undefined, undefined]]) {
+      const parsed = brandingFormSchema.safeParse({ ...base, cover_x: x, cover_y: y });
+      expect(parsed.success && parsed.data.cover_position).toBeUndefined();
+    }
   });
 });
 

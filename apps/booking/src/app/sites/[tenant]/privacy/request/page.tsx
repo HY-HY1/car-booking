@@ -12,7 +12,7 @@ export default async function PrivacyRequestPage() {
   const tenant = await getRequestTenant();
   if (!tenant) notFound();
   return (
-    <LegalPage title="Make a privacy request">
+    <LegalPage tenant={tenant} title="Make a privacy request">
       <p>
         Use this form to ask {tenant.privacy.legalName || tenant.name} for a copy of your data, to
         correct or erase it, or to stop marketing. See the{" "}

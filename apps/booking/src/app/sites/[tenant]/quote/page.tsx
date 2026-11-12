@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { bookableDatesForAny } from "@leadgen/core/booking/capacity";
 import type { LocationType } from "@leadgen/core/booking/config";
 import { localDate } from "@leadgen/core/booking/time";
@@ -11,6 +10,8 @@ import { getTenantPayments } from "@leadgen/core/stripe/accounts";
 import { requireRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
 import { ContactLinks } from "@/components/contact-links";
+import { SiteFrame, container } from "@/components/site";
+import { cn } from "@/lib/cn";
 import { BookingFlow } from "./booking-flow";
 
 export const metadata: Metadata = { title: "Instant quote" };
@@ -31,12 +32,15 @@ export default async function QuotePage({ searchParams }: PageProps<"/sites/[ten
   // or bay to do it".
   if (!config || !config.services.length || !(config.settings.offers_mobile || config.settings.offers_unit)) {
     return (
-      <main className="flex flex-1 items-center justify-center p-4 text-center text-sm text-neutral-500">
-        <div className="grid justify-items-center gap-3">
-          <p>Online booking isn&apos;t open yet. Please get in touch with {tenant.name} directly.</p>
-          <ContactLinks phone={tenant.contact.phone} email={tenant.contact.email} />
-        </div>
-      </main>
+      <SiteFrame tenant={tenant} embedded={embedded} bookButton={false}>
+        <main className="flex flex-1 items-center justify-center px-4 py-16 text-center">
+          <div className="grid max-w-sm justify-items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">Online booking isn&apos;t open yet</h1>
+            <p className="text-sm text-neutral-600">Please get in touch with {tenant.name} directly and they&apos;ll book you in.</p>
+            <ContactLinks phone={tenant.contact.phone} email={tenant.contact.email} />
+          </div>
+        </main>
+      </SiteFrame>
     );
   }
 
@@ -54,24 +58,13 @@ export default async function QuotePage({ searchParams }: PageProps<"/sites/[ten
   const payments = await getTenantPayments(tenant.id);
   const policy = policyOf(settings.cancellation_policy);
   return (
+    <SiteFrame tenant={{ ...tenant, branding: { ...tenant.branding, website_url: websiteUrl } }} embedded={embedded} bookButton={false}>
     <main className="flex flex-1 flex-col">
-      {!embedded && (
-        <header className="flex items-center justify-between gap-4 bg-brand px-4 py-3 text-brand-fg">
-          <Link href={pageUrl(tenant)} className="font-semibold">
-            {tenant.name}
-          </Link>
-          {websiteUrl && (
-            <a href={websiteUrl} className="shrink-0 text-sm opacity-80 hover:opacity-100">
-              &larr; Back to website
-            </a>
-          )}
-        </header>
-      )}
-      <div className={`mx-auto w-full flex-1 px-4 py-6 ${embedded ? "max-w-lg" : "max-w-5xl"}`}>
+      <div className={embedded ? "mx-auto w-full max-w-lg flex-1 px-4 py-6" : cn(container, "flex-1 pt-8 pb-12 sm:pt-12")}>
         {!embedded && (
-          <div className="mb-6">
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Book your appointment</h1>
-            <p className="mt-1 text-neutral-600">
+          <div className="mb-8">
+            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Book your appointment</h1>
+            <p className="mt-2 max-w-2xl text-neutral-600">
               Choose your service, tell us about the car and pick a time. You&apos;ll see the price as you go.
             </p>
           </div>
@@ -114,5 +107,6 @@ export default async function QuotePage({ searchParams }: PageProps<"/sites/[ten
         />
       </div>
     </main>
+    </SiteFrame>
   );
 }

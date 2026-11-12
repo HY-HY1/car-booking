@@ -19,6 +19,7 @@ import { ACCEPTED_IMAGE_TYPES, MAX_UPLOAD_BYTES, shrinkImage } from "@/lib/shrin
 import { cn } from "@/lib/utils";
 import { Field, SaveForm, type Action } from "../form-kit";
 import { BookingPagePreview, type PreviewService } from "./booking-page-preview";
+import { CENTRE, CoverPositioner } from "./cover-position";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/components/ui/toast";
@@ -124,6 +125,9 @@ export function BrandingForm({
   const [logo, setLogo] = useState<{ picked: string | null; removed: boolean }>({ picked: null, removed: false });
   const [cover, setCover] = useState<{ picked: string | null; removed: boolean }>({ picked: null, removed: false });
   const shown = (image: typeof logo, saved?: string) => image.picked ?? (image.removed ? undefined : saved);
+  const coverSrc = shown(cover, branding.cover_url);
+  // Where the cover sits in its banner; a new picture starts in the middle.
+  const [coverPosition, setCoverPosition] = useState(branding.cover_position ?? CENTRE);
 
   return (
     <SaveForm action={action} readOnly={readOnly}>
@@ -162,13 +166,26 @@ export function BrandingForm({
             </Field>
           </div>
           <p className="-mt-2 text-xs text-muted-foreground">
-            The booking page shows a &ldquo;Back to website&rdquo; link to your website. Leave it blank to hide the link.
+            The booking page links to your website in its header and footer. Leave it blank to hide the link.
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <ImageField label="Logo" name="logo" current={branding.logo_url} error={errors.logo} onChange={setLogo} />
-            <ImageField label="Cover image" name="cover" current={branding.cover_url} error={errors.cover} onChange={setCover} wide />
+            <ImageField
+              label="Cover image"
+              name="cover"
+              current={branding.cover_url}
+              error={errors.cover}
+              onChange={(image) => {
+                if (image.picked !== cover.picked) setCoverPosition(image.picked ? CENTRE : (branding.cover_position ?? CENTRE));
+                setCover(image);
+              }}
+              wide
+            />
           </div>
+          {coverSrc && (
+            <CoverPositioner src={coverSrc} value={coverPosition} onChange={setCoverPosition} disabled={readOnly} />
+          )}
 
           <fieldset className="grid gap-3 rounded-xl border p-4">
             <legend className="px-1 text-sm font-medium">Button on your website</legend>
@@ -215,7 +232,8 @@ export function BrandingForm({
             accent={accent}
             tagline={tagline}
             logoUrl={shown(logo, branding.logo_url)}
-            coverUrl={shown(cover, branding.cover_url)}
+            coverUrl={coverSrc}
+            coverPosition={coverPosition}
             contact={contact}
             services={services}
           />

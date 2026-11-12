@@ -100,6 +100,8 @@ export async function saveBrandingAction(slug: string, formData: FormData): Prom
   } catch (error) {
     return failed("the images", error);
   }
+  // The cover's position goes with the cover: kept if none was sent, gone with it.
+  branding.cover_position = branding.cover_url ? (parsed.data.cover_position ?? before.cover_position) : undefined;
   // Blank fields are taken out rather than stored empty.
   for (const key of Object.keys(branding)) if (branding[key] === undefined) delete branding[key];
 

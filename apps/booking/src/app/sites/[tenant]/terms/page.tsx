@@ -24,7 +24,7 @@ export default async function TermsPage() {
   const lines = policy ? policyLines(policy, deposit?.type !== "none") : null;
 
   return (
-    <LegalPage title="Booking terms">
+    <LegalPage tenant={tenant} title="Booking terms">
       <p>These terms apply when you book a job with {who} on this site.</p>
 
       <h2>Your booking</h2>
@@ -62,10 +62,14 @@ export default async function TermsPage() {
         <p>If you need to cancel or change your booking, get in touch with {tenant.name} as soon as you can.</p>
       )}
 
-      <h2>Contact</h2>
-      <div className="mt-3">
-        <ContactLinks phone={tenant.contact.phone} email={tenant.contact.email} />
-      </div>
+      {(tenant.contact.phone || tenant.contact.email) && (
+        <>
+          <h2>Contact</h2>
+          <div className="mt-3">
+            <ContactLinks phone={tenant.contact.phone} email={tenant.contact.email} />
+          </div>
+        </>
+      )}
     </LegalPage>
   );
 }

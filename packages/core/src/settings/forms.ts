@@ -142,8 +142,22 @@ export const brandingFormSchema = z.object({
   terms_url: optionalUrl.transform((v) => v ?? undefined),
   button_label: text(30, "the button text").transform((v) => v || undefined),
   button_position: z.enum(["right", "left"]).default("right"),
-});
+  // Where the cover image sits in its banner (hidden fields the positioner
+  // fills). Anything that isn't a percentage is left as it was.
+  cover_x: z.string().optional(),
+  cover_y: z.string().optional(),
+}).transform(({ cover_x, cover_y, ...rest }) => ({ ...rest, cover_position: coverPosition(cover_x, cover_y) }));
 export type BrandingForm = z.output<typeof brandingFormSchema>;
+
+function coverPosition(x: string | undefined, y: string | undefined) {
+  const pct = (v: string | undefined) => {
+    const n = v?.trim() ? Number(v) : NaN;
+    return Number.isFinite(n) && n >= 0 && n <= 100 ? Math.round(n * 10) / 10 : null;
+  };
+  const px = pct(x);
+  const py = pct(y);
+  return px === null || py === null ? undefined : { x: px, y: py };
+}
 
 // ------------------------------------------------------------------ Booking
 

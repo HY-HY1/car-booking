@@ -1150,7 +1150,7 @@ function StepCard({
     <section
       id={`step-${id}`}
       aria-labelledby={`step-${id}-title`}
-      className={`scroll-mt-4 rounded-2xl border bg-white ${state === "todo" ? "border-dashed opacity-60" : "border-neutral-200"}`}
+      className={`scroll-mt-4 rounded-2xl border bg-white ${state === "todo" ? "border-dashed border-neutral-300 opacity-70" : "border-neutral-200"}`}
     >
       <header className="flex items-center gap-3 p-4">
         <span
@@ -1476,7 +1476,7 @@ function PriceBar({
         : null;
   return (
     <div
-      className={`sticky bottom-0 z-10 -mx-4 flex items-baseline justify-between gap-3 border-t bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur ${embedded ? "" : "lg:hidden"}`}
+      className={`sticky bottom-0 z-10 -mx-4 flex items-baseline justify-between gap-3 border-t bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur ${embedded ? "" : "sm:-mx-6 lg:hidden"}`}
     >
       <span className="font-semibold">
         {quote ? formatPence(quote.total_pence) : service && `From ${formatPence(service.base_price_pence)}`}

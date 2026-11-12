@@ -9,6 +9,7 @@ import { requireRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
 import { payBalanceAction, payDepositAction } from "./actions";
 import { ManageActions, type ActionView } from "./manage-actions";
+import { SiteFrame } from "@/components/site";
 import { formatFullDateTime } from "@leadgen/core/dates";
 
 // The link carries the right to change the booking, so it's kept out of
@@ -26,13 +27,9 @@ export default async function ManagePage({ params, searchParams }: PageProps<"/s
   const booking = await getManagedBooking(tenant.id, token);
 
   return (
+    <SiteFrame tenant={tenant}>
     <main className="flex flex-1 flex-col">
-      <header className="bg-brand px-4 py-3 text-brand-fg">
-        <Link href={pageUrl(tenant)} className="font-semibold">
-          {tenant.name}
-        </Link>
-      </header>
-      <div className="mx-auto grid w-full max-w-lg flex-1 content-start gap-6 px-4 py-10">
+      <div className="mx-auto grid w-full max-w-lg flex-1 content-start gap-6 px-4 py-12 sm:py-16">
         {!booking ? (
           <div className="grid gap-3 text-center">
             <h1 className="text-2xl font-semibold">That link isn&apos;t working</h1>
@@ -157,6 +154,7 @@ export default async function ManagePage({ params, searchParams }: PageProps<"/s
         )}
       </div>
     </main>
+    </SiteFrame>
   );
 }
 

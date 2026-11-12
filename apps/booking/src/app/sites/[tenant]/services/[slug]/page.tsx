@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Check, ChevronDown, Clock, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Clock, X } from "lucide-react";
 import { formatDuration, formatPence, type Service } from "@leadgen/core/booking/config";
 import { getBookingConfig } from "@leadgen/core/booking/engine";
 import { requireRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
+import { cn } from "@/lib/cn";
+import { BookingSteps, SiteFrame, container } from "@/components/site";
+import { ServiceCard, serviceImageUrl as imageUrl } from "@/components/service-card";
 
 // One page per service: everything a customer wants to know before booking.
-
-function imageUrl(path: string) {
-  return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/service-images/${path}`;
-}
 
 async function loadService(slug: string) {
   const tenant = await requireRequestTenant();
@@ -58,23 +57,26 @@ export default async function ServicePage({ params }: PageProps<"/sites/[tenant]
     offers: { "@type": "Offer", priceCurrency: "GBP", price: (service.base_price_pence / 100).toFixed(2) },
   };
 
+  // A service with nothing written about it yet still gets a full page:
+  // how booking works stands in for the write-up.
+  const hasContent = paragraphs.length + includes.length + notIncluded.length + steps.length + faqs.length + gallery.length > 0;
+
   return (
-    <main className="flex flex-1 flex-col pb-24 sm:pb-0">
-      <header className="bg-brand px-4 py-3 text-brand-fg">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
-          <Link href={pageUrl(tenant)} className="font-semibold">
-            {tenant.name}
-          </Link>
-          <Link href={book} className="hidden rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-accent-fg sm:inline-block">
-            Get an instant quote
-          </Link>
-        </div>
-      </header>
+    <SiteFrame tenant={tenant} bottomBar>
+    <main className="flex flex-1 flex-col">
+      <Hero service={service} allServices={pageUrl(tenant, "/#services")} />
 
-      <Hero service={service} />
+      <div className={cn(container, "grid gap-10 py-10 sm:py-14 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-14")}>
+        <div className="grid gap-12">
+          {!hasContent && (
+            <section aria-labelledby="how" className="grid gap-5">
+              <h2 id="how" className="text-xl font-semibold tracking-tight">
+                How booking works
+              </h2>
+              <BookingSteps />
+            </section>
+          )}
 
-      <div className="mx-auto grid w-full max-w-4xl gap-10 px-4 py-8 sm:py-10 lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-start">
-        <div className="grid gap-10">
           {paragraphs.length > 0 && (
             <section aria-labelledby="about" className="grid gap-3">
               <h2 id="about" className="text-xl font-semibold tracking-tight">
@@ -187,24 +189,15 @@ export default async function ServicePage({ params }: PageProps<"/sites/[tenant]
       </div>
 
       {others.length > 0 && (
-        <section aria-labelledby="more" className="border-t bg-neutral-50 px-4 py-10">
-          <div className="mx-auto max-w-4xl">
-            <h2 id="more" className="mb-4 text-xl font-semibold tracking-tight">
+        <section aria-labelledby="more" className="border-t bg-white py-12 sm:py-16">
+          <div className={container}>
+            <h2 id="more" className="mb-6 text-xl font-semibold tracking-tight sm:text-2xl">
               Other services
             </h2>
-            <ul className="grid gap-3 sm:grid-cols-2">
+            <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {others.map((o) => (
                 <li key={o.id}>
-                  <Link
-                    href={pageUrl(tenant, `/services/${o.slug}`)}
-                    className="flex items-center justify-between gap-3 rounded-2xl border bg-white p-4 transition hover:border-neutral-400"
-                  >
-                    <span>
-                      <span className="block font-medium">{o.name}</span>
-                      {o.tagline && <span className="block text-sm text-neutral-500">{o.tagline}</span>}
-                    </span>
-                    <span className="shrink-0 text-sm font-medium">from {formatPence(o.base_price_pence)}</span>
-                  </Link>
+                  <ServiceCard service={o} href={pageUrl(tenant, `/services/${o.slug}`)} />
                 </li>
               ))}
             </ul>
@@ -213,8 +206,8 @@ export default async function ServicePage({ params }: PageProps<"/sites/[tenant]
       )}
 
       {/* Phones: the price and button stay in reach. */}
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-white/95 px-4 py-3 backdrop-blur sm:hidden">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden">
+        <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs text-neutral-500">From</p>
             <p className="text-lg leading-none font-semibold">{formatPence(service.base_price_pence)}</p>
@@ -227,11 +220,14 @@ export default async function ServicePage({ params }: PageProps<"/sites/[tenant]
 
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
     </main>
+    </SiteFrame>
   );
 }
 
-function Hero({ service }: { service: Service }) {
+function Hero({ service, allServices }: { service: Service; allServices: string }) {
   const image = service.image_path ? imageUrl(service.image_path) : null;
+  // The tagline and short description are often the same sentence.
+  const description = service.description?.trim();
   return (
     <section className="relative isolate overflow-hidden bg-brand text-brand-fg">
       {image && (
@@ -239,19 +235,26 @@ function Hero({ service }: { service: Service }) {
         <img src={image} alt="" className="absolute inset-0 -z-10 size-full object-cover" />
       )}
       {image && <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-black/75 via-black/35 to-black/10" />}
-      <div className={`mx-auto max-w-4xl px-4 ${image ? "pt-40 pb-8 text-white sm:pt-56" : "py-12 sm:py-16"}`}>
-        {service.badge && (
-          <span className="mb-3 inline-block rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-fg">{service.badge}</span>
-        )}
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{service.name}</h1>
-        {service.tagline && <p className="mt-2 max-w-2xl text-lg opacity-90">{service.tagline}</p>}
-        {service.description && <p className="mt-2 max-w-2xl opacity-80">{service.description.trim()}</p>}
-        <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm opacity-90">
-          <span className="font-medium">From {formatPence(service.base_price_pence)}</span>
-          <span className="inline-flex items-center gap-1.5">
-            <Clock className="size-4" aria-hidden /> {formatDuration(service.duration_mins)}
-          </span>
-        </p>
+      <div className={cn(container, "pt-6 pb-10 sm:pb-14", image && "text-white")}>
+        <Link href={allServices} className="inline-flex items-center gap-1.5 text-sm font-medium opacity-80 transition hover:opacity-100">
+          <ArrowLeft className="size-4" aria-hidden /> All services
+        </Link>
+        <div className={image ? "pt-32 sm:pt-44" : "pt-8 sm:pt-12"}>
+          {service.badge && (
+            <span className="mb-3 inline-block rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-fg">{service.badge}</span>
+          )}
+          <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-5xl">{service.name}</h1>
+          {service.tagline && <p className="mt-3 max-w-2xl text-lg text-pretty opacity-90">{service.tagline}</p>}
+          {description && description !== service.tagline?.trim() && (
+            <p className="mt-2 max-w-2xl text-pretty opacity-80">{description}</p>
+          )}
+          <p className="mt-6 flex flex-wrap items-center gap-2 text-sm">
+            <span className="rounded-full bg-black/10 px-3 py-1.5 font-medium">From {formatPence(service.base_price_pence)}</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-black/10 px-3 py-1.5">
+              <Clock className="size-4" aria-hidden /> {formatDuration(service.duration_mins)}
+            </span>
+          </p>
+        </div>
       </div>
     </section>
   );
@@ -259,7 +262,7 @@ function Hero({ service }: { service: Service }) {
 
 function PriceCard({ service, href }: { service: Service; href: string }) {
   return (
-    <div className="grid gap-3 rounded-2xl border bg-white p-5 shadow-sm">
+    <div className="grid gap-4 rounded-2xl border bg-white p-6 shadow-sm">
       <div>
         <p className="text-sm text-neutral-500">From</p>
         <p className="text-3xl font-semibold tracking-tight">{formatPence(service.base_price_pence)}</p>

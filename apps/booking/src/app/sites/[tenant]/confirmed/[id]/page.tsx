@@ -9,6 +9,7 @@ import { requireRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
 import { resumePaymentAction } from "./actions";
 import { ContactLinks } from "@/components/contact-links";
+import { SiteFrame } from "@/components/site";
 import { Booked } from "./booked";
 import { RefreshWhileWaiting } from "./refresh-while-waiting";
 import { formatFullDateTime } from "@leadgen/core/dates";
@@ -41,15 +42,9 @@ export default async function ConfirmedPage({ params, searchParams }: PageProps<
     booking?.status === "confirmed" || booking?.status === "requested" ? await manageBookingUrl(tenant, id) : null;
 
   return (
+    <SiteFrame tenant={tenant} embedded={embedded}>
     <main className="flex flex-1 flex-col">
-      {!embedded && (
-        <header className="bg-brand px-4 py-3 text-brand-fg">
-          <Link href={pageUrl(tenant)} className="font-semibold">
-            {tenant.name}
-          </Link>
-        </header>
-      )}
-      <div className="mx-auto grid w-full max-w-lg flex-1 content-start justify-items-center gap-3 px-4 py-12 text-center">
+      <div className="mx-auto grid w-full max-w-lg flex-1 content-start justify-items-center gap-3 px-4 py-12 text-center sm:py-16">
         {!booking ? (
           <Message title="We couldn't find that booking">
             <Again href={pageUrl(tenant, "/quote")} />
@@ -115,6 +110,7 @@ export default async function ConfirmedPage({ params, searchParams }: PageProps<
         )}
       </div>
     </main>
+    </SiteFrame>
   );
 }
 

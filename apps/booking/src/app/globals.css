@@ -17,6 +17,18 @@
   --font-sans: var(--font-sans);
 }
 
+/* Tailwind 4 draws a bare `border` in the text colour (black). Every card,
+   divider and box on these pages wants the soft grey instead. */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-neutral-200, currentColor);
+  }
+}
+
 body {
   background: #fafafa;
   color: #0a0a0a;

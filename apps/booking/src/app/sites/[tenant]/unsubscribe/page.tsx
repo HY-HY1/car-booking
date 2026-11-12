@@ -34,7 +34,7 @@ export default async function UnsubscribePage({ searchParams }: { searchParams: 
   }
 
   return (
-    <LegalPage title={ok ? "You're unsubscribed" : "That link isn't valid"}>
+    <LegalPage tenant={tenant} title={ok ? "You're unsubscribed" : "That link isn't valid"}>
       <p>
         {ok
           ? `${tenant.name} won't send you marketing any more. You'll still get messages about bookings you make.`
