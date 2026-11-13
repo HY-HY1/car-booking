@@ -2,6 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "../supabase/admin";
 import { generateApiKey, hashApiKey } from "./key-format";
+import { cleanScopes } from "./scopes";
+import type { Scope } from "./types";
 
 // Creating, listing, revoking and checking a business's API keys. Callers
 // check the user is the business's owner first; these use the secret key.
@@ -15,6 +17,7 @@ export type ApiKeyRow = {
   created_at: string;
   last_used_at: string | null;
   revoked_at: string | null;
+  scopes: Scope[];
 };
 
 // Takes the caller's client: the dashboard lists keys through the signed-in
@@ -23,19 +26,19 @@ export type ApiKeyRow = {
 export async function listApiKeys(db: SupabaseClient, tenantId: string): Promise<ApiKeyRow[]> {
   const { data, error } = await db
     .from("api_keys")
-    .select("id, name, prefix, created_at, last_used_at, revoked_at")
+    .select("id, name, prefix, created_at, last_used_at, revoked_at, scopes")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return data;
+  return data.map((k) => ({ ...k, scopes: cleanScopes(k.scopes ?? []) }));
 }
 
 // Returns the key itself. It isn't stored, so this is the only time it exists.
-export async function createApiKey(tenantId: string, name: string, createdBy: string) {
+export async function createApiKey(tenantId: string, name: string, createdBy: string, scopes: Scope[]) {
   const { key, hash, prefix } = generateApiKey();
   const { error } = await createAdminClient()
     .from("api_keys")
-    .insert({ tenant_id: tenantId, name, prefix, key_hash: hash, created_by: createdBy });
+    .insert({ tenant_id: tenantId, name, prefix, key_hash: hash, created_by: createdBy, scopes: cleanScopes(scopes) });
   if (error) throw error;
   return key;
 }
@@ -50,14 +53,16 @@ export async function revokeApiKey(tenantId: string, id: string) {
   if (error) throw error;
 }
 
-// The business a key belongs to, or null for an unknown or revoked key. Notes
-// when it was last used, at most once an hour so polling doesn't mean a
-// write on every request.
-export async function tenantForApiKey(key: string): Promise<string | null> {
+export type KeyHolder = { keyId: string; keyName: string; tenantId: string; scopes: Scope[] };
+
+// The business a key belongs to and what it may do, or null for an unknown
+// or revoked key. Notes when it was last used, at most once an hour so
+// polling doesn't mean a write on every request.
+export async function holderOfApiKey(key: string): Promise<KeyHolder | null> {
   const db = createAdminClient();
   const { data, error } = await db
     .from("api_keys")
-    .select("id, tenant_id, last_used_at")
+    .select("id, name, tenant_id, last_used_at, scopes")
     .eq("key_hash", hashApiKey(key))
     .is("revoked_at", null)
     .maybeSingle();
@@ -71,5 +76,5 @@ export async function tenantForApiKey(key: string): Promise<string | null> {
       .eq("id", data.id);
     if (touchError) console.error("Couldn't record API key use", touchError);
   }
-  return data.tenant_id;
+  return { keyId: data.id, keyName: data.name, tenantId: data.tenant_id, scopes: cleanScopes(data.scopes ?? []) };
 }

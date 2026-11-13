@@ -10,7 +10,7 @@ export default function ApiKeys() {
   return (
     <>
       <DocTitle eyebrow="API" title="API keys">
-        <p>How to create, store, rotate and revoke the keys that give a website access to the API.</p>
+        <p>How to create, store, rotate and revoke the keys that give a website or system access to the API.</p>
       </DocTitle>
 
       <h2>Creating a key</h2>
@@ -20,7 +20,12 @@ export default function ApiKeys() {
           In the dashboard, go to <Place>Settings → Integrations</Place>.
         </li>
         <li>
-          Give the key a name that says where it&apos;s used, like <em>Main website</em>, and create it.
+          Give the key a name that says where it&apos;s used, like <em>Main website</em>.
+        </li>
+        <li>
+          Tick what it can do (its <Link href={docsUrl("/api#scopes")}>scopes</Link>). Only the first, services,
+          prices and availability, is ticked to start with. Tick the others only for a system that needs customer
+          details, and create it.
         </li>
         <li>
           <strong>Copy the key straight away.</strong> It&apos;s shown once and never again.
@@ -52,13 +57,17 @@ export default function ApiKeys() {
       </p>
 
       <h2>Keeping it safe</h2>
-      <p>A key reads only public product data, but treat it like a password anyway:</p>
+      <p>
+        Treat every key like a password. One with only <code>catalog:read</code> reads what&apos;s on the booking page
+        anyway, but one with any other scope reaches customers&apos; names, contact details and addresses.
+      </p>
       <ul>
         <li>
           Keep it in an environment variable or your host&apos;s secret settings, such as <code>BOOKING_API_KEY</code>.
         </li>
         <li>Never put it in code that runs in the browser, and never commit it to Git.</li>
         <li>Use a separate key for each site or system, so you can revoke one without breaking the others.</li>
+        <li>Give each key only the scopes it needs. A website showing prices never needs customer details.</li>
       </ul>
       <Callout tone="warning">
         <p>
@@ -66,6 +75,12 @@ export default function ApiKeys() {
           <Link href={docsUrl("/api#server-only")}>why the API is server-only</Link>.
         </p>
       </Callout>
+
+      <h2>Changing what a key can do</h2>
+      <p>
+        A key&apos;s scopes are fixed when it&apos;s made, and the dashboard lists them under each key. To change them,
+        make a new key with the right ones and revoke the old one, as below.
+      </p>
 
       <h2>Revoking and rotating</h2>
       <p>

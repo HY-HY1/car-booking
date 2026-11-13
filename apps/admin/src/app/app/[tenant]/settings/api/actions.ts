@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { logActivity } from "@/lib/activity";
 import { z } from "zod";
 import { createApiKey, revokeApiKey } from "@leadgen/core/api/keys";
+import { API_SCOPES, cleanScopes } from "@leadgen/core/api/scopes";
 import { requireTenant } from "@/lib/auth";
 
 // Settings → Integrations. Owner-only: the keys are written with the secret key, so
@@ -18,9 +19,12 @@ export async function createKeyAction(slug: string, formData: FormData): Promise
   const name = z.string().trim().min(1).max(60).safeParse(formData.get("name"));
   if (!name.success) return { error: "Give the key a name of up to 60 characters, like “Main website”." };
 
+  const scopes = cleanScopes(formData.getAll("scopes"));
+  const access = scopes.map((s) => API_SCOPES[s].label.toLowerCase()).join(", ");
+
   try {
-    const key = await createApiKey(tenant.id, name.data, user.id);
-    await logActivity(tenant.id, "settings.api_key_created", `Created the API key ${name.data}`);
+    const key = await createApiKey(tenant.id, name.data, user.id, scopes);
+    await logActivity(tenant.id, "settings.api_key_created", `Created the API key ${name.data} (${access})`);
     refresh();
     return { key };
   } catch (error) {

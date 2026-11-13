@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes, randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { bookingReference } from "../booking/confirmation";
+import { BOOKING_COLUMNS, bookingResource, LEAD_COLUMNS, leadResource, type BookingRow, type LeadRow } from "../api/resources";
 import { seal, unseal } from "../calendar/crypto";
 import { createAdminClient } from "../supabase/admin";
 import {
@@ -21,7 +21,7 @@ import {
 //
 // sendBookingWebhooks and sendLeadWebhook are called where bookings and leads change.
 // Each queues one delivery per endpoint that wants the event and tries it
-// straight away; failures are retried by the next event for that business
+// once the response has gone (sendSoon); failures are retried by the next event for that business
 // and by the daily job (runWebhookJobs). The hooks never throw: a business's
 // server being down mustn't lose a booking.
 
@@ -47,76 +47,18 @@ async function quietly(label: string, fn: () => Promise<void>) {
 
 // ------------------------------------------------------------------ payloads
 
-type BookingRow = {
-  id: string;
-  status: string;
-  starts_at: string;
-  ends_at: string;
-  created_at: string;
-  updated_at: string;
-  location_type: string;
-  address_line: string | null;
-  postcode: string;
-  customer_notes: string | null;
-  price_pence: number;
-  deposit_pence: number;
-  deposit_status: string;
-  source: string;
-  resource_id: string | null;
-  quote_snapshot: { lines?: { label: string; amount_pence: number }[] } | null;
-  service: { id: string; name: string } | null;
-  customer: { id: string; name: string; email: string | null; phone: string | null } | null;
-  vehicle: { make: string | null; model: string | null; registration: string | null; size_class: string } | null;
-  staff: { id: string; name: string } | null;
-};
-
-const BOOKING_COLUMNS =
-  "id, status, starts_at, ends_at, created_at, updated_at, location_type, address_line, postcode, customer_notes, price_pence, deposit_pence, deposit_status, source, resource_id, quote_snapshot, service:services(id, name), customer:customers(id, name, email, phone), vehicle:vehicles(make, model, registration, size_class), staff:staff(id, name)";
-
-// What's sent about a booking. Never the team's internal notes.
-function bookingData(b: BookingRow) {
-  return {
-    id: b.id,
-    reference: bookingReference(b.id),
-    status: b.status,
-    starts_at: b.starts_at,
-    ends_at: b.ends_at,
-    service: b.service,
-    lines: b.quote_snapshot?.lines ?? [],
-    price: { total_pence: b.price_pence, deposit_pence: b.deposit_pence, deposit_status: b.deposit_status },
-    location: { type: b.location_type, address: b.address_line, postcode: b.postcode },
-    customer: b.customer,
-    vehicle: b.vehicle,
-    notes: b.customer_notes,
-    van_or_bay_id: b.resource_id,
-    staff: b.staff,
-    source: b.source,
-    created_at: b.created_at,
-    updated_at: b.updated_at,
-  };
-}
+// The shapes are the API's (api/resources.ts), so a booking from a webhook
+// and one from GET /v1/bookings/{id} are the same object.
 
 async function leadData(db: Db, tenantId: string, leadId: string) {
   const { data, error } = await db
     .from("leads")
-    .select("id, status, source, created_at, quote_snapshot, form_answers, customer:customers(id, name, email, phone)")
+    .select(LEAD_COLUMNS)
     .eq("tenant_id", tenantId)
     .eq("id", leadId)
-    .maybeSingle();
+    .maybeSingle<LeadRow>();
   if (error) throw error;
-  if (!data) return null;
-  const snapshot = data.quote_snapshot as { service_name?: string; total_pence?: number; postcode?: string } | null;
-  return {
-    id: data.id,
-    status: data.status,
-    source: data.source,
-    service: snapshot?.service_name ?? null,
-    quoted_pence: snapshot?.total_pence ?? null,
-    postcode: snapshot?.postcode ?? null,
-    form_answers: data.form_answers ?? null,
-    customer: data.customer,
-    created_at: data.created_at,
-  };
+  return data ? leadResource(data) : null;
 }
 
 // ------------------------------------------------------------------ queueing
@@ -134,7 +76,20 @@ async function activeEndpoints(db: Db, tenantId: string): Promise<Endpoint[]> {
 }
 
 function envelope(type: string, data: unknown) {
-  return { id: `evt_${randomUUID().replace(/-/g, "")}`, type, created_at: new Date().toISOString(), data };
+  return { id: `evt_${randomUUID().replace(/-/g, "")}`, type, createdAt: new Date().toISOString(), data };
+}
+
+// Sends after the response has gone (Next's after()), so a slow or broken
+// receiver never keeps a customer waiting on the Book button. Outside a
+// request (a script, the daily job) it just sends now.
+async function sendSoon(db: Db, tenantId: string) {
+  const task = () => quietly("sending", async () => void (await deliverDue(db, { tenantId, limit: 20 })));
+  try {
+    const { after } = await import("next/server");
+    after(task);
+  } catch {
+    await task();
+  }
 }
 
 async function queue(db: Db, tenantId: string, endpoints: Endpoint[], type: WebhookEvent, data: unknown) {
@@ -145,7 +100,7 @@ async function queue(db: Db, tenantId: string, endpoints: Endpoint[], type: Webh
     wanted.map((e) => ({ tenant_id: tenantId, endpoint_id: e.id, event_id: event.id, event_type: type, payload: event })),
   );
   if (error) throw error;
-  await deliverDue(db, { tenantId, limit: 20 });
+  await sendSoon(db, tenantId);
 }
 
 // Called wherever a booking changes. Works out what happened from what was
@@ -173,7 +128,7 @@ export async function sendBookingWebhooks(tenantId: string, bookingId: string) {
       .from("webhook_booking_state")
       .upsert({ booking_id: b.id, tenant_id: tenantId, status: b.status, starts_at: b.starts_at, updated_at: new Date().toISOString() });
     if (saved.error) throw saved.error;
-    if (type) await queue(db, tenantId, endpoints, type, { booking: bookingData(b) });
+    if (type) await queue(db, tenantId, endpoints, type, { booking: bookingResource(b) });
   });
 }
 
@@ -411,13 +366,13 @@ export function endpointProblem(url: string) {
 }
 
 // Returns the signing secret, which is shown once.
-export async function createEndpoint(tenantId: string, userId: string, input: EndpointInput) {
+export async function createEndpoint(tenantId: string, userId: string | null, input: EndpointInput) {
   const problem = endpointProblem(input.url);
   if (problem) return { error: problem } as const;
   const db = createAdminClient();
   const count = await db.from("webhook_endpoints").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
   if (count.error) throw count.error;
-  if ((count.count ?? 0) >= MAX_ENDPOINTS) return { error: `You can have up to ${MAX_ENDPOINTS} webhooks.` } as const;
+  if ((count.count ?? 0) >= MAX_ENDPOINTS) return { error: `You can have up to ${MAX_ENDPOINTS} webhooks.`, limit: true } as const;
   const secret = newSigningSecret(randomBytes(24));
   const { data, error } = await db
     .from("webhook_endpoints")

@@ -1,39 +1,13 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { WEBHOOK_EVENT_KEYS, WEBHOOK_EVENTS } from "@leadgen/core/webhooks/rules";
+import { MAX_ENDPOINTS } from "@leadgen/core/webhooks/deliver";
 import { CodeBlock } from "@/components/docs/code-block";
-import { Callout, DocTitle, Place } from "@/components/docs/docs-kit";
+import { Callout, DocTitle, Endpoint, FieldTable, ParamTable, Place, Statuses } from "@/components/docs/docs-kit";
+import { exampleBooking, exampleWebhook } from "@/lib/docs-examples";
+import { apiUrl, docsUrl } from "@/lib/urls";
 
 export const metadata: Metadata = { title: "Webhooks" };
-
-const EXAMPLE = `{
-  "id": "evt_3f9c1a7e2b8d4c6f9a0e1d2c3b4a5f6e",
-  "type": "booking.created",
-  "created_at": "2026-11-12T09:41:07.512Z",
-  "data": {
-    "booking": {
-      "id": "6d1f0c2a-7b9e-4e1a-9c3d-2f8b5a4e7d10",
-      "reference": "6D1F0C2A",
-      "status": "confirmed",
-      "starts_at": "2026-11-20T09:00:00+00:00",
-      "ends_at": "2026-11-20T12:00:00+00:00",
-      "service": { "id": "…", "name": "Full valet" },
-      "lines": [
-        { "label": "Full valet (medium car)", "amount_pence": 12000 },
-        { "label": "Pet hair removal", "amount_pence": 2000 }
-      ],
-      "price": { "total_pence": 14000, "deposit_pence": 2000, "deposit_status": "paid" },
-      "location": { "type": "mobile", "address": "1 High Street", "postcode": "GL51 0QX" },
-      "customer": { "id": "…", "name": "Sam Price", "email": "sam@example.com", "phone": "+447700900123" },
-      "vehicle": { "make": "VW", "model": "Golf", "registration": "AB12CDE", "size_class": "medium" },
-      "notes": "Gate code 1234",
-      "van_or_bay_id": "…",
-      "staff": null,
-      "source": "booking_page",
-      "created_at": "2026-11-12T09:41:05.120Z",
-      "updated_at": "2026-11-12T09:41:06.904Z"
-    }
-  }
-}`;
 
 const NODE = `import crypto from "node:crypto";
 
@@ -51,7 +25,12 @@ export function isGenuine(secret, headers, rawBody) {
   );
 }`;
 
+const envelope = (type: string, data: unknown) =>
+  JSON.stringify({ id: "evt_3f9c1a7e2b8d4c6f9a0e1d2c3b4a5f6e", type, createdAt: "2026-11-12T09:41:07.512Z", data }, null, 2);
+
 export default function WebhooksDocs() {
+  const hooks = apiUrl("/v1/webhooks", { absolute: true });
+
   return (
     <>
       <DocTitle eyebrow="API" title="Webhooks">
@@ -89,13 +68,29 @@ export default function WebhooksDocs() {
         a checkout they leave never sends anything.
       </p>
 
-      <h2>What&apos;s sent</h2>
+      <h2 id="payload">What&apos;s sent</h2>
       <p>
-        A <code>POST</code> with a JSON body. Booking events carry the whole booking, as it is now. Your team&apos;s internal
-        notes are never sent. <code>lead.created</code> carries <code>data.lead</code> with the customer, the service they
-        looked at, the price they were shown and, for Facebook and Instagram lead forms, their answers.
+        A <code>POST</code> with a JSON body: an envelope with the event&apos;s <code>id</code>, <code>type</code> and{" "}
+        <code>createdAt</code>, and its <code>data</code>.
       </p>
-      <CodeBlock title="booking.created" code={EXAMPLE} />
+      <ul>
+        <li>
+          Booking events carry <code>data.booking</code>: the whole booking as it is now, the same object as{" "}
+          <Link href={docsUrl("/api/bookings#booking")}>GET /bookings/{"{id}"}</Link>. Your team&apos;s internal notes are
+          never sent.
+        </li>
+        <li>
+          <code>lead.created</code> carries <code>data.lead</code>, the same object as{" "}
+          <Link href={docsUrl("/api/leads#lead")}>GET /leads/{"{id}"}</Link>.
+        </li>
+        <li>
+          <code>ping</code>, from <Place>Send a test</Place>, carries <code>data.message</code>.
+        </li>
+      </ul>
+      <p>
+        The type for the whole body is <code>WebhookPayload</code> on <Link href={docsUrl("/api/types")}>TypeScript types</Link>.
+      </p>
+      <CodeBlock title="booking.created" code={envelope("booking.created", { booking: exampleBooking() })} />
 
       <h2>Checking it came from us</h2>
       <p>Every request has three headers, laid out as the Standard Webhooks spec describes, so its libraries work too:</p>
@@ -133,8 +128,89 @@ export default function WebhooksDocs() {
       </p>
       <p>
         Events usually arrive in the order they happened, but a retry can arrive after a later event. Use{" "}
-        <code>data.booking.updated_at</code> to keep the newest.
+        <code>data.booking.updatedAt</code> to keep the newest.
       </p>
+      <h2 id="manage">Managing webhooks through the API</h2>
+      <p>
+        Most businesses add webhooks in the dashboard. Tools that set themselves up, such as a Zapier integration, can
+        add and remove them with a key that has the <code>webhooks:write</code> scope. These are the same webhooks the
+        dashboard shows, up to {MAX_ENDPOINTS} per business.
+      </p>
+
+      <h3>List webhooks</h3>
+      <Endpoint method="GET" path={hooks} scope="webhooks:write" />
+      <p>
+        <code>200 OK</code> with <code>{"{ data: Webhook[] }"}</code>, oldest first. Not paged.
+      </p>
+
+      <h3>Add a webhook</h3>
+      <Endpoint method="POST" path={hooks} scope="webhooks:write" />
+      <ParamTable
+        params={[
+          { name: "url", type: "string", required: true, text: "Where to send events. https only, and not a private network address." },
+          {
+            name: "events",
+            type: "string[]",
+            required: true,
+            text: (
+              <>
+                The events to send, from the list above, such as <code>[&quot;booking.created&quot;]</code>.
+              </>
+            ),
+          },
+          { name: "description", type: "string", text: "A note to show in the dashboard. Up to 200 characters." },
+        ]}
+      />
+      <CodeBlock
+        title="Terminal"
+        code={`curl ${hooks} \\\n  -H "Authorization: Bearer $BOOKING_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify({ url: exampleWebhook.url, events: exampleWebhook.events, description: exampleWebhook.description })}'`}
+      />
+      <p>
+        <code>201 Created</code> with the webhook and its signing secret. <strong>The secret is only ever returned
+        here</strong>: store it to check signatures.
+      </p>
+      <CodeBlock
+        title="201 Created · application/json"
+        code={JSON.stringify({ ...exampleWebhook, secret: "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw" }, null, 2)}
+      />
+      <Statuses
+        rows={[
+          ["201", "Added. It starts getting events straight away."],
+          ["400", <><code>invalid_request</code>: a bad url or an unknown event. <code>param</code> says which.</>],
+          ["409", <><code>limit_reached</code>: the business already has {MAX_ENDPOINTS}.</>],
+          ["401, 403, 429", <Link key="e" href={docsUrl("/api#errors")}>The usual errors</Link>],
+        ]}
+      />
+
+      <h3>Get a webhook</h3>
+      <Endpoint method="GET" path={`${hooks}/{id}`} scope="webhooks:write" />
+      <p>
+        <code>200 OK</code> with the <code>Webhook</code>, or <code>404</code> <code>not_found</code>.
+      </p>
+
+      <h3>Remove a webhook</h3>
+      <Endpoint method="DELETE" path={`${hooks}/{id}`} scope="webhooks:write" />
+      <p>
+        <code>204 No Content</code>, or <code>404</code> <code>not_found</code>. Nothing more is sent to it, including
+        retries.
+      </p>
+
+      <h3 id="webhook">Webhook</h3>
+      <FieldTable
+        fields={[
+          { name: "id", type: "string", text: "A UUID." },
+          { name: "url", type: "string", text: "Where events go." },
+          { name: "description", type: "string | null", text: "The note shown in the dashboard." },
+          { name: "events", type: "string[]", text: "The events it gets." },
+          {
+            name: "active",
+            type: "boolean",
+            text: `False once paused after ${50} failures in a row, or switched off in the dashboard.`,
+          },
+          { name: "createdAt", type: "string", text: "When it was added." },
+          { name: "secret", type: "string", text: "Only when it's added: the signing secret, whsec_…" },
+        ]}
+      />
     </>
   );
 }

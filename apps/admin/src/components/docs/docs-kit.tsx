@@ -90,13 +90,60 @@ export function SimpleTable({ head, rows }: { head: string[]; rows: ReactNode[][
   );
 }
 
-export function Endpoint({ method, path }: { method: "GET"; path: string }) {
+const METHOD_STYLE = {
+  GET: "bg-emerald-600",
+  POST: "bg-blue-600",
+  DELETE: "bg-red-600",
+} as const;
+
+// An endpoint's method and full URL, and the scope a key needs to call it.
+export function Endpoint({ method, path, scope }: { method: keyof typeof METHOD_STYLE; path: string; scope?: string }) {
   return (
-    <p className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 font-mono text-sm">
-      <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-xs font-semibold text-white">{method}</span>
-      <span className="break-all">{path}</span>
-    </p>
+    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2 font-mono text-sm">
+      <span className={cn("rounded px-1.5 py-0.5 text-xs font-semibold text-white", METHOD_STYLE[method])}>{method}</span>
+      <span className="order-last min-w-0 basis-full break-all sm:order-none sm:basis-0 sm:flex-1">{path}</span>
+      {scope && (
+        <span className="rounded-full border bg-background px-2 py-0.5 text-xs text-muted-foreground">
+          scope <span className="text-foreground">{scope}</span>
+        </span>
+      )}
+    </div>
   );
+}
+
+export type Param = { name: string; type: string; required?: boolean; text: ReactNode };
+
+// Query parameters or body fields: name, type, required or not, what it does.
+export function ParamTable({ params }: { params: Param[] }) {
+  return (
+    <div className="mt-4 overflow-x-auto rounded-lg border">
+      <table className="w-full text-left text-sm">
+        <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
+          <tr>
+            <th scope="col" className="px-3 py-2 font-medium">Name</th>
+            <th scope="col" className="px-3 py-2 font-medium">Type</th>
+            <th scope="col" className="px-3 py-2 font-medium">Required</th>
+            <th scope="col" className="px-3 py-2 font-medium">Description</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {params.map((p) => (
+            <tr key={p.name} className="align-top">
+              <td className="px-3 py-2 font-mono text-[13px] whitespace-nowrap">{p.name}</td>
+              <td className="px-3 py-2 font-mono text-[13px] whitespace-nowrap text-muted-foreground">{p.type}</td>
+              <td className="px-3 py-2 whitespace-nowrap">{p.required ? "Yes" : "No"}</td>
+              <td className="px-3 py-2 leading-relaxed">{p.text}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// The statuses an endpoint can answer with. Codes link to the overview's list.
+export function Statuses({ rows }: { rows: [status: string, when: ReactNode][] }) {
+  return <SimpleTable head={["Status", "When"]} rows={rows} />;
 }
 
 // Where something is in the dashboard, e.g. <Place>Settings → Integrations</Place>.

@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { passwordReset, renderEmail } from "../email/compose";
+import { PRODUCT_NAME } from "../brand";
+import { fromHeader, passwordReset, renderEmail } from "../email/compose";
 import { deliver, fromAddress } from "../email/transport";
 import { createAdminClient } from "../supabase/admin";
 import { appUrl } from "../urls";
@@ -32,11 +33,18 @@ export async function sendPasswordReset(email: string) {
   const token = data.properties.hashed_token;
   const composed = passwordReset(appUrl(`/reset-password?token=${encodeURIComponent(token)}`, { absolute: true }));
   const { text, html } = renderEmail({
-    heading: composed.subject,
-    body: composed.body,
-    button: composed.button,
-    footer: ["You're getting this because someone asked to reset the password for this account."],
+    content: composed,
+    audience: "platform",
+    brand: { name: PRODUCT_NAME },
+    footer: [PRODUCT_NAME, "You're getting this because someone asked to reset the password for this account."],
   });
-  const sent = await deliver({ from: fromAddress(), to: email, subject: composed.subject, text, html, idempotencyKey: `password-reset-${token}` });
+  const sent = await deliver({
+    from: fromHeader(PRODUCT_NAME, fromAddress()),
+    to: email,
+    subject: composed.subject,
+    text,
+    html,
+    idempotencyKey: `password-reset-${token}`,
+  });
   if (!sent.ok) console.error("Couldn't send a password reset email", sent.error);
 }

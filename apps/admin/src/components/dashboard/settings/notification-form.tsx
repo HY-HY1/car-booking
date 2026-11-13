@@ -11,7 +11,7 @@ import {
   type CustomerMessage,
   type NotificationSettings,
 } from "@leadgen/core/settings/notifications";
-import { customerFooter, renderEmail } from "@leadgen/core/email/compose";
+import { customerFooter, renderEmail, templateMessage, type EmailBrand } from "@leadgen/core/email/compose";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Check, Field, SaveForm, type Action } from "../form-kit";
@@ -21,7 +21,8 @@ import { Badge } from "@/components/ui/badge";
 // Settings → Notifications: what customers are sent and when, the sender, and
 // alerts to the owner. Saved as one.
 
-type EmailBusiness = { name: string; contactEmail: string | null; accentColor?: string };
+// How the business's customer emails look (branding/email-brand.ts).
+type EmailBusiness = EmailBrand;
 
 export function NotificationsForm({
   settings,
@@ -241,16 +242,29 @@ function EmailPreview({
   business: EmailBusiness;
 }) {
   const sample = { ...SAMPLE_VALUES, business_name: business.name };
-  // Aftercare and review requests are marketing, so they carry an opt-out;
-  // the confirmation and reminder carry the customer's booking link.
-  const marketing = k === "follow_up" || k === "review_request";
+  // Follow-ups, review requests and rebooking invites are marketing, so they
+  // carry an opt-out; the rest carry the customer's booking details.
+  const marketing = k === "follow_up" || k === "review_request" || k === "quote_follow_up" || k === "rebook_reminder";
+  const facts = {
+    customerName: `${sample.customer_name} Jones`,
+    businessName: business.name,
+    service: sample.service,
+    date: sample.date,
+    time: sample.time,
+    address: sample.address,
+    bookingLink: sample.booking_link,
+  };
+  const buttonUrl = k === "review_request" ? sample.review_link : marketing ? sample.booking_link : "https://book.example.co.uk/manage";
   const { html } = renderEmail({
-    heading: business.name,
-    body: renderTemplate(body, sample),
+    content: templateMessage(
+      k,
+      { subject: renderTemplate(subject, sample), body: renderTemplate(body, sample) },
+      { facts, money: { pricePence: 8500, depositPaidPence: 2000 }, buttonUrl },
+    ),
+    audience: "customer",
+    brand: business,
     footer: customerFooter(business, marketing ? "marketing" : "booking"),
-    accentColor: business.accentColor,
     unsubscribeUrl: marketing ? "https://book.example.co.uk/unsubscribe" : undefined,
-    button: marketing ? undefined : { label: "Manage your booking", url: "https://book.example.co.uk/manage" },
   });
 
   return (

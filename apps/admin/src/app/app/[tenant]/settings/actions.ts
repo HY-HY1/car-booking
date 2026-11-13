@@ -4,6 +4,8 @@ import { refresh } from "next/cache";
 import { logActivity } from "@/lib/activity";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { emailLogoOf } from "@leadgen/core/branding/email-brand";
+import { emailLogoFromUrl, makeEmailLogo } from "@leadgen/core/branding/email-logo";
 import { customHostnameSchema } from "@leadgen/core/settings/domains";
 import { addCustomDomain, checkCustomDomain, makePrimaryDomain, removeCustomDomain } from "@leadgen/core/settings/domains-server";
 import { brandingFormSchema, generalFormSchema } from "@leadgen/core/settings/forms";
@@ -102,6 +104,31 @@ export async function saveBrandingAction(slug: string, formData: FormData): Prom
   }
   // The cover's position goes with the cover: kept if none was sent, gone with it.
   branding.cover_position = branding.cover_url ? (parsed.data.cover_position ?? before.cover_position) : undefined;
+
+  // The email copy of the logo (a PNG every mail app can show), made from a
+  // new logo, or from the current one if it hasn't got a copy yet. Emails
+  // fall back to the original logo if this fails, so it never stops a save.
+  const oldEmailLogo = emailLogoOf(before.email_logo);
+  const logoChanged = branding.logo_url !== before.logo_url;
+  if (!branding.logo_url) {
+    branding.email_logo = undefined;
+  } else if (logoChanged || !oldEmailLogo) {
+    try {
+      const made = files.logo
+        ? await makeEmailLogo(await files.logo.arrayBuffer())
+        : await emailLogoFromUrl(branding.logo_url as string);
+      const path = `${tenant.id}/brand/${crypto.randomUUID()}-email.png`;
+      const { error } = await supabase.storage.from(IMAGE_BUCKET).upload(path, made.png, { contentType: "image/png" });
+      if (error) throw error;
+      branding.email_logo = { url: serviceImageUrl(path)!, width: made.width, height: made.height };
+    } catch (error) {
+      console.error("Couldn't make the email copy of the logo", error);
+      branding.email_logo = undefined;
+    }
+  }
+  if (oldEmailLogo && (branding.email_logo as { url?: string } | undefined)?.url !== oldEmailLogo.url && oldEmailLogo.url.startsWith(PUBLIC_PREFIX)) {
+    stale.push(oldEmailLogo.url.slice(PUBLIC_PREFIX.length));
+  }
   // Blank fields are taken out rather than stored empty.
   for (const key of Object.keys(branding)) if (branding[key] === undefined) delete branding[key];
 

@@ -6,58 +6,9 @@ import { apiUrl, docsUrl } from "@/lib/urls";
 
 export const metadata: Metadata = { title: "API examples" };
 
-// The v1 response shape, for TypeScript sites. v1 never changes shape (see the
-// overview's versioning section), so this can't drift from catalog.ts.
-const TYPES = `export type Catalog = {
-  version: 1;
-  business: { name: string; bookingUrl: string | null };
-  services: CatalogService[];
-  addOns: CatalogAddOn[];
-};
-
-export type CatalogService = {
-  id: string;
-  slug: string | null;
-  name: string;
-  tagline: string | null;
-  description: string | null;
-  badge: string | null;
-  durationMins: number;
-  locations: ("mobile" | "unit")[];
-  price: {
-    fromPence: number;
-    from: string;
-    bySize: {
-      size: "small" | "medium" | "large" | "xl";
-      label: string;
-      extraPence: number;
-      extraMins: number;
-    }[];
-  };
-  image: string | null;
-  gallery: string[];
-  includes: string[];
-  notIncluded: string[];
-  steps: { title: string; text: string }[];
-  faqs: { q: string; a: string }[];
-  body: string | null;
-  seo: { title: string | null; description: string | null };
-  pageUrl: string | null;
-  bookUrl: string | null;
-};
-
-export type CatalogAddOn = {
-  id: string;
-  name: string;
-  description: string | null;
-  pricePence: number;
-  price: string;
-  durationMins: number;
-  serviceIds: string[] | null;
-};`;
-
 export default function ApiExamples() {
   const endpoint = apiUrl("/v1/catalog", { absolute: true });
+  const base = apiUrl("/v1", { absolute: true });
 
   return (
     <>
@@ -121,7 +72,7 @@ export async function getCatalog() {
       <p>A server component, so the key never reaches the browser. The page refreshes its prices every 5 minutes.</p>
       <CodeBlock
         title="app/services/page.tsx"
-        code={`import type { Catalog } from "@/lib/catalog-types";
+        code={`import type { Catalog } from "@/lib/booking-api";
 
 async function getCatalog(): Promise<Catalog> {
   const res = await fetch("${endpoint}", {
@@ -220,9 +171,102 @@ add_shortcode('booking_prices', function () {
 });`}
       />
 
+      <h2 id="next-available">Next free time</h2>
+      <p>
+        A &quot;Next available&quot; line for a service page: the first date with a free time, then the first time on it.
+        Fetch it when the page is requested, not at build time, since free times change through the day. Needs a mobile
+        postcode, or <code>locationType=unit</code>.
+      </p>
+      <CodeBlock
+        title="next-available.ts"
+        code={`import type { AvailableDates, AvailableSlots } from "./booking-api";
+
+const API = "${base}";
+const headers = { Authorization: \`Bearer \${process.env.BOOKING_API_KEY}\` };
+
+export async function nextAvailable(serviceId: string, sizeClass = "medium") {
+  const job = new URLSearchParams({ serviceId, sizeClass, locationType: "unit" });
+
+  const dates: AvailableDates = await fetch(\`\${API}/availability/dates?\${job}\`, { headers }).then((r) => r.json());
+  const first = dates.dates[0];
+  if (!first) return null;
+
+  job.set("date", first);
+  const day: AvailableSlots = await fetch(\`\${API}/availability/slots?\${job}\`, { headers }).then((r) => r.json());
+  return day.slots[0] ?? null; // { startsAt, time }
+}`}
+      />
+
+      <h2 id="contact-form">Contact form to enquiry</h2>
+      <p>
+        A Next.js server action that sends a website&apos;s contact form into the business&apos;s dashboard as an
+        enquiry. The key needs the <code>leads:write</code> scope. The form&apos;s own id makes a double submit
+        harmless. See <Link href={docsUrl("/api/leads#create")}>Add an enquiry</Link>.
+      </p>
+      <CodeBlock
+        title="app/contact/actions.ts"
+        code={`"use server";
+
+import type { ApiError, Lead } from "@/lib/booking-api";
+
+export async function sendEnquiry(formData: FormData) {
+  const res = await fetch("${base}/leads", {
+    method: "POST",
+    headers: {
+      Authorization: \`Bearer \${process.env.BOOKING_API_KEY}\`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: formData.get("name"),
+      email: formData.get("email") || undefined,
+      phone: formData.get("phone") || undefined,
+      message: formData.get("message") || undefined,
+      formName: "Contact page",
+      externalId: formData.get("submissionId"), // a hidden field, unique per form load
+    }),
+  });
+
+  if (!res.ok) {
+    const { error }: ApiError = await res.json();
+    return { error: error.message }; // e.g. "Send an email or a phone number, or both."
+  }
+  const lead: Lead = await res.json();
+  return { ok: true, id: lead.id };
+}`}
+      />
+
+      <h2 id="sync">Keep a copy of bookings</h2>
+      <p>
+        For a spreadsheet, accounts or a CRM: ask for everything changed since the last run, a page at a time. The key
+        needs <code>bookings:read</code>. Webhooks are quicker if you can receive them; this works from a scheduled job.
+      </p>
+      <CodeBlock
+        title="sync-bookings.ts"
+        code={`import type { Booking, List } from "./booking-api";
+
+export async function bookingsChangedSince(since: string): Promise<Booking[]> {
+  const changed: Booking[] = [];
+  let cursor: string | null = null;
+  do {
+    const url = new URL("${base}/bookings");
+    url.searchParams.set("updatedSince", since);
+    url.searchParams.set("limit", "100");
+    if (cursor) url.searchParams.set("cursor", cursor);
+    const res = await fetch(url, { headers: { Authorization: \`Bearer \${process.env.BOOKING_API_KEY}\` } });
+    if (!res.ok) throw new Error(\`Bookings request failed: \${res.status}\`);
+    const page: List<Booking> = await res.json();
+    changed.push(...page.data);
+    cursor = page.nextCursor;
+  } while (cursor);
+  return changed; // save each by id; remember when this run started for next time
+}`}
+      />
+
       <h2 id="types">TypeScript types</h2>
-      <p>The full v1 response, ready to drop into a TypeScript project:</p>
-      <CodeBlock title="catalog-types.ts" code={TYPES} />
+      <p>
+        Every request and response is in one file on <Link href={docsUrl("/api/types")}>TypeScript types</Link>. The
+        examples import it as <code>booking-api.ts</code>.
+      </p>
     </>
   );
 }

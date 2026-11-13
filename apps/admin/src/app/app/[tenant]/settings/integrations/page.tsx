@@ -147,8 +147,9 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
                 Use your product data on your own website
               </h2>
               <p className="text-sm text-muted-foreground">
-                Your website can pull your services, prices, add-ons and service page content from here, so it always matches
-                your booking page. Each key only ever returns {tenant.name}&apos;s data. No customer details are shared.
+                Your website can pull your services, prices, opening hours and free times from here, so it always matches
+                your booking page. Keys can also read bookings, customers and enquiries, or send enquiries in from your own
+                forms, but only if you tick that when you make the key. Each key only ever reaches {tenant.name}&apos;s data.
               </p>
             </section>
 
@@ -196,7 +197,7 @@ export default async function IntegrationsPage({ params, searchParams }: PagePro
                   <a href={docsUrl("/api")} target="_blank" rel="noreferrer" className="underline underline-offset-2">
                     Read the full API docs
                   </a>{" "}
-                  <span className="text-muted-foreground">for every field, error codes and examples for WordPress, Next.js and more.</span>
+                  <span className="text-muted-foreground">for every endpoint and field, TypeScript types, error codes and examples.</span>
                 </p>
             )}
           </section>

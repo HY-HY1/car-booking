@@ -4,7 +4,7 @@
 // demo videos in lib/demos.ts. No personal email on the public site: the
 // contact form sends to CONTACT_EMAIL (contact/actions.ts).
 
-export const PRODUCT_NAME = "Kerbside";
+export { PRODUCT_NAME } from "@leadgen/core/brand";
 
 // The one plan. Keep in step with the Stripe price new businesses subscribe
 // to (STRIPE_SUBSCRIPTION_PRICE_ID).

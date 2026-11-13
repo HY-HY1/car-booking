@@ -14,6 +14,8 @@ import type { StripeAlert } from "../stripe/alerts";
 import { getStripe } from "../stripe/client";
 import { loadBookingPayments } from "../stripe/ledger";
 import { paymentSummary } from "../stripe/payment-rules";
+import { PRODUCT_NAME } from "../brand";
+import { emailBrandOf } from "../branding/email-brand";
 import {
   cancelled,
   cancelledByCustomer,
@@ -27,6 +29,7 @@ import {
   lateRefund,
   ownerCancellation,
   ownerDispute,
+  ownerFooter,
   ownerLateRefund,
   ownerNewBooking,
   ownerNewLead,
@@ -37,8 +40,11 @@ import {
   renderEmail,
   requestReceived,
   rescheduled,
+  templateMessage,
+  tidyAddress,
   type BookingFacts,
   type Composed,
+  type EmailBrand,
   type OwnerFacts,
 } from "./compose";
 import { flexibleJobs } from "../booking/waitlist";
@@ -102,7 +108,8 @@ type TenantContext = {
   name: string;
   slug: string;
   contactEmail: string | null;
-  accentColor: string | undefined;
+  // How its customer emails look and sign off: logo, colours, contact details.
+  brand: EmailBrand;
   settings: NotificationSettings;
   timezone: string;
   // Its verified custom domain, if any: where its booking pages live in subdomain mode.
@@ -119,7 +126,7 @@ async function loadTenant(db: Db, tenantId: string): Promise<TenantContext | nul
   const [tenant, settings, domain, senderAddress] = await Promise.all([
     db
       .from("tenants")
-      .select("id, name, slug, contact_email, branding, notification_settings")
+      .select("id, name, slug, contact_email, contact_phone, branding, notification_settings")
       .eq("id", tenantId)
       .maybeSingle(),
     db.from("booking_settings").select("timezone").eq("tenant_id", tenantId).maybeSingle(),
@@ -141,7 +148,7 @@ async function loadTenant(db: Db, tenantId: string): Promise<TenantContext | nul
     name: t.name,
     slug: t.slug,
     contactEmail: t.contact_email ?? null,
-    accentColor: (t.branding as { primary_color?: string } | null)?.primary_color,
+    brand: emailBrandOf({ name: t.name, contactEmail: t.contact_email, contactPhone: t.contact_phone, branding: t.branding }),
     settings: notifications,
     timezone: settings.data?.timezone ?? DEFAULT_TIMEZONE,
     customDomain,
@@ -253,9 +260,14 @@ function bookingFacts(t: TenantContext, b: BookingContext): BookingFacts {
     service: b.service,
     date: formatDay(b.startsAt, t.timezone),
     time: formatClock(b.startsAt, t.timezone),
-    address: b.address,
+    address: tidyAddress(b.address),
     bookingLink: t.siteUrl,
   };
+}
+
+// What the booking costs and what's been paid towards it, for the confirmation.
+function moneyOf(b: BookingContext) {
+  return { pricePence: b.pricePence, depositPaidPence: b.depositStatus === "paid" ? b.depositPence : 0 };
 }
 
 // `manageLink`: the customer's link to cancel or move this booking, where the
@@ -304,15 +316,39 @@ type Message = {
 
 // Claims the message in the log, then sends it. A second claim of the same
 // dedupe key is refused by the unique index, and that message is skipped.
+// The customer's address bounced for good before (the Resend webhook set
+// email_bounced_at), so sending again would only hurt the business's sending
+// reputation. Changing the customer's email clears it. Before the column
+// exists (migration not applied yet) nothing is treated as bounced.
+async function bouncedBefore(db: Db, tenantId: string, customerId: string | undefined, to: string) {
+  if (!customerId) return false;
+  const { data, error } = await db
+    .from("customers")
+    .select("email, email_bounced_at")
+    .eq("tenant_id", tenantId)
+    .eq("id", customerId)
+    .maybeSingle();
+  if (error) {
+    if (error.code !== "42703") console.error("[email] couldn't check for an earlier bounce", error);
+    return false;
+  }
+  return !!data?.email_bounced_at && data.email?.toLowerCase() === to.toLowerCase();
+}
+
 async function send(db: Db, t: TenantContext, m: Message): Promise<"sent" | "failed" | "duplicate" | "skipped"> {
   const audience = m.kind.startsWith("owner_") ? "owner" : "customer";
   let unsubscribeUrl: string | undefined;
+  let oneClickUrl: string | undefined;
   if (m.marketing) {
     // Marketing has to carry a working opt-out; without one it isn't sent.
     const secret = process.env.PRIVACY_TOKEN_SECRET;
     if (!secret) return "skipped";
     const token = await signUnsubscribeToken(secret, m.marketing.customerId, "email");
-    unsubscribeUrl = tenantUrl(t.slug, `/unsubscribe?t=${token}`, { absolute: true, customDomain: t.customDomain });
+    const opts = { absolute: true, customDomain: t.customDomain };
+    // The link asks before it unsubscribes; mail apps' own unsubscribe
+    // button posts to the one-click address (RFC 8058).
+    unsubscribeUrl = tenantUrl(t.slug, `/unsubscribe?t=${token}`, opts);
+    oneClickUrl = tenantUrl(t.slug, `/unsubscribe/one-click?t=${token}`, opts);
   }
 
   const claim = await db
@@ -334,34 +370,34 @@ async function send(db: Db, t: TenantContext, m: Message): Promise<"sent" | "fai
   const footer =
     audience === "customer"
       ? customerFooter(
-          t,
+          t.brand,
           m.marketing ? "marketing" : m.kind === "payment_link" ? "payment_link" : m.kind === "payment_received" ? "payment_received" : "booking",
         )
-      : [`Alerts for ${t.name}. Change which ones you get: ${dashboardUrl(t.slug, "/settings/notifications")}`];
-  const { text, html } = renderEmail({
-    heading: audience === "customer" ? t.name : m.content.subject,
-    body: m.content.body,
-    footer,
-    accentColor: t.accentColor,
-    unsubscribeUrl,
-    button: m.content.button,
-  });
+      : ownerFooter(t.name, dashboardUrl(t.slug, "/settings/notifications"));
+  const { text, html } = renderEmail({ content: m.content, audience, brand: t.brand, footer, unsubscribeUrl });
+
   // Customers hear from the business's own address, so until it's verified
-  // their emails aren't sent; alerts to the business can come from ours.
+  // their emails aren't sent. Alerts to the business come from us, in our
+  // name, so they stand apart from customers' replies in the owner's inbox.
   // Development without a key prints everything to the console regardless.
-  const sender = t.senderAddress ?? (audience === "owner" || !process.env.RESEND_API_KEY ? fromAddress() : null);
-  const result: SendResult = !sender
-    ? { ok: false, error: "No verified sending address: set one up in Settings → Notifications." }
-    : await deliver({
-    from: fromHeader(t.settings.sender_name ?? t.name, sender),
-    to: m.to,
-    replyTo: audience === "customer" ? (t.settings.reply_to ?? t.contactEmail) : null,
-    subject: m.content.subject,
-    text,
-    html,
-    headers: unsubscribeUrl ? { "List-Unsubscribe": `<${unsubscribeUrl}>` } : undefined,
-    idempotencyKey: `${t.id}:${m.dedupeKey}`.slice(0, 256),
-  });
+  const sender = audience === "owner" ? fromAddress() : (t.senderAddress ?? (!process.env.RESEND_API_KEY ? fromAddress() : null));
+  const bounced = audience === "customer" && (await bouncedBefore(db, t.id, m.customerId, m.to));
+  const result: SendResult = bounced
+    ? { ok: false, error: "Not sent: this address bounced before. Check the customer's email address." }
+    : !sender
+      ? { ok: false, error: "No verified sending address: set one up in Settings → Notifications." }
+      : await deliver({
+          from: audience === "owner" ? fromHeader(PRODUCT_NAME, sender) : fromHeader(t.settings.sender_name ?? t.name, sender),
+          to: m.to,
+          replyTo: audience === "customer" ? (t.settings.reply_to ?? t.contactEmail) : null,
+          subject: m.content.subject,
+          text,
+          html,
+          headers: oneClickUrl
+            ? { "List-Unsubscribe": `<${oneClickUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" }
+            : undefined,
+          idempotencyKey: `${t.id}:${m.dedupeKey}`.slice(0, 256),
+        });
 
   const update = await db
     .from("email_log")
@@ -416,14 +452,19 @@ export async function notifySlotOpened(tenantId: string, bookingId: string) {
       if (!b?.customer.email) continue;
       const manage = await manageBookingUrl(t, b.id);
       if (!manage) continue;
-      const values = { ...templateValues(t, b, manage), date: formatDay(start, t.timezone), time: formatClock(start, t.timezone) };
+      const newTime = { date: formatDay(start, t.timezone), time: formatClock(start, t.timezone) };
+      const values = { ...templateValues(t, b, manage), ...newTime };
       await send(db, t, {
         kind: "slot_opened",
         dedupeKey: `slot_opened:${b.id}:${freed.starts_at}`,
         bookingId: b.id,
         customerId: b.customer.id,
         to: b.customer.email,
-        content: { subject: renderTemplate(template.subject, values), body: renderTemplate(template.body, values), button: manageButton(manage) },
+        content: templateMessage(
+          "slot_opened",
+          { subject: renderTemplate(template.subject, values), body: renderTemplate(template.body, values) },
+          { facts: { ...bookingFacts(t, b), ...newTime }, buttonUrl: manage },
+        ),
       });
     }
   });
@@ -447,15 +488,19 @@ export async function notifyBookingSecured(tenantId: string, bookingId: string, 
       const manage = await manageBookingUrl(t, b.id);
       const values = templateValues(t, b, manage ?? "");
       const content: Composed = requested
-        ? requestReceived(bookingFacts(t, b))
-        : { subject: renderTemplate(confirmation.subject, values), body: renderTemplate(confirmation.body, values) };
+        ? { ...requestReceived(bookingFacts(t, b)), button: manageButton(manage) }
+        : templateMessage(
+            "confirmation",
+            { subject: renderTemplate(confirmation.subject, values), body: renderTemplate(confirmation.body, values) },
+            { facts: bookingFacts(t, b), money: moneyOf(b), buttonUrl: manage },
+          );
       await send(db, t, {
         kind: requested ? "request_received" : "confirmation",
         dedupeKey: `${requested ? "request_received" : "confirmation"}:${b.id}`,
         bookingId: b.id,
         customerId: b.customer.id,
         to,
-        content: { ...content, button: manageButton(manage) },
+        content,
       });
     }
 
@@ -637,6 +682,30 @@ export async function notifyBookingMoved(tenantId: string, bookingId: string, op
   });
 }
 
+// Pressing "send" twice, or a form sent twice, within a minute sends one
+// email: the window goes in the dedupe key, and an email of the same kind
+// for the same thing in the last minute counts as this one.
+const RESEND_AFTER_MS = 60_000;
+
+function resendWindow(now = Date.now()) {
+  return Math.floor(now / RESEND_AFTER_MS);
+}
+
+async function sentMomentsAgo(db: Db, tenantId: string, kind: EmailKind, about: { bookingId?: string; dedupePrefix?: string }) {
+  let query = db
+    .from("email_log")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("kind", kind)
+    .in("status", ["sending", "sent"])
+    .gt("created_at", new Date(Date.now() - RESEND_AFTER_MS).toISOString());
+  if (about.bookingId) query = query.eq("booking_id", about.bookingId);
+  if (about.dedupePrefix) query = query.like("dedupe_key", `${about.dedupePrefix}%`);
+  const { count, error } = await query;
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
 // "Email deposit request" on a booking (and on adding one): asks the customer
 // to pay the deposit from their booking page. Reports back, as the business
 // pressed a button; each press sends again.
@@ -661,10 +730,11 @@ export async function emailDepositRequest(
     }
     const payUrl = await manageBookingUrl(t, b.id);
     if (!payUrl) return { ok: false, message: "Customer booking links aren't set up yet (BOOKING_LINK_SECRET)." };
+    if (await sentMomentsAgo(db, t.id, "deposit_request", { bookingId: b.id })) return { ok: true };
 
     const result = await send(db, t, {
       kind: "deposit_request",
-      dedupeKey: `deposit_request:${b.id}:${crypto.randomUUID()}`,
+      dedupeKey: `deposit_request:${b.id}:${resendWindow()}`,
       bookingId: b.id,
       customerId: b.customer.id,
       to: b.customer.email,
@@ -700,9 +770,14 @@ export async function notifyStripeAlert(alert: StripeAlert) {
       }
       // The platform hears about every one, including those no business matched.
       if (platform) {
-        const { text, html } = renderEmail({ heading: content.subject, body: `${content.body}\n\nBusiness: ${t?.slug ?? "none matched"}`, footer: ["Platform alert"] });
+        const { text, html } = renderEmail({
+          content: { ...content, body: `${content.body}\n\nBusiness: ${t?.slug ?? "none matched"}` },
+          audience: "platform",
+          brand: { name: PRODUCT_NAME },
+          footer: ["Platform alert"],
+        });
         const result = await deliver({
-          from: fromHeader("Platform alerts", fromAddress()),
+          from: fromHeader(`${PRODUCT_NAME} platform alerts`, fromAddress()),
           to: platform,
           subject: `[platform] ${content.subject}`,
           text,
@@ -834,11 +909,11 @@ export async function runScheduledEmails(now = new Date()) {
           bookingId: b.id,
           customerId: b.customer.id,
           to,
-          content: {
-            subject: renderTemplate(reminder.subject, values),
-            body: renderTemplate(reminder.body, values),
-            button: manageButton(manage),
-          },
+          content: templateMessage(
+            "reminder",
+            { subject: renderTemplate(reminder.subject, values), body: renderTemplate(reminder.body, values) },
+            { facts: bookingFacts(t, b), buttonUrl: manage },
+          ),
         }),
       );
     }
@@ -881,7 +956,11 @@ export async function runScheduledEmails(now = new Date()) {
             bookingId: b.id,
             customerId: b.customer.id,
             to,
-            content: { subject: renderTemplate(template.subject, values), body: renderTemplate(template.body, values) },
+            content: templateMessage(
+              kind,
+              { subject: renderTemplate(template.subject, values), body: renderTemplate(template.body, values) },
+              { buttonUrl: kind === "review_request" ? m.review_request.review_url : t.siteUrl },
+            ),
             marketing: { customerId: b.customer.id },
           }),
         );
@@ -923,7 +1002,11 @@ export async function runScheduledEmails(now = new Date()) {
           leadId: lead.id,
           customerId: c.id,
           to: c.email as string,
-          content: { subject: renderTemplate(template.subject, values), body: renderTemplate(template.body, values) },
+          content: templateMessage(
+            "quote_follow_up",
+            { subject: renderTemplate(template.subject, values), body: renderTemplate(template.body, values) },
+            { buttonUrl: t.siteUrl },
+          ),
           marketing: { customerId: c.id },
         }),
       );
@@ -972,7 +1055,11 @@ export async function runScheduledEmails(now = new Date()) {
             bookingId: b.id,
             customerId: b.customer.id,
             to: b.customer.email as string,
-            content: { subject: renderTemplate(template.subject, values), body: renderTemplate(template.body, values) },
+            content: templateMessage(
+              "rebook_reminder",
+              { subject: renderTemplate(template.subject, values), body: renderTemplate(template.body, values) },
+              { buttonUrl: t.siteUrl },
+            ),
             marketing: { customerId: b.customer.id },
           }),
         );
@@ -1054,6 +1141,17 @@ export async function runScheduledEmails(now = new Date()) {
 
 // ---------------------------------------------------------------- campaigns
 
+// A campaign's own subject as its heading, and a button to book.
+function campaignMessage(campaign: { subject: string; body: string }, values: Partial<Record<TemplateField, string>>): Composed {
+  const subject = renderTemplate(campaign.subject, values);
+  return {
+    subject,
+    heading: subject,
+    body: renderTemplate(campaign.body, values),
+    ...(values.booking_link && { button: { label: "Book now", url: values.booking_link } }),
+  };
+}
+
 const CAMPAIGN_BATCH = 150;
 // Resend allows about two sends a second.
 const CAMPAIGN_PAUSE_MS = 550;
@@ -1095,7 +1193,7 @@ export async function sendCampaignBatch(campaignId: string) {
         dedupeKey: `campaign:${campaign.id}:${c.id}`,
         customerId: c.id,
         to: c.email as string,
-        content: { subject: renderTemplate(campaign.subject, values), body: renderTemplate(campaign.body, values) },
+        content: campaignMessage(campaign, values),
         marketing: { customerId: c.id },
       });
       if (result === "sent") sent += 1;
@@ -1127,7 +1225,7 @@ export async function sendCampaignTest(tenantId: string, campaign: { id: string;
       kind: "campaign",
       dedupeKey: `campaign_test:${campaign.id}:${Date.now()}`,
       to,
-      content: { subject: `[Test] ${renderTemplate(campaign.subject, values)}`, body: renderTemplate(campaign.body, values) },
+      content: { ...campaignMessage(campaign, values), subject: `[Test] ${renderTemplate(campaign.subject, values)}` },
     });
     return result === "sent" ? { ok: true as const } : { ok: false as const, message: "Couldn't send the test. Check your sending address under Settings → Notifications." };
   } catch (error) {
@@ -1168,9 +1266,11 @@ export async function emailPaymentLink(
     // The booking's customer, if that's who it's going to.
     const customer = b && b.customer.email?.toLowerCase() === to.toLowerCase() ? b.customer : null;
     const facts = b ? bookingFacts(t, b) : null;
+    const prefix = `payment_link:${link.data.id}:${to.toLowerCase()}:`;
+    if (await sentMomentsAgo(db, t.id, "payment_link", { dedupePrefix: prefix })) return { ok: true };
     const result = await send(db, t, {
       kind: "payment_link",
-      dedupeKey: `payment_link:${link.data.id}:${crypto.randomUUID()}`,
+      dedupeKey: `${prefix}${resendWindow()}`.slice(0, 200),
       bookingId: b?.id,
       customerId: customer?.id,
       to,

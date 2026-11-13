@@ -3,18 +3,20 @@
 import { useState, useTransition } from "react";
 import { KeyRound } from "lucide-react";
 import type { ApiKeyRow } from "@leadgen/core/api/keys";
+import { API_SCOPES, DEFAULT_SCOPES, SCOPE_KEYS } from "@leadgen/core/api/scopes";
 import { formatDate } from "@leadgen/core/dates";
 import type { CreateKeyState } from "@/app/app/[tenant]/settings/api/actions";
 import { CopyText } from "@/components/platform/copy-text";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/toast";
 import { askToConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 
-// Settings → Integrations: make a key (shown once), see which keys exist and when they
-// were last used, and revoke them.
+// Settings → Integrations: make a key (shown once) with what it may do, see
+// which keys exist and when they were last used, and revoke them.
 
 export function ApiKeys({
   keys,
@@ -31,7 +33,7 @@ export function ApiKeys({
   return (
     <div className="grid gap-6">
       <form
-        className="grid max-w-md gap-2"
+        className="grid max-w-xl gap-2"
         onSubmit={(e) => {
           e.preventDefault();
           const form = e.currentTarget;
@@ -44,8 +46,20 @@ export function ApiKeys({
         }}
       >
         <Label htmlFor="api-key-name">New key</Label>
-        <div className="flex gap-2">
-          <Input id="api-key-name" name="name" maxLength={60} placeholder="Main website" required />
+        <Input id="api-key-name" name="name" maxLength={60} placeholder="Main website" required />
+        <fieldset className="mt-2 grid gap-2">
+          <legend className="mb-1 text-sm font-medium">What it can do</legend>
+          {SCOPE_KEYS.map((scope) => (
+            <Checkbox key={scope} name="scopes" value={scope} defaultChecked={DEFAULT_SCOPES.includes(scope)}>
+              <span className="font-medium">{API_SCOPES[scope].label}</span>
+              <span className="block text-muted-foreground">{API_SCOPES[scope].detail}</span>
+            </Checkbox>
+          ))}
+          <p className="text-xs text-muted-foreground">
+            Only tick what the site or tool needs. Anything with customer details should stay on a server you trust.
+          </p>
+        </fieldset>
+        <div>
           <Button type="submit" size="lg" disabled={pending}>
             {pending ? "Creating…" : "Create key"}
           </Button>
@@ -75,6 +89,9 @@ export function ApiKeys({
                     <code>{k.prefix}…</code> · made {formatDate(k.created_at)} ·{" "}
                     {k.last_used_at ? `last used ${formatDate(k.last_used_at)}` : "never used"}
                   </span>
+                  <span className="block text-muted-foreground">
+                    Can: {k.scopes.map((s) => API_SCOPES[s].label.toLowerCase()).join(", ")}
+                  </span>
                 </span>
               </span>
               {k.revoked_at ? (
@@ -88,7 +105,7 @@ export function ApiKeys({
                   onClick={async () => {
                     const confirmed = await askToConfirm({
                       title: `Revoke "${k.name}"?`,
-                      description: "Anything using it will stop getting your product data.",
+                      description: "Anything using it will stop working straight away.",
                       confirmLabel: "Revoke key",
                       destructive: true,
                     });

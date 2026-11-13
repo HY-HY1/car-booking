@@ -15,12 +15,23 @@ export const CATCH_UP_DAYS = 7;
 // the enquiry, so an enquiry that turns into a booking only sends one alert.
 export const LEAD_ALERT_DELAY_MINS = 30;
 
-// Inside the window before the appointment, and only if the booking was made
-// before the window opened: someone who books for this afternoon has just had
-// their confirmation.
-export function reminderDue(b: { startsAt: Date; createdAt: Date }, hoursBefore: number, now: Date) {
+// How often the job runs, in minutes (EMAIL_JOB_INTERVAL_MINUTES). Vercel
+// Cron on the Hobby plan runs it once a day (vercel.json), so that's the
+// default; set it to 15 when something calls the job every 15 minutes.
+export function jobIntervalMins(env: string | undefined = process.env.EMAIL_JOB_INTERVAL_MINUTES) {
+  const n = Number(env);
+  return Number.isFinite(n) && n >= 1 && n <= 1440 ? Math.round(n) : 1440;
+}
+
+// A reminder goes on the run nearest its moment (`hoursBefore` the start),
+// which may be a little before it: with a daily job at 7am, "24 hours before"
+// a 9am Wednesday job is sent at 7am on Tuesday, not 7am on the day. It's
+// only sent if the booking was made before that moment: someone who books
+// for this afternoon has just had their confirmation.
+export function reminderDue(b: { startsAt: Date; createdAt: Date }, hoursBefore: number, now: Date, intervalMins = jobIntervalMins()) {
   const opens = b.startsAt.getTime() - hoursBefore * HOUR;
-  return b.startsAt > now && opens <= now.getTime() && b.createdAt.getTime() < opens;
+  const early = (intervalMins * 60_000) / 2;
+  return b.startsAt > now && opens - early <= now.getTime() && b.createdAt.getTime() < opens;
 }
 
 // Aftercare and review requests: some days after the job ended.
@@ -39,7 +50,8 @@ export function leadAlertDue(createdAt: Date, now: Date) {
 // (the longest days_after).
 export function scheduledWindows(now: Date) {
   return {
-    remindersUntil: new Date(now.getTime() + 168 * HOUR),
+    // Plus the half-run a reminder may go early by.
+    remindersUntil: new Date(now.getTime() + 168 * HOUR + (jobIntervalMins() * 60_000) / 2),
     jobsEndedAfter: new Date(now.getTime() - (60 + CATCH_UP_DAYS) * DAY),
     leadsCreatedAfter: new Date(now.getTime() - 2 * DAY),
     leadsCreatedBefore: new Date(now.getTime() - LEAD_ALERT_DELAY_MINS * 60_000),

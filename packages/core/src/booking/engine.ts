@@ -252,10 +252,12 @@ async function quoteFor(tenantId: string, config: BookingConfig, req: z.output<t
   }
 }
 
+// get_quote: the price for a job. A postcode adds any travel fee.
 export async function quote(tenantId: string, input: unknown): Promise<EngineResult<{ quote: Quote }>> {
-  const parsed = quoteRequestSchema.safeParse(input);
+  const parsed = openDatesRequestSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
-  return quoteFor(tenantId, await requireConfig(tenantId), parsed.data);
+  const config = await requireConfig(tenantId);
+  return quoteFor(tenantId, config, parsed.data, await travelMilesFor(config.settings, parsed.data.postcode));
 }
 
 // ---------------------------------------------------------------- check_service_area

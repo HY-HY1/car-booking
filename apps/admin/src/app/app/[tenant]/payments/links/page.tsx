@@ -74,7 +74,7 @@ export default async function PaymentLinksPage({ params }: PageProps<"/app/[tena
         id: b.id,
         label: `${b.customer?.name ?? "Customer"}, ${service}, ${when}`,
         balancePence,
-        description: `Balance: ${service}, ${when}`,
+        description: `Balance for ${service}, ${when}`,
         customerEmail: b.customer?.email ?? null,
       };
     });

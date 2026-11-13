@@ -38,7 +38,12 @@ export async function sendContact(_prev: ContactState, formData: FormData): Prom
   }
 
   const { subject, text: body } = contactEmail(m, PRODUCT_NAME);
-  const { text, html } = renderEmail({ heading: subject, body, footer: [`Sent from the ${PRODUCT_NAME} website contact form`] });
+  const { text, html } = renderEmail({
+    content: { subject, eyebrow: "Contact form", heading: subject, body },
+    audience: "platform",
+    brand: { name: PRODUCT_NAME },
+    footer: [`Sent from the ${PRODUCT_NAME} website contact form. Reply to answer ${m.email}.`],
+  });
   const result = await deliver({
     from: fromHeader(`${PRODUCT_NAME} website`, fromAddress()),
     to,

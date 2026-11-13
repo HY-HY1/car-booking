@@ -29,41 +29,84 @@ export const CUSTOMER_MESSAGES = {
 } as const;
 export type CustomerMessage = keyof typeof CUSTOMER_MESSAGES;
 
+// The booking's details (service, date, time, address, price) and the button
+// (manage, book again, review) are added around these by the email layout
+// (email/compose.ts templateMessage), so the wording doesn't repeat them.
 const DEFAULT_TEMPLATES: Record<CustomerMessage, { subject: string; body: string }> = {
   confirmation: {
     subject: "You're booked in with {business_name}",
-    body: "Hi {customer_name},\n\nThanks for booking {service} with {business_name}. We'll see you on {date} at {time}.\n\nWhere: {address}\n\nIf anything changes, just reply to this email.",
+    body: "Hi {customer_name},\n\nThanks for booking {service} with {business_name}. We'll see you on {date} at {time}.\n\nIf anything changes, use the button below or just reply to this email.",
   },
   reminder: {
     subject: "See you soon: {service} on {date}",
-    body: "Hi {customer_name},\n\nA quick reminder that we're booked in for {service} on {date} at {time}.\n\nWhere: {address}\n\nReply to this email if you need to change anything.",
+    body: "Hi {customer_name},\n\nA quick reminder that we're booked in for {service} on {date} at {time}.\n\nReply to this email if you need to change anything.",
   },
   follow_up: {
     subject: "Looking after your car after its {service}",
-    body: "Hi {customer_name},\n\nThanks for choosing {business_name}. To keep the finish looking its best, wash with a pH-neutral shampoo and avoid automatic car washes.\n\nWhen it's due another clean, you can book again here: {booking_link}",
+    body: "Hi {customer_name},\n\nThanks for choosing {business_name}. To keep the finish looking its best, wash with a pH-neutral shampoo and avoid automatic car washes.\n\nWhen it's due another clean, you can book again with the button below.",
   },
   review_request: {
     subject: "How did we do?",
-    body: "Hi {customer_name},\n\nThanks again for booking {service}. If you were happy with the job, a quick review would really help a small business like ours: {review_link}",
+    body: "Hi {customer_name},\n\nThanks again for booking {service}. If you were happy with the job, a quick review would really help a small business like ours.",
   },
   quote_follow_up: {
     subject: "Still thinking about your {service}?",
-    body: "Hi {customer_name},\n\nThanks for getting a price from {business_name}. If you'd like to go ahead, you can pick a time here: {booking_link}\n\nAny questions, just reply to this email.",
+    body: "Hi {customer_name},\n\nThanks for getting a price from {business_name}. If you'd like to go ahead, you can pick a time with the button below.\n\nAny questions, just reply to this email.",
   },
   rebook_reminder: {
     subject: "Time for another {service}?",
-    body: "Hi {customer_name},\n\nIt's about time your car had another {service}. You can pick a time that suits you here: {booking_link}",
+    body: "Hi {customer_name},\n\nIt's about time your car had another {service}. You can pick a time that suits you with the button below.",
   },
   slot_opened: {
     subject: "An earlier time has opened up",
-    body: "Hi {customer_name},\n\nYou said you'd like to know if an earlier time came up for your {service}. We now have {date} at {time}.\n\nIf that suits you, move your booking here while it's still free: {manage_link}\n\nOtherwise you don't need to do anything, and your booking stays as it is.",
+    body: "Hi {customer_name},\n\nYou said you'd like to know if an earlier time came up for your {service}. We now have {date} at {time}.\n\nIf that suits you, move your booking with the button below while it's still free. Otherwise you don't need to do anything, and your booking stays as it is.",
   },
 };
+
+// Our earlier wording, from before the layout carried the details and the
+// button. A business that saved its settings without changing a message
+// stored this text; it's read as today's wording so their emails don't
+// repeat the address or show a bare link above the button.
+const LEGACY_BODIES: Partial<Record<CustomerMessage, string[]>> = {
+  confirmation: [
+    "Hi {customer_name},\n\nThanks for booking {service} with {business_name}. We'll see you on {date} at {time}.\n\nWhere: {address}\n\nIf anything changes, just reply to this email.",
+  ],
+  reminder: [
+    "Hi {customer_name},\n\nA quick reminder that we're booked in for {service} on {date} at {time}.\n\nWhere: {address}\n\nReply to this email if you need to change anything.",
+  ],
+  follow_up: [
+    "Hi {customer_name},\n\nThanks for choosing {business_name}. To keep the finish looking its best, wash with a pH-neutral shampoo and avoid automatic car washes.\n\nWhen it's due another clean, you can book again here: {booking_link}",
+  ],
+  review_request: [
+    "Hi {customer_name},\n\nThanks again for booking {service}. If you were happy with the job, a quick review would really help a small business like ours: {review_link}",
+  ],
+  quote_follow_up: [
+    "Hi {customer_name},\n\nThanks for getting a price from {business_name}. If you'd like to go ahead, you can pick a time here: {booking_link}\n\nAny questions, just reply to this email.",
+  ],
+  rebook_reminder: ["Hi {customer_name},\n\nIt's about time your car had another {service}. You can pick a time that suits you here: {booking_link}"],
+  slot_opened: [
+    "Hi {customer_name},\n\nYou said you'd like to know if an earlier time came up for your {service}. We now have {date} at {time}.\n\nIf that suits you, move your booking here while it's still free: {manage_link}\n\nOtherwise you don't need to do anything, and your booking stays as it is.",
+  ],
+};
+
+// Line endings are compared loosely: a textarea sends \r\n.
+const sameText = (a: string, b: string) => a.replace(/\r\n/g, "\n").trim() === b.replace(/\r\n/g, "\n").trim();
+
+export function upgradeLegacyBody(key: CustomerMessage, body: string) {
+  return LEGACY_BODIES[key]?.some((old) => sameText(old, body)) ? DEFAULT_TEMPLATES[key].body : body;
+}
 
 const templateSchema = (key: CustomerMessage) => ({
   enabled: z.boolean().default(true).catch(true),
   subject: z.string().trim().min(1).max(150).default(DEFAULT_TEMPLATES[key].subject).catch(DEFAULT_TEMPLATES[key].subject),
-  body: z.string().trim().min(1).max(3000).default(DEFAULT_TEMPLATES[key].body).catch(DEFAULT_TEMPLATES[key].body),
+  body: z
+    .string()
+    .trim()
+    .min(1)
+    .max(3000)
+    .default(DEFAULT_TEMPLATES[key].body)
+    .catch(DEFAULT_TEMPLATES[key].body)
+    .transform((body) => upgradeLegacyBody(key, body)),
 });
 
 const optionalEmail = z.email().optional().catch(undefined);

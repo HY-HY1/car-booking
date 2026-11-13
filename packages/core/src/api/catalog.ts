@@ -1,56 +1,12 @@
 import { formatPence, SIZE_CLASSES, type AddOn, type Service, type SizeClass } from "../booking/config";
+import type { Catalog } from "./types";
 
 // The product data a business's own website gets from /api/v1/catalog. It's a
 // fixed shape, not database rows, so columns can change without breaking the
 // sites that read it; anything that would change the shape means /v2.
 // Product data only: no customers, bookings or anything else personal.
 
-export type CatalogService = {
-  id: string;
-  slug: string | null;
-  name: string;
-  tagline: string | null;
-  description: string | null;
-  badge: string | null;
-  durationMins: number;
-  // Where it can be done: at the customer's address, or dropped off.
-  locations: ("mobile" | "unit")[];
-  price: {
-    fromPence: number;
-    from: string;
-    // Extra price and time on top of the base, by vehicle size.
-    bySize: { size: SizeClass; label: string; extraPence: number; extraMins: number }[];
-  };
-  image: string | null;
-  gallery: string[];
-  includes: string[];
-  notIncluded: string[];
-  steps: { title: string; text: string }[];
-  faqs: { q: string; a: string }[];
-  body: string | null;
-  seo: { title: string | null; description: string | null };
-  // Null until the business has a booking address.
-  pageUrl: string | null;
-  bookUrl: string | null;
-};
-
-export type CatalogAddOn = {
-  id: string;
-  name: string;
-  description: string | null;
-  pricePence: number;
-  price: string;
-  durationMins: number;
-  // Ids of the services it can go with; null means all of them.
-  serviceIds: string[] | null;
-};
-
-export type Catalog = {
-  version: 1;
-  business: { name: string; bookingUrl: string | null };
-  services: CatalogService[];
-  addOns: CatalogAddOn[];
-};
+export type { Catalog, CatalogAddOn, CatalogService } from "./types";
 
 export function buildCatalog({
   businessName,

@@ -31,6 +31,7 @@ export const CUSTOMER_SOURCES = {
   facebook: "Facebook",
   google: "Google",
   referral: "Referral",
+  website: "Your website",
   other: "Other",
 } as const;
 

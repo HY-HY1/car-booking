@@ -51,6 +51,12 @@ const nextConfig: NextConfig = {
         loaders: ["@tailwindcss/turbopack"],
         as: "*.css",
       },
+      // `import text from "./file.ts?raw"` gives the file's source as a string:
+      // the API docs show packages/core/src/api/types.ts word for word.
+      "*.ts": {
+        condition: { query: "?raw" },
+        type: "raw",
+      },
     },
   },
 };

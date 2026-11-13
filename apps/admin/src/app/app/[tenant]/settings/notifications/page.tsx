@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { emailBrandOf } from "@leadgen/core/branding/email-brand";
 import { senderRecords, type SenderStatus } from "@leadgen/core/email/senders";
 import { notificationsOf } from "@leadgen/core/settings/notifications";
 import { NotificationsForm } from "@/components/dashboard/settings/notification-form";
@@ -16,7 +17,7 @@ export default async function NotificationsPage({ params }: PageProps<"/app/[ten
   const readOnly = !can("settings.edit");
   const supabase = await createClient();
   const [business, sender, google] = await Promise.all([
-    supabase.from("tenants").select("name, notification_settings, contact_email, branding").eq("id", tenant.id).single(),
+    supabase.from("tenants").select("name, notification_settings, contact_email, contact_phone, branding").eq("id", tenant.id).single(),
     supabase.from("email_senders").select("address, domain, status, check_error, records").eq("tenant_id", tenant.id).maybeSingle(),
     // The review link from a connected Google Business Profile, to offer.
     supabase.from("google_business_connections").select("review_url").eq("tenant_id", tenant.id).maybeSingle(),
@@ -60,11 +61,12 @@ export default async function NotificationsPage({ params }: PageProps<"/app/[ten
       </Card>
       <NotificationsForm
         settings={notificationsOf(business.data.notification_settings)}
-        business={{
+        business={emailBrandOf({
           name: business.data.name,
           contactEmail: business.data.contact_email,
-          accentColor: (business.data.branding as { primary_color?: string } | null)?.primary_color,
-        }}
+          contactPhone: business.data.contact_phone,
+          branding: business.data.branding,
+        })}
         ownerEmail={user.email}
         googleReviewUrl={google.data?.review_url ?? null}
         action={saveNotificationsAction.bind(null, slug)}

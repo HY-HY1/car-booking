@@ -16,11 +16,12 @@ export default function CatalogReference() {
     <>
       <DocTitle eyebrow="API" title="Get the catalogue">
         <p>
-          Returns everything a business sells: its active services with prices and page content, and its extras.
+          Returns everything a business sells: its active services with prices and page content, and its extras. For
+          its name, hours and contact details, see <Link href={docsUrl("/api/business")}>Get the business</Link>.
         </p>
       </DocTitle>
 
-      <Endpoint method="GET" path={endpoint} />
+      <Endpoint method="GET" path={endpoint} scope="catalog:read" />
 
       <h2>Request</h2>
       <SimpleTable
@@ -56,9 +57,16 @@ export default function CatalogReference() {
               <code>missing_key</code> or <code>invalid_key</code>. See <Link href={docsUrl("/api#errors")}>Errors</Link>.
             </>,
           ],
+          ["403", <code key="s">insufficient_scope</code>],
+          ["429", <code key="r">rate_limited</code>],
           ["500", <code key="e">server_error</code>],
         ]}
       />
+
+      <p>
+        The TypeScript types for everything below are <code>Catalog</code>, <code>CatalogService</code> and{" "}
+        <code>CatalogAddOn</code> on <Link href={docsUrl("/api/types")}>TypeScript types</Link>.
+      </p>
 
       <h2 id="catalog">The catalogue</h2>
       <FieldTable
