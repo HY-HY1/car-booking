@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
-import { formatPence } from "../booking/config";
+import { formatPence, withExtraCars } from "../booking/config";
 import { manageBookingUrl } from "../booking/manage-link";
 import { depositOwed, refundLine } from "../booking/manage-rules";
 import { signUnsubscribeToken } from "../privacy/rules";
@@ -200,7 +200,7 @@ type BookingContext = {
 };
 
 const BOOKING_FIELDS =
-  "id, tenant_id, status, starts_at, ends_at, created_at, address_line, postcode, price_pence, deposit_pence, deposit_status, decline_reason, reschedule_count, rescheduled_at, customer:customers(id, name, email, phone, email_marketing), service:services(name)";
+  "id, tenant_id, status, starts_at, ends_at, created_at, address_line, postcode, price_pence, deposit_pence, deposit_status, decline_reason, reschedule_count, rescheduled_at, customer:customers(id, name, email, phone, email_marketing), service:services(name), extras:booking_vehicles(id)";
 
 type BookingRow = {
   id: string;
@@ -219,6 +219,8 @@ type BookingRow = {
   rescheduled_at: string | null;
   customer: { id: string; name: string; email: string | null; phone: string | null; email_marketing: boolean } | null;
   service: { name: string } | null;
+  // More cars on the same visit, beyond the first.
+  extras?: { id: string }[] | null;
 };
 
 function toBooking(row: BookingRow): BookingContext | null {
@@ -236,7 +238,7 @@ function toBooking(row: BookingRow): BookingContext | null {
     declineReason: row.decline_reason,
     rescheduleCount: row.reschedule_count,
     rescheduledAt: row.rescheduled_at ? new Date(row.rescheduled_at) : null,
-    service: row.service?.name ?? "your booking",
+    service: row.service?.name ? withExtraCars(row.service.name, row.extras?.length ?? 0) : "your booking",
     customer: {
       id: row.customer.id,
       name: row.customer.name,

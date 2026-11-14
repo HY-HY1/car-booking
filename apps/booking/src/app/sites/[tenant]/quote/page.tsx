@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { bookableDatesForAny } from "@leadgen/core/booking/capacity";
-import type { LocationType } from "@leadgen/core/booking/config";
+import { multiCarOf, type LocationType } from "@leadgen/core/booking/config";
 import { localDate } from "@leadgen/core/booking/time";
 import { getBookingConfig } from "@leadgen/core/booking/engine";
 import { DEFAULT_MARKETING_CONSENT } from "@leadgen/core/settings/forms";
@@ -104,6 +104,10 @@ export default async function QuotePage({ searchParams }: PageProps<"/sites/[ten
           privacyUrl={tenant.privacy.policyUrl ?? pageUrl(tenant, "/privacy")}
           termsUrl={tenant.branding.terms_url ?? pageUrl(tenant, "/terms")}
           contact={tenant.contact}
+          multiCar={(() => {
+            const m = multiCarOf(settings.multi_car);
+            return { enabled: m.enabled, maxCars: m.max_cars, setupMins: m.setup_mins };
+          })()}
         />
       </div>
     </main>

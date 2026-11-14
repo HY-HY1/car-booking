@@ -3,6 +3,7 @@ import {
   bookingRulesFormSchema,
   hoursFormSchema,
   locationsFormSchema,
+  multiCarFormSchema,
   parseHours,
   resourceFormSchema,
 } from "./settings-rules";
@@ -168,5 +169,23 @@ describe("resourceFormSchema", () => {
     expect(issue(resourceFormSchema.safeParse({ ...van, name: " " }))?.path).toBe("name");
     expect(issue(resourceFormSchema.safeParse({ ...van, location_mobile: undefined }))?.path).toBe("location_mobile");
     expect(issue(resourceFormSchema.safeParse({ ...van, custom_hours: "on" }))?.path).toBe("hours");
+  });
+});
+
+describe("multiCarFormSchema", () => {
+  it("saves the switch, the cars per booking and the time saved", () => {
+    expect(multiCarFormSchema.parse({ multi_car_enabled: "on", max_cars: "3", setup_mins: "25" })).toEqual({
+      multi_car: { enabled: true, max_cars: 3, setup_mins: 25 },
+    });
+  });
+
+  it("checks the numbers while it's on", () => {
+    expect(multiCarFormSchema.safeParse({ multi_car_enabled: "on", max_cars: "3", setup_mins: "999" }).success).toBe(false);
+  });
+
+  it("doesn't let hidden numbers stop it being switched off", () => {
+    expect(multiCarFormSchema.parse({ max_cars: "3", setup_mins: "nonsense" })).toEqual({
+      multi_car: { enabled: false, max_cars: 3, setup_mins: 20 },
+    });
   });
 });

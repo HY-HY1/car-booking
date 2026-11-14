@@ -7,6 +7,7 @@ import {
   bookingRulesFormSchema,
   hoursFormSchema,
   locationsFormSchema,
+  multiCarFormSchema,
   resourceFormSchema,
 } from "@leadgen/core/booking/settings-rules";
 import { askingFormSchema, parsePolicyForm } from "@leadgen/core/settings/forms";
@@ -33,6 +34,12 @@ async function updateSettings(slug: string, schema: z.ZodType<Record<string, unk
     .eq("tenant_id", tenant.id)
     .select("tenant_id");
   if (error) {
+    // A setting whose column hasn't reached the database yet (a migration
+    // still to apply): say so rather than "try again".
+    if (error.code === "PGRST204" || error.code === "42703") {
+      console.error(`Saving ${what} failed: the database needs updating`, error);
+      return { message: "This setting can't be saved until the database is updated. Nothing else is affected." };
+    }
     // The database refuses a business that offers nothing, or a shop with no postcode.
     return failed(what, error);
   }
@@ -52,6 +59,11 @@ export async function saveHours(slug: string, formData: FormData): Promise<SaveS
 
 export async function saveBookingRules(slug: string, formData: FormData): Promise<SaveState> {
   return updateSettings(slug, bookingRulesFormSchema, "the booking rules", formData);
+}
+
+// Whether customers can book more than one car, and the time saved on each.
+export async function saveMultiCar(slug: string, formData: FormData): Promise<SaveState> {
+  return updateSettings(slug, multiCarFormSchema, "the settings for more than one car", formData);
 }
 
 // Photos, which questions are asked, and whether bookings need approving.

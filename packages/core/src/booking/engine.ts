@@ -22,6 +22,8 @@ import {
   bufferFor,
   formatPence,
   locationTypeSchema,
+  multiCarOf,
+  withExtraCars,
   resourceSchema,
   resourcesFor,
   serviceSchema,
@@ -42,7 +44,7 @@ import {
   type Coords,
 } from "./geo";
 import { conditionCheck } from "./condition";
-import { getQuote, QuoteError, type Quote } from "./pricing";
+import { getQuote, QuoteError, type ExtraCarInput, type Quote } from "./pricing";
 import { findPromo } from "./promo";
 import { applyPromo } from "./promo-rules";
 import { isIsoDate, localDate, localTime } from "./time";
@@ -146,6 +148,19 @@ const optionalText = (max: number) =>
     .optional()
     .transform((v) => v || undefined);
 
+const registrationSchema = optionalText(10).transform((v) => v?.replace(/\s/g, "").toUpperCase() || undefined);
+
+// A car after the first, on the same visit. Make and model are only needed
+// to book (holdSlot checks); a quote or the diary only need the job.
+const extraCarSchema = z.object({
+  serviceId: z.uuid(),
+  sizeClass: sizeClassSchema,
+  addOnIds: z.array(z.uuid()).max(20).default([]),
+  make: optionalText(60),
+  model: optionalText(60),
+  registration: registrationSchema,
+});
+
 export const quoteRequestSchema = z.object({
   serviceId: z.uuid(),
   sizeClass: sizeClassSchema,
@@ -153,6 +168,8 @@ export const quoteRequestSchema = z.object({
   assessmentId: z.uuid().nullish(),
   addOnIds: z.array(z.uuid()).max(20).default([]),
   locationType: locationTypeSchema,
+  // More cars on the same visit (Settings → Hours & rules → More than one car).
+  extraCars: z.array(extraCarSchema).max(3).default([]),
 });
 export type QuoteRequest = z.input<typeof quoteRequestSchema>;
 
@@ -173,8 +190,6 @@ const accessSchema = z.object({
   parking: z.enum(["driveway", "street", "car_park", "other"]).optional(),
   carLocation: optionalText(300),
 });
-
-const registrationSchema = optionalText(10).transform((v) => v?.replace(/\s/g, "").toUpperCase() || undefined);
 
 export const leadRequestSchema = quoteRequestSchema.extend({
   contact: contactSchema,
@@ -232,6 +247,19 @@ export type HoldRequest = z.input<typeof holdRequestSchema>;
 async function quoteFor(tenantId: string, config: BookingConfig, req: z.output<typeof quoteRequestSchema>, travelMiles?: number | null) {
   const service = config.services.find((s) => s.id === req.serviceId);
   if (!service) return fail("unknown_service", "That service isn't available.");
+  const multiCar = multiCarOf(config.settings.multi_car);
+  if (req.extraCars.length > 0 && !multiCar.enabled) {
+    return fail("multi_car_off", "Only one car can be booked at a time. Book the other car separately.");
+  }
+  if (req.extraCars.length > multiCar.max_cars - 1) {
+    return fail("too_many_cars", `Up to ${multiCar.max_cars} cars can be booked together.`);
+  }
+  const extraCars: ExtraCarInput[] = [];
+  for (const car of req.extraCars) {
+    const s = config.services.find((x) => x.id === car.serviceId);
+    if (!s) return fail("unknown_service", "One of the services isn't available any more.");
+    extraCars.push({ service: s, sizeClass: car.sizeClass, addOnIds: car.addOnIds });
+  }
   const assessment = req.assessmentId ? await loadAssessment(tenantId, req.assessmentId) : null;
   const condition = conditionCheck(config.settings.condition_tiers, assessment);
   try {
@@ -244,6 +272,8 @@ async function quoteFor(tenantId: string, config: BookingConfig, req: z.output<t
       locationType: req.locationType,
       travelMiles,
       settings: config.settings,
+      extraCars,
+      setupMins: multiCar.setup_mins,
     });
     return { ok: true as const, quote, condition };
   } catch (error) {
@@ -710,6 +740,8 @@ export async function holdSlot(
     if (!area.ok) return area;
   }
   if (!req.details.acceptedTerms) return fail("terms_required", "Please accept the booking terms to continue.");
+  const unnamed = req.extraCars.findIndex((c) => !c.make || !c.model);
+  if (unnamed >= 0) return fail("vehicle_required", `Choose the make and model of car ${unnamed + 2}.`);
   if (settings.photos_required && req.photoIds.length < settings.min_photos) {
     return fail(
       "photos_required",
@@ -755,6 +787,8 @@ export async function holdSlot(
     // Everything the customer filled in, beside the price they were shown.
     answers: {
       vehicle: req.vehicle,
+      // The other cars on the visit, in order (car 2 first).
+      extraVehicles: req.extraCars.map((c) => ({ make: c.make, model: c.model, registration: c.registration })),
       access: req.access,
       notes: req.notes,
       details,
@@ -821,6 +855,28 @@ export async function holdSlot(
     break;
   }
   if (!data) return fail("slot_taken", "Sorry, that time has just gone. Pick another.");
+
+  // The other cars, as the dashboard keeps them: what each costs and the time
+  // it adds (its own less the setup saved), so editing the booking later
+  // works them out the same way.
+  if (quote.extra_cars?.length) {
+    const cars = quote.extra_cars.map((car, i) => ({
+      tenant_id: tenantId,
+      booking_id: data.id,
+      make: req.extraCars[i].make ?? null,
+      model: req.extraCars[i].model ?? null,
+      registration: req.extraCars[i].registration ?? null,
+      size_class: car.size_class,
+      price_pence: car.price_pence,
+      extra_mins: car.added_mins,
+    }));
+    const inserted = await db.from("booking_vehicles").insert(cars);
+    if (inserted.error) {
+      // Without them the booking would be for one car: let the time go.
+      await db.from("bookings").update({ status: "expired" }).eq("tenant_id", tenantId).eq("id", data.id);
+      throw inserted.error;
+    }
+  }
 
   await attachPhotos(db, tenantId, req.photoIds, { customerId, leadId, bookingId: data.id });
   return {
@@ -913,7 +969,7 @@ export async function getBookingSummary(tenantId: string, bookingId: string): Pr
     db
       .from("bookings")
       .select(
-        "status, starts_at, ends_at, location_type, address_line, postcode, price_pence, deposit_pence, deposit_status, hold_expires_at, quote_snapshot, service:services(name), customer:customers(email)",
+        "status, starts_at, ends_at, location_type, address_line, postcode, price_pence, deposit_pence, deposit_status, hold_expires_at, quote_snapshot, service:services(name), customer:customers(email), extras:booking_vehicles(id)",
       )
       .eq("tenant_id", tenantId)
       .eq("id", bookingId)
@@ -940,7 +996,10 @@ export async function getBookingSummary(tenantId: string, bookingId: string): Pr
         : "other";
   return {
     status,
-    serviceName: (b.service as unknown as { name: string } | null)?.name ?? null,
+    serviceName: (() => {
+      const name = (b.service as unknown as { name: string } | null)?.name;
+      return name ? withExtraCars(name, (b.extras as unknown as { id: string }[] | null)?.length ?? 0) : null;
+    })(),
     startsAt: b.starts_at,
     endsAt: b.ends_at,
     timezone: settings.data?.timezone ?? "Europe/London",

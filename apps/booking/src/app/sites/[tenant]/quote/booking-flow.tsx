@@ -2,7 +2,7 @@
 
 import { useEffect, useEffectEvent, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, Pencil } from "lucide-react";
+import { Check, Loader2, Pencil, Plus } from "lucide-react";
 import {
   addOnFitsService,
   formatDuration,
@@ -96,6 +96,8 @@ type Props = {
   termsUrl: string;
   // How to reach the business when the form can't help.
   contact: { email: string | null; phone: string | null };
+  // More than one car on the same visit (Settings → Hours & rules).
+  multiCar: { enabled: boolean; maxCars: number; setupMins: number };
 };
 
 const OTHER = "Other (not listed)";
@@ -118,6 +120,28 @@ type StepId = (typeof STEPS)[number]["id"];
 const stepIndex = (id: StepId) => STEPS.findIndex((s) => s.id === id);
 
 type Phase = "form" | "pay" | "done";
+
+// A car after the first, done on the same visit: its own service, size and
+// extras. No photos: those are of the first car.
+type ExtraCar = {
+  key: string;
+  serviceId?: string;
+  sizeClass?: SizeClass;
+  addOnIds: string[];
+  makeChoice: string;
+  modelChoice: string;
+  make: string;
+  model: string;
+  registration: string;
+};
+
+// The make and model as typed or picked ("Other" means typed).
+function carName(c: { makeChoice: string; modelChoice: string; make: string; model: string }) {
+  return {
+    make: c.makeChoice === OTHER ? c.make.trim() : c.makeChoice,
+    model: c.makeChoice === OTHER || c.modelChoice === OTHER ? c.model.trim() : c.modelChoice,
+  };
+}
 
 type Answers = {
   serviceId?: string;
@@ -152,10 +176,12 @@ type Answers = {
   travelMiles?: number | null;
   date?: string;
   slot?: Slot;
+  extraCars: ExtraCar[];
 };
 
 const EMPTY: Answers = {
   addOnIds: [],
+  extraCars: [],
   postcode: "",
   addressLine: "",
   name: "",
@@ -190,10 +216,21 @@ function usableDraft(raw: string | null, props: Props): Draft | null {
   const { serviceId, addOnIds } = draft.answers;
   if (serviceId && !props.services.some((s) => s.id === serviceId)) return null;
   if (props.initialServiceId && serviceId !== props.initialServiceId) return null;
+  const knownAddOn = (id: string) => props.addOns.some((x) => x.id === id);
+  // Saved before extra cars existed, or since switched off: just the one car.
+  const extraCars = props.multiCar.enabled
+    ? (draft.answers.extraCars ?? [])
+        .slice(0, props.multiCar.maxCars - 1)
+        .map((c) => ({
+          ...c,
+          serviceId: props.services.some((x) => x.id === c.serviceId) ? c.serviceId : undefined,
+          addOnIds: c.addOnIds.filter(knownAddOn),
+        }))
+    : [];
   return {
     ...draft,
     active: serviceId ? Math.min(draft.active, STEPS.length - 1) : 0,
-    answers: { ...draft.answers, addOnIds: addOnIds.filter((id) => props.addOns.some((x) => x.id === id)) },
+    answers: { ...draft.answers, addOnIds: addOnIds.filter(knownAddOn), extraCars },
   };
 }
 
@@ -254,11 +291,30 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
 
   const service = services.find((s) => s.id === a.serviceId);
   const serviceAddOns = service ? addOns.filter((x) => addOnFitsService(x, service.id)) : [];
+  const offered = (l: LocationType) => (l === "mobile" ? pricing.offers_mobile : pricing.offers_unit);
+
+  // The other cars, with what's been picked for each.
+  const multi = props.multiCar;
+  const extras = a.extraCars.map((c) => {
+    const s = services.find((x) => x.id === c.serviceId);
+    return {
+      ...c,
+      ...carName(c),
+      service: s,
+      addOnIds: s ? c.addOnIds.filter((id) => addOns.some((x) => x.id === id && addOnFitsService(x, s.id))) : [],
+    };
+  });
+  // Priced as soon as a service and size are picked; booked once named too.
+  const pricedExtras = extras.filter((c): c is typeof c & { service: Service; sizeClass: SizeClass } => !!c.service && !!c.sizeClass);
+  const extrasReady = extras.every((c) => c.service && c.sizeClass && c.make && c.model);
+  const canAddCar = multi.enabled && !!service && 1 + extras.length < multi.maxCars;
+  // Services another car can have: ones that can be done in the same place.
+  const sharesAPlace = (s: Service) => !!service && s.location_types.some((l) => service.location_types.includes(l) && offered(l));
+
+  // Every car is done in the same place, so only where all their services go.
   const locations = service
     ? (Object.keys(LOCATION_TYPES) as LocationType[]).filter(
-        (l) =>
-          service.location_types.includes(l) &&
-          (l === "mobile" ? pricing.offers_mobile : pricing.offers_unit),
+        (l) => offered(l) && [service, ...pricedExtras.map((c) => c.service)].every((s) => s.location_types.includes(l)),
       )
     : [];
   const handoverOptions = a.locationType === "unit" ? UNIT_HANDOVER : MOBILE_HANDOVER;
@@ -292,6 +348,8 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
         locationType: location,
         travelMiles: location === "mobile" ? (a.travelMiles ?? null) : null,
         settings: pricing,
+        extraCars: pricedExtras.map((c) => ({ service: c.service, sizeClass: c.sizeClass, addOnIds: c.addOnIds })),
+        setupMins: multi.setupMins,
       });
       return promo ? applyPromo(priced, promo, pricing.deposit) : priced;
     } catch {
@@ -376,7 +434,35 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
     assessmentId: check?.id ?? null,
     addOnIds: a.addOnIds,
     locationType: a.locationType!,
+    extraCars: pricedExtras.map((c) => ({
+      serviceId: c.service.id,
+      sizeClass: c.sizeClass,
+      addOnIds: c.addOnIds,
+      make: c.make,
+      model: c.model,
+      registration: c.registration,
+    })),
   });
+
+  const setExtra = (key: string, patch: Partial<ExtraCar>) =>
+    set({ extraCars: a.extraCars.map((c) => (c.key === key ? { ...c, ...patch } : c)) });
+  const addCar = () =>
+    set({
+      extraCars: [
+        ...a.extraCars,
+        {
+          key: Math.random().toString(36).slice(2),
+          // The same service as the first car, if it can be; easy to change.
+          serviceId: a.serviceId,
+          addOnIds: [],
+          makeChoice: "",
+          modelChoice: "",
+          make: "",
+          model: "",
+          registration: "",
+        },
+      ],
+    });
 
   const contact = () => ({
     name: a.name,
@@ -481,6 +567,7 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
       [carMake, carModel].filter(Boolean).join(" "),
       a.sizeClass && sizeName(a.sizeClass),
       conditionTier?.label.split(":")[0],
+      extras.length > 0 && `and ${extras.length} more ${extras.length === 1 ? "car" : "cars"}`,
     ]
       .filter(Boolean)
       .join(" · "),
@@ -672,6 +759,42 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                       </p>
                     )}
                   </Section>
+                  {multi.enabled && (
+                    <Section
+                      title={extras.length ? "Your other cars" : "Booking more than one car?"}
+                      hint={
+                        extras.length
+                          ? "Done one after another on the same visit."
+                          : "Add another car at the same address and we'll do them on the same visit: one trip, and less time than booking them separately."
+                      }
+                    >
+                      {extras.map((c, i) => {
+                        const pricedIndex = pricedExtras.findIndex((p) => p.key === c.key);
+                        return (
+                          <ExtraCarCard
+                            key={c.key}
+                            n={i + 2}
+                            car={a.extraCars[i]}
+                            services={services.filter(sharesAPlace)}
+                            addOns={addOns}
+                            askRegistration={ask.registration}
+                            addedMins={pricedIndex >= 0 ? quote?.extra_cars?.[pricedIndex]?.added_mins : undefined}
+                            onChange={(patch) => setExtra(c.key, patch)}
+                            onRemove={() => set({ extraCars: a.extraCars.filter((x) => x.key !== c.key) })}
+                          />
+                        );
+                      })}
+                      {canAddCar && (
+                        <button
+                          type="button"
+                          onClick={addCar}
+                          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-neutral-300 bg-white p-4 font-medium transition hover:border-neutral-500"
+                        >
+                          <Plus className="size-4" /> Add {extras.length ? "another" : "a second"} car
+                        </button>
+                      )}
+                    </Section>
+                  )}
                   <Continue
                     label={
                       uploading
@@ -680,9 +803,13 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                           ? "Checking your photos…"
                           : photoIds.length < props.minPhotos
                             ? `Add ${props.minPhotos - photoIds.length} more ${props.minPhotos - photoIds.length === 1 ? "photo" : "photos"} to continue`
-                            : "Continue"
+                            : !extrasReady
+                              ? `Finish car ${extras.findIndex((c) => !(c.service && c.sizeClass && c.make && c.model)) + 2} to continue`
+                              : "Continue"
                     }
-                    disabled={uploading || checking || !carMake || !carModel || !a.sizeClass || photoIds.length < props.minPhotos}
+                    disabled={
+                      uploading || checking || !carMake || !carModel || !a.sizeClass || photoIds.length < props.minPhotos || !extrasReady
+                    }
                     onClick={continueFromCar}
                   />
                 </div>
@@ -839,7 +966,14 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
             <StepCard {...cardProps("time")}>
               {quote && (
                 <div className="grid gap-5">
-                  <Section title="When suits you?" hint={`The job takes about ${formatDuration(quote.duration_mins)}.`}>
+                  <Section
+                    title="When suits you?"
+                    hint={
+                      extras.length
+                        ? `All ${extras.length + 1} cars take about ${formatDuration(quote.duration_mins)} together, on one visit.`
+                        : `The job takes about ${formatDuration(quote.duration_mins)}.`
+                    }
+                  >
                     {openDates === null ? (
                       <p className="flex items-center gap-2 text-sm text-neutral-500">
                         <Loader2 className="size-4 animate-spin" /> Checking the diary…
@@ -968,10 +1102,20 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                     <dd>
                       {a.locationType === "mobile" ? `${a.addressLine}, ${a.postcode.toUpperCase()}` : props.unitAddress}
                     </dd>
-                    <dt className="text-neutral-500">Car</dt>
-                    <dd>
-                      {[a.colour.trim(), year, carMake, carModel].filter(Boolean).join(" ")}
-                      {a.registration.trim() && <span className="font-mono text-neutral-500"> · {a.registration.trim().toUpperCase()}</span>}
+                    <dt className="text-neutral-500">{extras.length ? "Cars" : "Car"}</dt>
+                    <dd className="grid gap-0.5">
+                      <span>
+                        {[a.colour.trim(), year, carMake, carModel].filter(Boolean).join(" ")}
+                        {a.registration.trim() && <span className="font-mono text-neutral-500"> · {a.registration.trim().toUpperCase()}</span>}
+                        {extras.length > 0 && service && <span className="text-neutral-500"> · {service.name}</span>}
+                      </span>
+                      {extras.map((c) => (
+                        <span key={c.key}>
+                          {c.make} {c.model}
+                          {c.registration.trim() && <span className="font-mono text-neutral-500"> · {c.registration.trim().toUpperCase()}</span>}
+                          {c.service && <span className="text-neutral-500"> · {c.service.name}</span>}
+                        </span>
+                      ))}
                     </dd>
                     {a.concerns.length > 0 && (
                       <>
@@ -1112,7 +1256,9 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
       <Summary
         quote={quote}
         service={service}
-        car={[carMake, carModel].filter(Boolean).join(" ")}
+        car={[[carMake, carModel].filter(Boolean).join(" "), ...extras.map((c) => [c.make, c.model].filter(Boolean).join(" "))]
+          .filter(Boolean)
+          .join(", ")}
         where={a.locationType ? summaries.where : ""}
         when={a.slot && a.date ? formatFullDateTime(a.slot.startsAt, timezone) : ""}
         deposit={pricing.deposit}
@@ -1253,6 +1399,145 @@ function Summary({
         </p>
       )}
     </aside>
+  );
+}
+
+// One of the other cars: its service, make and model, size and extras, and
+// the time it adds to the visit.
+function ExtraCarCard({
+  n,
+  car,
+  services,
+  addOns,
+  askRegistration,
+  addedMins,
+  onChange,
+  onRemove,
+}: {
+  n: number;
+  car: ExtraCar;
+  services: Service[];
+  addOns: AddOn[];
+  askRegistration: boolean;
+  addedMins?: number;
+  onChange: (patch: Partial<ExtraCar>) => void;
+  onRemove: () => void;
+}) {
+  const service = services.find((s) => s.id === car.serviceId);
+  const fits = service ? addOns.filter((x) => addOnFitsService(x, service.id)) : [];
+  const { make, model } = carName(car);
+  return (
+    <div className="grid gap-4 rounded-2xl border bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="font-semibold">Car {n}</h4>
+        <button type="button" onClick={onRemove} className="text-sm text-neutral-500 underline underline-offset-4 hover:text-neutral-900">
+          Remove
+        </button>
+      </div>
+
+      <fieldset className="grid gap-2">
+        <legend className="mb-2 text-sm font-medium">Service</legend>
+        <div className="flex flex-wrap gap-2">
+          {services.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              aria-pressed={car.serviceId === s.id}
+              onClick={() => onChange({ serviceId: s.id, addOnIds: [] })}
+              className={chip(car.serviceId === s.id)}
+            >
+              {s.name} <span className="opacity-70">· from {formatPence(s.base_price_pence)}</span>
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      <div className="grid gap-3">
+        <SearchSelect
+          label="Make"
+          placeholder="Search makes, e.g. Ford"
+          groups={MAKE_GROUPS}
+          value={car.makeChoice}
+          extraOption={OTHER}
+          onChange={(makeChoice) => onChange({ makeChoice, modelChoice: "", make: "", model: "" })}
+        />
+        {car.makeChoice === OTHER ? (
+          <>
+            <TextField label="Make" value={car.make} onChange={(v) => onChange({ make: v })} />
+            <TextField label="Model" value={car.model} onChange={(v) => onChange({ model: v })} />
+          </>
+        ) : (
+          <>
+            <SearchSelect
+              label="Model"
+              placeholder={car.makeChoice ? `Search ${car.makeChoice} models` : "Choose a make first"}
+              disabled={!car.makeChoice}
+              groups={[{ options: CAR_MODELS[car.makeChoice] ?? [] }]}
+              value={car.modelChoice}
+              extraOption={OTHER}
+              onChange={(modelChoice) =>
+                onChange({ modelChoice, model: "", sizeClass: suggestSize(car.makeChoice, modelChoice) ?? car.sizeClass })
+              }
+            />
+            {car.modelChoice === OTHER && <TextField label="Model" value={car.model} onChange={(v) => onChange({ model: v })} />}
+          </>
+        )}
+        {askRegistration && (
+          <TextField
+            label="Registration"
+            placeholder="Optional"
+            value={car.registration}
+            onChange={(registration) => onChange({ registration })}
+            autoComplete="off"
+          />
+        )}
+      </div>
+
+      <fieldset className="grid gap-2">
+        <legend className="mb-2 text-sm font-medium">Size</legend>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {(Object.keys(SIZE_CLASSES) as SizeClass[]).map((size) => (
+            <button
+              key={size}
+              type="button"
+              aria-pressed={car.sizeClass === size}
+              onClick={() => onChange({ sizeClass: size })}
+              className={chip(car.sizeClass === size)}
+            >
+              {SIZE_CLASSES[size].split(":")[0]}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      {fits.length > 0 && (
+        <fieldset className="grid gap-2">
+          <legend className="mb-2 text-sm font-medium">Extras for this car</legend>
+          <div className="flex flex-wrap gap-2">
+            {fits.map((x) => {
+              const on = car.addOnIds.includes(x.id);
+              return (
+                <button
+                  key={x.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => onChange({ addOnIds: on ? car.addOnIds.filter((id) => id !== x.id) : [...car.addOnIds, x.id] })}
+                  className={chip(on)}
+                >
+                  {x.name} <span className="opacity-70">· +{formatPence(x.price_pence)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+      )}
+
+      {addedMins !== undefined && make && model && (
+        <p className="rounded-xl bg-neutral-100 px-3 py-2 text-sm text-neutral-700">
+          Adds about {formatDuration(addedMins)} to the visit: we&apos;re already there and set up.
+        </p>
+      )}
+    </div>
   );
 }
 

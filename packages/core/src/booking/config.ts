@@ -87,6 +87,36 @@ export const travelFeeSchema = z.object({
   pence_per_mile: z.number().int().min(0).max(100_000),
 });
 
+// More than one car in one booking: the cars are done one after another at the
+// same address, on one visit. Setting up and packing away happen once, so
+// each extra car takes its own time less setup_mins (never less than half of
+// it). Null in the database = these defaults.
+export const multiCarSchema = z.object({
+  enabled: z.boolean(),
+  // Cars in one booking, the first included.
+  max_cars: z.number().int().min(2).max(4),
+  // Time saved on each extra car: unloading, setting up and packing away.
+  setup_mins: z.number().int().min(0).max(240),
+});
+export type MultiCar = z.infer<typeof multiCarSchema>;
+export const DEFAULT_MULTI_CAR: MultiCar = { enabled: true, max_cars: 2, setup_mins: 20 };
+
+export function multiCarOf(raw: unknown): MultiCar {
+  const parsed = multiCarSchema.safeParse(raw);
+  return parsed.success ? parsed.data : DEFAULT_MULTI_CAR;
+}
+
+// "Full valet and 1 more car": a booking's service, with its other cars.
+export function withExtraCars(service: string, extraCars: number) {
+  return extraCars > 0 ? `${service} and ${extraCars} more ${extraCars === 1 ? "car" : "cars"}` : service;
+}
+
+// The time an extra car adds to the visit: its own time, less the setup that's
+// already been done, but never less than half its own time.
+export function extraCarMins(ownMins: number, setupMins: number) {
+  return Math.max(ownMins - setupMins, Math.ceil(ownMins / 2));
+}
+
 export const bookingSettingsSchema = z.object({
   tenant_id: z.uuid(),
   timezone: z.string(),
@@ -120,6 +150,9 @@ export const bookingSettingsSchema = z.object({
   approval_mode: z.enum(["auto", "manual"]).default("auto"),
   // Cut-offs and refunds: settings/policy.ts. {} = none set.
   cancellation_policy: z.unknown().default({}),
+  // More than one car per booking; read through multiCarOf. Missing until
+  // migration 20261115120000_multi_car.sql is applied, which means the defaults.
+  multi_car: z.unknown().default(null),
 });
 export type BookingSettings = z.infer<typeof bookingSettingsSchema>;
 

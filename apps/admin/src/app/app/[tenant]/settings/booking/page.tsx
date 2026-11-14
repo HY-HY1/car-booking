@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { z } from "zod";
 import { summariseCapacity } from "@leadgen/core/booking/capacity";
-import { bookingSettingsSchema, resourceSchema } from "@leadgen/core/booking/config";
+import { bookingSettingsSchema, multiCarOf, resourceSchema } from "@leadgen/core/booking/config";
 import { policyOf, storedPolicyOf } from "@leadgen/core/settings/policy";
 import { questionsOf } from "@leadgen/core/settings/questions";
-import { BookingRulesForm, HoursForm, LocationsForm, NewResource, ResourceEditor } from "@/components/dashboard/booking-settings-forms";
+import { BookingRulesForm, HoursForm, LocationsForm, MultiCarForm, NewResource, ResourceEditor } from "@/components/dashboard/booking-settings-forms";
 import { AskingForm, PolicyForm } from "@/components/dashboard/settings/booking-forms";
 import { ReadOnlyNotice, SettingsSection, SettingsStack } from "@/components/dashboard/settings/section";
 import { SortableRows } from "@/components/dashboard/sortable";
@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
-import { deleteResource, reorderResources, saveAsking, saveBookingRules, saveHours, saveLocations, savePolicy, saveResource } from "./actions";
+import { deleteResource, reorderResources, saveAsking, saveBookingRules, saveHours, saveLocations, saveMultiCar, savePolicy, saveResource } from "./actions";
 
 export const metadata: Metadata = { title: "Hours & rules" };
 
@@ -127,6 +127,14 @@ export default async function BookingSettingsPage({ params }: PageProps<"/app/[t
 
       <SettingsSection id="rules" title="Booking rules" description="Which times are offered, and the gaps kept between jobs.">
         <BookingRulesForm settings={settings} action={saveBookingRules.bind(null, slug)} readOnly={readOnly} />
+      </SettingsSection>
+
+      <SettingsSection
+        id="multi-car"
+        title="More than one car"
+        description="Let customers add a second car (or more) to one booking, with the time worked out for a single visit."
+      >
+        <MultiCarForm settings={multiCarOf(settings.multi_car)} action={saveMultiCar.bind(null, slug)} readOnly={readOnly} />
       </SettingsSection>
 
       <SettingsSection

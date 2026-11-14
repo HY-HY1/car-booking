@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { normalizePostcode } from "../customer-fields";
-import { DAY_KEYS, weeklyHoursSchema, type ServiceArea, type WeeklyHours } from "./config";
+import { DAY_KEYS, DEFAULT_MULTI_CAR, weeklyHoursSchema, type ServiceArea, type WeeklyHours } from "./config";
 import { isUkPostcode } from "./geo";
 
 // Parsing the booking-settings editor's form posts (Settings → Hours & rules) into
@@ -173,6 +173,35 @@ export const hoursFormSchema = z
       unit_weekly_hours = shop.hours;
     }
     return { weekly_hours: mobile.hours, unit_weekly_hours };
+  });
+
+// ------------------------------------------------------------ more than one car
+
+// Settings → Hours & rules → More than one car. Saved as booking_settings.multi_car.
+// While it's switched off the numbers are hidden, so they aren't checked:
+// anything that doesn't read keeps the default.
+export const multiCarFormSchema = z
+  .object({
+    multi_car_enabled: checkbox,
+    max_cars: z.string().trim().default(""),
+    setup_mins: z.string().trim().default(""),
+  })
+  .transform((v, ctx) => {
+    const fields = [
+      ["max_cars", whole("Cars per booking", 2, 4), DEFAULT_MULTI_CAR.max_cars],
+      ["setup_mins", whole("The time saved", 0, 240), DEFAULT_MULTI_CAR.setup_mins],
+    ] as const;
+    const out: Record<string, number> = {};
+    for (const [key, schema, fallback] of fields) {
+      const parsed = schema.safeParse(v[key]);
+      if (parsed.success) out[key] = parsed.data;
+      else if (!v.multi_car_enabled) out[key] = fallback;
+      else {
+        ctx.addIssue({ code: "custom", path: [key], message: parsed.error.issues[0].message });
+        return z.NEVER;
+      }
+    }
+    return { multi_car: { enabled: v.multi_car_enabled, max_cars: out.max_cars, setup_mins: out.setup_mins } };
   });
 
 // ---------------------------------------------------------------------- rules

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { BookingSettings, Resource } from "@leadgen/core/booking/config";
+import { extraCarMins, formatDuration, type BookingSettings, type MultiCar, type Resource } from "@leadgen/core/booking/config";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
@@ -322,6 +322,70 @@ export function BookingRulesForm({ settings, action, readOnly }: { settings: Rul
             </Field>
           </div>
         </>
+      )}
+    </SaveForm>
+  );
+}
+
+// --------------------------------------------------------- more than one car
+
+export function MultiCarForm({ settings, action, readOnly }: { settings: MultiCar; action: Action; readOnly: boolean }) {
+  const [on, setOn] = useState(settings.enabled);
+  const [setup, setSetup] = useState(String(settings.setup_mins));
+  const saved = Math.min(Math.max(Number(setup) || 0, 0), 240);
+  // A worked example, so the number means something: two 2-hour valets.
+  const one = 120;
+  const together = one + extraCarMins(one, saved);
+  return (
+    <SaveForm action={action} readOnly={readOnly}>
+      {(errors) => (
+        <SwitchPanel
+          name="multi_car_enabled"
+          label="Customers can book more than one car"
+          description="For households and fleets: the cars are done one after another on the same visit."
+          on={on}
+          onChange={setOn}
+        >
+          <div className="grid gap-4 @lg:grid-cols-2">
+            <Field label="Cars per booking" name="max_cars" error={errors.max_cars}>
+              <Select name="max_cars" defaultValue={settings.max_cars}>
+                {[2, 3, 4].map((n) => (
+                  <option key={n} value={n}>
+                    Up to {n} cars
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field
+              label="Time saved on each extra car"
+              name="setup_mins"
+              error={errors.setup_mins}
+              hint="Getting the kit out, setting up and packing away happen once, so each car after the first takes this much less."
+            >
+              <NumberInput
+                name="setup_mins"
+                unit="minutes"
+                min={0}
+                max={240}
+                value={setup}
+                onChange={(e) => setSetup(e.target.value)}
+              />
+            </Field>
+          </div>
+          <div className="grid gap-1 rounded-lg bg-muted/60 p-4">
+            <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">For example</p>
+            <p>
+              Two cars that each take {formatDuration(one)} are booked as one visit of{" "}
+              <span className="font-semibold">{formatDuration(together)}</span>
+              {together < one * 2 && <span className="text-muted-foreground"> instead of {formatDuration(one * 2)}</span>}.
+            </p>
+            <p className="text-muted-foreground">
+              There&apos;s one journey and one call-out charge for the visit. A car never takes less than half its own time.
+              Each car gets its own service, size and extras, and you confirm the price of cars after the first when you see
+              them if your prices depend on condition.
+            </p>
+          </div>
+        </SwitchPanel>
       )}
     </SaveForm>
   );
