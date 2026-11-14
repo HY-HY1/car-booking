@@ -1,5 +1,6 @@
 "use server";
 
+import { MIN_PASSWORD } from "@leadgen/core/billing/rules";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { appUrl } from "@/lib/urls";
@@ -12,7 +13,7 @@ export async function changePassword(_prev: PasswordState, formData: FormData): 
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
 
-  if (password.length < 10) return { error: "Use at least 10 characters." };
+  if (password.length < MIN_PASSWORD) return { error: `Use at least ${MIN_PASSWORD} characters.` };
   if (password !== confirm) return { error: "The two passwords don't match." };
 
   const supabase = await createClient();

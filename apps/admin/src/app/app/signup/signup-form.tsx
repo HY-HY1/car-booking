@@ -1,14 +1,15 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, ChevronRight } from "lucide-react";
-import { signupSchema } from "@leadgen/core/billing/rules";
+import { ArrowLeft, ArrowRight, Check, ChevronRight, Eye, EyeOff, Loader2 } from "lucide-react";
+import { MIN_PASSWORD, signupSchema } from "@leadgen/core/billing/rules";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { signUpAction, type SignUpState } from "./actions";
+import { checkEmailAction, signUpAction, type SignUpState } from "./actions";
 import { PaymentStep } from "./payment-step";
 import { appUrl, marketingUrl } from "@/lib/urls";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -82,6 +83,14 @@ export function SignUpForm({ alreadySignedIn }: { alreadySignedIn: boolean }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const moved = useRef(false);
   const form = useRef<HTMLFormElement>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [checkingEmail, startEmailCheck] = useTransition();
+  // When the form opened, sent with it: the server turns away anything sent
+  // faster than a person could type it.
+  const started = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (started.current) started.current.value = String(Date.now());
+  }, []);
 
   // Once the account exists there's a card form to show, and no way back.
   const checkout = state.checkout;
@@ -121,12 +130,38 @@ export function SignUpForm({ alreadySignedIn }: { alreadySignedIn: boolean }) {
     if (step === 1 && !agreed) found.terms = "Tick the box to agree before continuing.";
     setErrors(found);
     if (Object.keys(found).length > 0) return;
-    // After the first stage, on to the second; after the second, create the account.
-    if (step === 0) setStep(1);
-    else form.current?.requestSubmit();
+    // After the first stage, check the email isn't someone's login already,
+    // then on to the second; after the second, create the account.
+    if (step === 0) {
+      startEmailCheck(async () => {
+        let result: Awaited<ReturnType<typeof checkEmailAction>> = { taken: false };
+        try {
+          result = await checkEmailAction(data.email);
+        } catch {
+          // Checked again when the account is made.
+        }
+        if (result.taken) setErrors({ email: "TAKEN" });
+        else if (result.message) setErrors({ form: result.message });
+        else setStep(1);
+      });
+    } else form.current?.requestSubmit();
   };
 
   const last = step === STEPS.length - 1;
+  const busy = pending || checkingEmail;
+  // An email that already has a login gets a way in, not just a refusal.
+  const emailError =
+    errors.email === "TAKEN" ? (
+      <>
+        There&apos;s already an account with that email.{" "}
+        <Link href={appUrl("/login")} className="font-medium underline underline-offset-4">
+          Sign in instead
+        </Link>
+        .
+      </>
+    ) : (
+      errors.email
+    );
   const bind = (field: FieldName) => ({
     id: field,
     name: field,
@@ -142,7 +177,7 @@ export function SignUpForm({ alreadySignedIn }: { alreadySignedIn: boolean }) {
       <Breadcrumb step={step} locked={Boolean(checkout)} onGo={setStep} />
 
       <div className="grid gap-1">
-        <h2 ref={heading} tabIndex={-1} className="text-xl font-semibold tracking-tight outline-none">
+        <h2 ref={heading} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none">
           {STEPS[step].title}
         </h2>
         <p className="text-sm text-muted-foreground">{STEPS[step].text}</p>
@@ -158,7 +193,7 @@ export function SignUpForm({ alreadySignedIn }: { alreadySignedIn: boolean }) {
         onKeyDown={(e) => {
           if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
             e.preventDefault();
-            if (!pending) next();
+            if (!busy) next();
           }
         }}
       >
@@ -167,17 +202,48 @@ export function SignUpForm({ alreadySignedIn }: { alreadySignedIn: boolean }) {
           <label htmlFor="website">Website</label>
           <input id="website" name="website" tabIndex={-1} autoComplete="off" />
         </div>
+        <input ref={started} type="hidden" name="started" defaultValue="" />
 
-        <div hidden={step !== 0} className="grid gap-4">
+        <div hidden={step !== 0} className="grid gap-5">
           <Field label="Your name" name="name" error={errors.name}>
-            <Input {...bind("name")} autoComplete="name" />
+            <Input {...bind("name")} autoComplete="name" maxLength={100} />
           </Field>
-          <Field label="Email" name="email" error={errors.email}>
-            <Input {...bind("email")} type="email" autoComplete="email" />
+          <Field label="Email" name="email" error={emailError}>
+            <Input {...bind("email")} type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} />
           </Field>
-          <Field label="Password" name="password" error={errors.password} hint="At least 8 characters.">
-            <Input {...bind("password")} type="password" autoComplete="new-password" />
-          </Field>
+          <div className="grid gap-2">
+            <label htmlFor="password" className="text-sm font-medium">
+              Password
+            </label>
+            <div className="relative">
+              <Input
+                {...bind("password")}
+                type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
+                maxLength={72}
+                className="pr-12"
+                aria-describedby="password-message"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-lg text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
+            {errors.password ? (
+              <p id="password-message" role="alert" className="text-sm text-destructive">
+                {errors.password}
+              </p>
+            ) : (
+              <p id="password-message" className="text-xs text-muted-foreground">
+                At least {MIN_PASSWORD} characters. A short sentence is easy to remember and hard to guess.
+              </p>
+            )}
+          </div>
         </div>
 
         <div hidden={step !== 1} className="grid gap-5">
@@ -203,7 +269,7 @@ export function SignUpForm({ alreadySignedIn }: { alreadySignedIn: boolean }) {
             error={errors.locations}
           />
           <Field label="Postcode" name="postcode" error={errors.postcode} hint={POSTCODE_HINT[data.locations]}>
-            <Input {...bind("postcode")} autoComplete="postal-code" placeholder="BS1 4DJ" className="sm:max-w-40" />
+            <Input {...bind("postcode")} autoComplete="postal-code" autoCapitalize="characters" placeholder="e.g. BS1 4DJ" className="sm:max-w-44" />
           </Field>
         </div>
 
@@ -229,24 +295,25 @@ export function SignUpForm({ alreadySignedIn }: { alreadySignedIn: boolean }) {
           {errors.terms && <p role="alert" className="text-sm text-destructive">{errors.terms}</p>}
         </div>
 
-        {state.message && !Object.keys(errors).length && !checkout && (
-          <p role="alert" className="text-sm text-destructive">
-            {state.message}
+        {((state.message && !Object.keys(errors).length && !checkout) || errors.form) && (
+          <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {errors.form ?? state.message}
           </p>
         )}
 
         <div className="flex items-center justify-between gap-3">
           {step > 0 ? (
-            <Button type="button" variant="ghost" size="lg" onClick={() => setStep(step - 1)} disabled={pending}>
+            <Button type="button" variant="ghost" size="lg" onClick={() => setStep(step - 1)} disabled={busy}>
               <ArrowLeft />
               Back
             </Button>
           ) : (
             <span />
           )}
-          <Button type="button" size="lg" onClick={next} disabled={pending} className="px-4">
-            {pending ? "Creating your account…" : "Continue"}
-            {!pending && <ArrowRight />}
+          <Button type="button" size="lg" onClick={next} disabled={busy} className="min-w-36 px-5">
+            {busy && <Loader2 className="animate-spin" />}
+            {pending ? "Creating your account…" : checkingEmail ? "Checking…" : step === 1 ? "Create account" : "Continue"}
+            {!busy && <ArrowRight />}
           </Button>
         </div>
       </form>

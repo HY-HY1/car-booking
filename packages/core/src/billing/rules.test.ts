@@ -4,6 +4,7 @@ import {
   AWAITING_CHECKOUT,
   hasAccess,
   priceLabel,
+  isAbandonedSignup,
   signupSchema,
   slugCandidates,
   tenantBillingFields,
@@ -49,7 +50,7 @@ describe("signupSchema", () => {
     expect(byField).toMatchObject({
       name: "Enter your name.",
       email: "Enter a valid email address.",
-      password: "Use at least 8 characters.",
+      password: "Use at least 10 characters.",
       businessName: "Enter your business name.",
       trade: "Pick one.",
       locations: "Pick one.",
@@ -117,5 +118,21 @@ describe("tenantBillingFields", () => {
 
   it("accepts an expanded customer", () => {
     expect(tenantBillingFields({ ...sub, customer: { id: "cus_2" } }).stripe_customer_id).toBe("cus_2");
+  });
+});
+
+describe("isAbandonedSignup", () => {
+  const now = new Date("2026-11-20T12:00:00Z");
+  const signup = { subscription_status: AWAITING_CHECKOUT, stripe_subscription_id: null, created_at: "2026-11-10T12:00:00Z" };
+
+  it("is a signup with no card, older than the cut-off", () => {
+    expect(isAbandonedSignup(signup, now)).toBe(true);
+  });
+
+  it("leaves recent signups, and anyone who's subscribed or billed another way", () => {
+    expect(isAbandonedSignup({ ...signup, created_at: "2026-11-18T12:00:00Z" }, now)).toBe(false);
+    expect(isAbandonedSignup({ ...signup, subscription_status: "trialing" }, now)).toBe(false);
+    expect(isAbandonedSignup({ ...signup, subscription_status: null }, now)).toBe(false);
+    expect(isAbandonedSignup({ ...signup, stripe_subscription_id: "sub_123" }, now)).toBe(false);
   });
 });

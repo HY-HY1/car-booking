@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { Appearance } from "@stripe/stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import { CheckoutElementsProvider, PaymentElement, useCheckoutElements } from "@stripe/react-stripe-js/checkout";
 import { TRIAL_DAYS } from "@leadgen/core/billing/rules";
@@ -18,20 +19,28 @@ const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
 
 // Stripe draws the card fields in an iframe, so they take their look from here
-// rather than from our CSS: matched to the page's colours, radius and font.
-const appearance = {
-  theme: "stripe" as const,
-  variables: {
-    colorPrimary: "#171717",
-    colorText: "#171717",
-    colorDanger: "#dc2626",
-    fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif",
-    borderRadius: "10px",
-    spacingUnit: "4px",
-  },
-};
+// rather than from our CSS: matched to the page's colours, radius and font, in
+// light or dark mode as the page is (lib/theme.ts puts .dark on <html>).
+function appearanceFor(dark: boolean): Appearance {
+  const shared = { fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif", borderRadius: "10px", spacingUnit: "4px" };
+  return dark
+    ? {
+        theme: "night",
+        variables: {
+          ...shared,
+          colorPrimary: "#fafafa",
+          colorBackground: "#171717",
+          colorText: "#fafafa",
+          colorTextSecondary: "#a3a3a3",
+          colorDanger: "#f87171",
+        },
+      }
+    : { theme: "stripe", variables: { ...shared, colorPrimary: "#171717", colorText: "#171717", colorDanger: "#dc2626" } };
+}
 
 export function PaymentStep({ clientSecret, priceLabel }: { clientSecret: string; priceLabel: string }) {
+  // Only ever shown after the form's been filled in, so always in the browser.
+  const [appearance] = useState(() => appearanceFor(document.documentElement.classList.contains("dark")));
   return (
     // The client secret can't change once set, so a new one means a new provider.
     <CheckoutElementsProvider key={clientSecret} stripe={stripePromise} options={{ clientSecret, elementsOptions: { appearance } }}>

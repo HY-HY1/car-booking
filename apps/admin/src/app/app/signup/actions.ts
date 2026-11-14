@@ -1,9 +1,12 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { z } from "zod";
+import { hitRateLimit } from "@leadgen/core/api/rate-limit";
 import { AWAITING_CHECKOUT, signupSchema, slugCandidates } from "@leadgen/core/billing/rules";
 import { TERMS_VERSION } from "@leadgen/core/privacy/platform";
-import { createBusiness } from "@leadgen/core/platform/businesses";
+import { createBusiness, emailHasAccount } from "@leadgen/core/platform/businesses";
 import { newBusinessSchema } from "@leadgen/core/platform/rules";
 import { createAdminClient } from "@leadgen/core/supabase/admin";
 import { elementsCheckout, signupMissing } from "@/lib/billing";
@@ -21,6 +24,38 @@ export type SignUpState = {
 
 const text = (formData: FormData, key: string) => String(formData.get(key) ?? "").trim();
 
+// Sign-ups from one address in an hour, and email checks in ten minutes. A
+// sign-up makes a login and a business before any card is asked for, so a
+// script mustn't be able to make thousands. Counted in the database
+// (api/rate-limit.ts); if the counter can't be reached, sign-up stays open.
+const SIGNUPS_PER_HOUR = 5;
+const EMAIL_CHECKS_PER_10_MIN = 30;
+// Two stages of typing take a person longer than this; a script, no time.
+const FASTEST_HUMAN_MS = 4_000;
+
+async function visitor() {
+  const h = await headers();
+  return h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
+}
+
+const TOO_MANY = "Too many sign-ups from here just now. Please try again in an hour.";
+
+// Leaving the first stage: is the email already someone's login? Said then,
+// so nobody fills in their business only to be sent back.
+export async function checkEmailAction(email: string): Promise<{ taken: boolean; message?: string }> {
+  const parsed = z.email().safeParse(email.trim().toLowerCase());
+  if (!parsed.success) return { taken: false };
+  const limit = await hitRateLimit(`signup-email:${await visitor()}`, EMAIL_CHECKS_PER_10_MIN, 600);
+  if (!limit.allowed) return { taken: false, message: TOO_MANY };
+  try {
+    return { taken: await emailHasAccount(parsed.data) };
+  } catch (error) {
+    // The full sign-up checks again, so carry on.
+    console.error("Sign-up: couldn't check the email", error);
+    return { taken: false };
+  }
+}
+
 // Create an account, a business with starter settings, sign them in, and set
 // up the trial's payment, which is returned for the last stage to show as
 // Stripe's card form on the page. Everything before Stripe is undone if any
@@ -33,8 +68,12 @@ export async function signUpAction(_prev: SignUpState, formData: FormData): Prom
     if (typeof value === "string" && key !== "password") values[key] = value;
   }
 
-  // A field real people never see; bots fill in everything.
-  if (text(formData, "website")) return { message: "Something went wrong. Please try again.", values };
+  // A field real people never see; bots fill in everything. And a form sent
+  // within seconds of opening wasn't typed by a person.
+  const started = Number(text(formData, "started"));
+  if (text(formData, "website") || !started || Date.now() - started < FASTEST_HUMAN_MS) {
+    return { message: "Something went wrong. Please try again.", values };
+  }
   const missing = signupMissing();
   if (missing.length) {
     console.error(`Sign-up is closed: set ${missing.join(", ")} in the root .env.local.`);
@@ -66,6 +105,9 @@ export async function signUpAction(_prev: SignUpState, formData: FormData): Prom
   if (text(formData, "terms") !== "on") {
     return { errors: { terms: "Tick the box to agree before continuing." }, message: "Fix the highlighted fields.", values };
   }
+  // Counted only once the form is valid, so typos don't use up the allowance.
+  const limit = await hitRateLimit(`signup:${await visitor()}`, SIGNUPS_PER_HOUR, 3600);
+  if (!limit.allowed) return { message: TOO_MANY, values };
 
   const db = createAdminClient();
   // Confirmed straight away: the card on the next screen is the check that

@@ -34,6 +34,12 @@ async function findUserByEmail(db: SupabaseClient, email: string) {
   }
 }
 
+// Whether a login already uses this email: sign-up says so before the
+// customer fills in the rest. Rate-limited by the caller.
+export async function emailHasAccount(email: string) {
+  return (await findUserByEmail(createAdminClient(), email.trim().toLowerCase())) !== null;
+}
+
 export type EnsuredUser = {
   userId: string;
   // Only set when the account was just created; shown to the admin once.

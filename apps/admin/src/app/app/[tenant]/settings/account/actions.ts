@@ -1,5 +1,6 @@
 "use server";
 
+import { MIN_PASSWORD } from "@leadgen/core/billing/rules";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -61,7 +62,7 @@ export async function changePasswordAction(slug: string, formData: FormData): Pr
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
   if (!current) return { errors: { current: "Enter your current password." } };
-  if (password.length < 10) return { errors: { password: "Use at least 10 characters." } };
+  if (password.length < MIN_PASSWORD) return { errors: { password: `Use at least ${MIN_PASSWORD} characters.` } };
   if (password !== confirm) return { errors: { confirm: "The two passwords don't match." } };
   if (password === current) return { errors: { password: "That's your current password. Choose a new one." } };
 

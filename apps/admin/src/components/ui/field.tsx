@@ -18,7 +18,7 @@ function Field({
   label: ReactNode
   name: string
   hint?: ReactNode
-  error?: string
+  error?: ReactNode
   className?: string
   children: ReactNode
 }) {

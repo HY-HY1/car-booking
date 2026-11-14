@@ -11,17 +11,19 @@ export const RATE_WINDOW_SECONDS = 60;
 
 export type RateLimit = { allowed: boolean; limit: number; remaining: number; resetSeconds: number };
 
-export async function hitRateLimit(bucket: string): Promise<RateLimit> {
+// The API's per-key limit by default; other callers (sign-up, by address)
+// pass their own limit and window, in their own bucket names.
+export async function hitRateLimit(bucket: string, limit = RATE_LIMIT, windowSeconds = RATE_WINDOW_SECONDS): Promise<RateLimit> {
   const { data, error } = await createAdminClient()
-    .rpc("api_rate_limit_hit", { p_bucket: bucket, p_limit: RATE_LIMIT, p_window_seconds: RATE_WINDOW_SECONDS })
+    .rpc("api_rate_limit_hit", { p_bucket: bucket, p_limit: limit, p_window_seconds: windowSeconds })
     .single<{ allowed: boolean; remaining: number; reset_at: string }>();
   if (error || !data) {
-    console.error("[api] rate limit check failed", error);
-    return { allowed: true, limit: RATE_LIMIT, remaining: RATE_LIMIT, resetSeconds: RATE_WINDOW_SECONDS };
+    console.error("[rate limit] check failed", error);
+    return { allowed: true, limit, remaining: limit, resetSeconds: windowSeconds };
   }
   return {
     allowed: data.allowed,
-    limit: RATE_LIMIT,
+    limit,
     remaining: data.remaining,
     resetSeconds: Math.max(0, Math.ceil((Date.parse(data.reset_at) - Date.now()) / 1000)),
   };
