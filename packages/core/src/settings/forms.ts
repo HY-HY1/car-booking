@@ -3,7 +3,7 @@ import { normalizePhone } from "../customer-fields";
 import type { DepositRule } from "../booking/config";
 import { ASSISTANT_MODES, ASSISTANT_TONES, type AssistantMode, type AssistantSettings, type AssistantTone } from "./assistant";
 import { CUSTOMER_MESSAGES, type CustomerMessage, type NotificationSettings, unknownFields } from "./notifications";
-import { DEFAULT_POLICY, type CancellationPolicy, type LateFee } from "./policy";
+import { DEFAULT_POLICY, switchedOff, type CancellationPolicy, type LateFee } from "./policy";
 import { QUESTION_KEYS, type Questions } from "./questions";
 
 // Parsing the Settings forms' posts into the rows they update. Values come in
@@ -185,14 +185,20 @@ export const askingFormSchema = z
 
 // Cut-offs and the note (Settings → Hours & rules). The refund side is kept as it
 // was, or the default, so the two forms can't undo each other.
+// `current` is the policy as last set, even if it's switched off
+// (storedPolicyOf). Switching it off keeps it, marked off, so nothing is
+// lost; only the fields that apply are checked, so nothing hidden can stop
+// a save.
 export function parsePolicyForm(input: Record<string, string>, current: CancellationPolicy | null) {
+  if (input.policy_enabled !== "on") {
+    return { success: true as const, data: switchedOff(current) };
+  }
+  const selfService = input.self_service === "on";
   const schema = z.object({
-    policy_enabled: checkbox,
     cutoff_hours: whole("The cancellation notice", 0, 720),
     reschedule_cutoff_hours: whole("The notice to change the time", 0, 720),
     note: text(500, "the note"),
-    self_service: checkbox,
-    // Blank = no limit.
+    // Blank = no limit. Only asked when customers can change it themselves.
     max_reschedules: z
       .string()
       .trim()
@@ -202,20 +208,18 @@ export function parsePolicyForm(input: Record<string, string>, current: Cancella
       })
       .transform((v) => (v === "" ? undefined : Number(v))),
   });
-  const parsed = schema.safeParse(input);
+  const parsed = schema.safeParse(selfService ? input : { ...input, max_reschedules: "" });
   if (!parsed.success) return parsed;
   const v = parsed.data;
-  const policy: CancellationPolicy | Record<string, never> = v.policy_enabled
-    ? {
-        ...(current ?? DEFAULT_POLICY),
-        cutoff_hours: v.cutoff_hours,
-        reschedule_cutoff_hours: v.reschedule_cutoff_hours,
-        note: v.note || undefined,
-        self_service: v.self_service,
-        max_reschedules: v.max_reschedules,
-      }
-    : {};
-  return { success: true as const, data: policy };
+  const policy: CancellationPolicy = {
+    ...(current ?? DEFAULT_POLICY),
+    cutoff_hours: v.cutoff_hours,
+    reschedule_cutoff_hours: v.reschedule_cutoff_hours,
+    note: v.note || undefined,
+    self_service: selfService,
+    max_reschedules: v.max_reschedules,
+  };
+  return { success: true as const, data: policy as CancellationPolicy | Record<string, unknown> };
 }
 
 // What happens to the deposit (Settings → Payments). Only once a policy exists.

@@ -13,7 +13,7 @@ import {
   privacyExtrasFormSchema,
 } from "./forms";
 import { notificationsOf, renderTemplate, unknownFields } from "./notifications";
-import { DEFAULT_POLICY, policyLines, policyOf, refundAdvice, type CancellationPolicy } from "./policy";
+import { DEFAULT_POLICY, policyLines, policyOf, refundAdvice, storedPolicyOf, type CancellationPolicy } from "./policy";
 import { questionsOf } from "./questions";
 
 const START = "2026-11-10T10:00:00Z";
@@ -86,10 +86,25 @@ describe("cancellation policy", () => {
 
     const offline = parsePolicyForm({ policy_enabled: "on", cutoff_hours: "48", reschedule_cutoff_hours: "12", note: "" }, current);
     expect(offline.success && offline.data).toMatchObject({ self_service: false, max_reschedules: undefined });
-    expect(parsePolicyForm({ policy_enabled: "on", cutoff_hours: "48", reschedule_cutoff_hours: "12", max_reschedules: "0" }, current).success).toBe(false);
+    expect(
+      parsePolicyForm({ policy_enabled: "on", cutoff_hours: "48", reschedule_cutoff_hours: "12", self_service: "on", max_reschedules: "0" }, current)
+        .success,
+    ).toBe(false);
 
-    const off = parsePolicyForm({ cutoff_hours: "48", reschedule_cutoff_hours: "12", note: "" }, current);
-    expect(off.success && off.data).toEqual({});
+    // A limit typed and then hidden by switching self-service off isn't checked.
+    const hiddenLimit = parsePolicyForm(
+      { policy_enabled: "on", cutoff_hours: "48", reschedule_cutoff_hours: "12", max_reschedules: "20" },
+      current,
+    );
+    expect(hiddenLimit.success && hiddenLimit.data).toMatchObject({ self_service: false, max_reschedules: undefined });
+
+    // Switched off: nothing else is checked, and the policy is kept, marked
+    // off, so switching it back on brings the refund rules back.
+    const off = parsePolicyForm({ cutoff_hours: "nonsense", reschedule_cutoff_hours: "12", note: "" }, current);
+    expect(off.success && off.data).toEqual({ ...current, off: true });
+    expect(policyOf(off.success && off.data)).toBeNull();
+    expect(storedPolicyOf(off.success && off.data)).toEqual(current);
+    expect(parsePolicyForm({}, null)).toEqual({ success: true, data: {} });
 
     const refund = parseRefundForm({ refund_before_cutoff: "full", late_fee_type: "fixed", late_fee_amount: "£7.50" }, DEFAULT_POLICY);
     expect(refund.success && refund.data).toEqual({ ...DEFAULT_POLICY, late_fee: { type: "fixed", value_pence: 750 } });

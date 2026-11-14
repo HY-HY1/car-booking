@@ -86,7 +86,7 @@ export function CoverPositioner({
   }
 
   return (
-    <div className="grid gap-3 rounded-xl border p-4">
+    <div className="@container grid gap-3 rounded-lg border p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-sm font-medium">Position the cover image</p>
@@ -98,9 +98,9 @@ export function CoverPositioner({
           <RotateCcw /> Centre
         </Button>
       </div>
-      <div className="grid grid-cols-[minmax(0,1fr)_9rem] items-end gap-3">
+      <div className="grid gap-3 @md:grid-cols-[minmax(0,1fr)_9rem] @md:items-end">
         {FRAMES.map((frame) => (
-          <figure key={frame.key} className="grid gap-1.5">
+          <figure key={frame.key} className={cn("grid gap-1.5", frame.key === "phone" && "w-36 @md:w-auto")}>
             <div
               role="group"
               tabIndex={disabled ? -1 : 0}

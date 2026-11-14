@@ -74,7 +74,9 @@ describe("locationsFormSchema", () => {
       unit_address: "Unit 4",
       unit_postcode: "BS2 0AA",
     });
-    expect(out).toMatchObject({ offers_mobile: false, offers_unit: true, service_area: {} });
+    expect(out).toMatchObject({ offers_mobile: false, offers_unit: true });
+    // Hidden while mobile jobs are off, so the saved area is left as it was.
+    expect(out).not.toHaveProperty("service_area");
   });
 });
 

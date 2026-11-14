@@ -1,14 +1,11 @@
 "use client";
 
-import { useTransition } from "react";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
 import { Field, SaveForm, type Action } from "../form-kit";
 import { Select } from "@/components/ui/select";
-import { toast } from "@/components/ui/toast";
-import { askToConfirm } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
+import { AppHeader, appCard, DisconnectButton, OutcomeNote, type Outcome } from "./connection-bits";
 
 // Settings → Integrations: connecting Google Calendar, and which calendar
 // each van or bay uses.
@@ -30,7 +27,7 @@ export type CalendarCardProps = {
   disconnectAction: () => Promise<SaveState>;
 };
 
-const OUTCOMES: Record<string, { text: string; good?: boolean }> = {
+const OUTCOMES: Record<string, Outcome> = {
   connected: {
     text: "Connected. Your upcoming jobs are going into Google Calendar now, and its busy times are being read in.",
     good: true,
@@ -48,30 +45,24 @@ export function GoogleCalendarCard(props: CalendarCardProps) {
   const note = outcome ? OUTCOMES[outcome] : undefined;
 
   return (
-    <li className="grid gap-4 rounded-xl border bg-card p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <span className="min-w-0">
-          <span className="font-medium">Google Calendar</span>
-          <span className="block text-sm text-muted-foreground">
-            Your bookings in your Google Calendar, and busy times there blocked out for customers.
-          </span>
-        </span>
-        <Badge tone={connection?.status === "active" ? "success" : connection ? "warning" : "neutral"}>
-          {connection?.status === "active" ? "Connected" : connection ? "Needs reconnecting" : configured ? "Not connected" : "Coming soon"}
-        </Badge>
-      </div>
+    <li className={appCard}>
+      <AppHeader
+        name="Google Calendar"
+        about="Your bookings in your Google Calendar, and busy times there blocked out for customers."
+        badge={
+          <Badge tone={connection?.status === "active" ? "success" : connection ? "warning" : "neutral"}>
+            {connection?.status === "active" ? "Connected" : connection ? "Needs reconnecting" : configured ? "Not connected" : "Coming soon"}
+          </Badge>
+        }
+      />
 
-      {note && (
-        <p role="status" className={cn("text-sm", note.good ? "text-emerald-700 dark:text-emerald-400" : "text-destructive")}>
-          {note.text}
-        </p>
-      )}
+      <OutcomeNote note={note} />
 
       {!configured && props.missingHint && <p className="text-xs text-muted-foreground">{props.missingHint}</p>}
 
       {configured && !connection && (
         <>
-          <ul className="grid gap-1 text-sm text-muted-foreground">
+          <ul className="grid list-disc gap-1 pl-5 text-muted-foreground">
             <li>Every booking goes into your calendar with the customer&apos;s name, phone, address, car and notes.</li>
             <li>Anything that makes you busy there (a dentist, a school run) stops customers booking that time.</li>
             <li>Changes to a booking show in Google straight away. Move a job here, not in Google: Google edits are put back.</li>
@@ -88,7 +79,7 @@ export function GoogleCalendarCard(props: CalendarCardProps) {
 
       {configured && connection?.status === "needs_reconnect" && (
         <div className="grid gap-3">
-          <p className="text-sm">
+          <p>
             Google stopped letting us in{connection.email ? ` to ${connection.email}` : ""}
             {connection.lastError ? `: ${connection.lastError}` : "."} New jobs aren&apos;t going into your calendar, and busy
             times there aren&apos;t being updated.
@@ -115,7 +106,7 @@ function Connected(props: CalendarCardProps & { connection: NonNullable<Calendar
 
   return (
     <div className="grid gap-4">
-      <p className="text-sm">
+      <p>
         Connected{connection.email ? ` as ${connection.email}` : ""}.
         {props.failing > 0 && (
           <span className="text-destructive">
@@ -131,11 +122,11 @@ function Connected(props: CalendarCardProps & { connection: NonNullable<Calendar
       ) : (
         <SaveForm action={props.saveAction} readOnly={!canEdit} savedText="Saved. Jobs are moving to their calendars now.">
           {(errors) => (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 @lg:grid-cols-2">
               <Field label="Calendar for your jobs" name="default_calendar" error={errors.default_calendar}>
                 <CalendarSelect name="default_calendar" calendars={calendars} value={connection.defaultCalendarId} />
               </Field>
-              <p className="text-xs text-muted-foreground sm:col-span-2">
+              <p className="text-xs text-muted-foreground @lg:col-span-2">
                 Jobs go into this calendar, and busy times in it block every van and bay that uses it.
               </p>
               {vans.length > 1 &&
@@ -150,7 +141,7 @@ function Connected(props: CalendarCardProps & { connection: NonNullable<Calendar
                   </Field>
                 ))}
               {vans.length > 1 && (
-                <p className="text-xs text-muted-foreground sm:col-span-2">
+                <p className="text-xs text-muted-foreground @lg:col-span-2">
                   Give a van its own calendar (one per driver, say) and only that calendar&apos;s busy times block it.
                 </p>
               )}
@@ -201,29 +192,12 @@ function CalendarSelect({
 }
 
 function Disconnect({ action }: { action: () => Promise<SaveState> }) {
-  const [pending, startTransition] = useTransition();
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      disabled={pending}
-      className="text-destructive"
-      onClick={async () => {
-        const confirmed = await askToConfirm({
-          title: "Disconnect Google Calendar?",
-          description: "Upcoming jobs come out of your Google Calendar (past ones stay) and its busy times stop blocking bookings.",
-          confirmLabel: "Disconnect",
-          destructive: true,
-        });
-        if (!confirmed) return;
-        startTransition(async () => {
-          const { message } = await action();
-          if (message) toast.error(message);
-          else toast.success("Google Calendar disconnected");
-        });
-      }}
-    >
-      {pending ? "Disconnecting…" : "Disconnect"}
-    </Button>
+    <DisconnectButton
+      title="Disconnect Google Calendar?"
+      description="Upcoming jobs come out of your Google Calendar (past ones stay) and its busy times stop blocking bookings."
+      done="Google Calendar disconnected"
+      action={action}
+    />
   );
 }

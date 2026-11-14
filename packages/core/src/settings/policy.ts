@@ -42,10 +42,29 @@ export const DEFAULT_POLICY: CancellationPolicy = {
   self_service: true,
 };
 
-// The stored json, or null when no policy has been set (or it's unreadable).
+// The stored json, or null when no policy is in force: none set, switched
+// off ({ off: true, ... }), or unreadable.
 export function policyOf(raw: unknown): CancellationPolicy | null {
+  if (isSwitchedOff(raw)) return null;
+  return storedPolicyOf(raw);
+}
+
+// The policy as last set, even while it's switched off, so switching it back
+// on brings back the same cut-offs and refund rules. Settings only: anything
+// that acts on a policy uses policyOf.
+export function storedPolicyOf(raw: unknown): CancellationPolicy | null {
   const parsed = cancellationPolicySchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
+}
+
+function isSwitchedOff(raw: unknown) {
+  return typeof raw === "object" && raw !== null && (raw as { off?: unknown }).off === true;
+}
+
+// What's stored when the owner switches the policy off: the last one, marked
+// off, or {} if there never was one.
+export function switchedOff(stored: CancellationPolicy | null): Record<string, unknown> {
+  return stored ? { ...stored, off: true } : {};
 }
 
 export function formatNotice(hours: number) {

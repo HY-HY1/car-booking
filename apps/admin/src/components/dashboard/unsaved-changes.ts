@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type RefObject } from "react";
+import { useEffect, useState, type RefObject } from "react";
 import { askToConfirm } from "@/components/ui/confirm-dialog";
 
 // Warns before leaving a page with unsaved changes, however you leave: a link,
@@ -128,18 +128,56 @@ function savedNow(form: RefObject<HTMLFormElement | null>, saved: { current: str
 
 // Watches a form until it unmounts. Returns the function to call once it's saved.
 export function useUnsavedChanges(form: RefObject<HTMLFormElement | null>, enabled = true) {
+  return useChangeTracking(form, enabled).markSaved;
+}
+
+// As useUnsavedChanges, and also says whether the form has changed since it
+// was last saved, kept up to date as it's edited (Save buttons use it).
+export function useChangeTracking(form: RefObject<HTMLFormElement | null>, enabled = true) {
   const currentRouter = useRouter();
   const [saved] = useState<{ current: string | null }>({ current: null });
+  const [changed, setChanged] = useState(false);
 
-  const markSaved = useMemo(() => savedNow(form, saved), [form, saved]);
+  // Made once: the form ref and the saved snapshot holder never change.
+  const [mark] = useState(() => savedNow(form, saved));
+  const [isChanged] = useState(
+    () => () => form.current !== null && saved.current !== null && snapshot(form.current) !== saved.current,
+  );
+  const [markSaved] = useState(() => () => {
+    mark();
+    setChanged(false);
+  });
 
   useEffect(() => {
     if (!enabled) return;
     // Only the first time: the router keeps a page's state when you leave, so
     // anything unsaved is still there, and still unsaved, when you come back.
-    if (saved.current === null) markSaved();
-    return watch(() => form.current !== null && saved.current !== null && snapshot(form.current) !== saved.current, currentRouter);
-  }, [enabled, form, saved, markSaved, currentRouter]);
+    if (saved.current === null) mark();
+    const timer = window.setTimeout(() => setChanged(isChanged()), 0);
+    const unwatch = watch(isChanged, currentRouter);
+    return () => {
+      window.clearTimeout(timer);
+      unwatch();
+    };
+  }, [enabled, saved, mark, isChanged, currentRouter]);
 
-  return markSaved;
+  // Checked after each edit. A beat later, so fields React fills in from
+  // state (hidden inputs, a colour picker's text box) have caught up.
+  useEffect(() => {
+    const el = form.current;
+    if (!enabled || !el) return;
+    let timer: number | undefined;
+    const check = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setChanged(isChanged()), 0);
+    };
+    const events = ["input", "change", "click", "pointerup", "keyup", "reset"] as const;
+    for (const name of events) el.addEventListener(name, check);
+    return () => {
+      window.clearTimeout(timer);
+      for (const name of events) el.removeEventListener(name, check);
+    };
+  }, [enabled, form, isChanged]);
+
+  return { markSaved, changed, recheck: () => setChanged(isChanged()) };
 }

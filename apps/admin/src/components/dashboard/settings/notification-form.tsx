@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, RotateCcw } from "lucide-react";
 import {
   CUSTOMER_MESSAGES,
   defaultTemplate,
@@ -12,17 +12,30 @@ import {
   type NotificationSettings,
 } from "@leadgen/core/settings/notifications";
 import { customerFooter, renderEmail, templateMessage, type EmailBrand } from "@leadgen/core/email/compose";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Check, Field, SaveForm, type Action } from "../form-kit";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { askToConfirm } from "@/components/ui/confirm-dialog";
+import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { Field, SaveForm, type Action } from "../form-kit";
+import { SettingsSection, SettingsStack } from "./section";
 
 // Settings → Notifications: what customers are sent and when, the sender, and
-// alerts to the owner. Saved as one.
+// alerts to the owner. Saved as one, with the Save bar kept in view.
 
 // How the business's customer emails look (branding/email-brand.ts).
 type EmailBusiness = EmailBrand;
+
+// The fields inside each message's panel besides its subject and body, so a
+// panel opens itself when any of them has a problem.
+const MESSAGE_FIELDS: Partial<Record<CustomerMessage, string[]>> = {
+  reminder: ["reminder_hours_before"],
+  follow_up: ["follow_up_days_after"],
+  review_request: ["review_request_days_after", "review_url"],
+  quote_follow_up: ["quote_follow_up_days_after"],
+};
 
 export function NotificationsForm({
   settings,
@@ -44,122 +57,152 @@ export function NotificationsForm({
   return (
     <SaveForm action={action} readOnly={readOnly} sticky savedText="Saved.">
       {(errors) => (
-        <>
-          <section className="grid gap-3">
-            <h3 className="font-medium">How messages are sent</h3>
-            <div className="flex flex-wrap gap-x-6 gap-y-2">
-              <Check name="channel_email" label="Email" defaultChecked={settings.channels.email} />
-              <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                Text message (SMS) <Badge>Coming soon</Badge>
-              </span>
-              <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                WhatsApp <Badge>Coming soon</Badge>
-              </span>
+        <SettingsStack>
+          <SettingsSection id="sending" title="How messages are sent" description="Email for now. Text messages and WhatsApp are on the way.">
+            <div className="grid gap-5">
+              <Switch name="channel_email" defaultChecked={settings.channels.email} description="Off stops every email to customers below.">
+                Email customers
+              </Switch>
+              <div className="flex flex-wrap gap-2">
+                <Badge>Text message (SMS): coming soon</Badge>
+                <Badge>WhatsApp: coming soon</Badge>
+              </div>
+              <div className="grid gap-4 border-t pt-5 @lg:grid-cols-2">
+                <Field label="Sender name" name="sender_name" error={errors.sender_name} hint={`What customers see the email is from. Blank uses ${business.name}.`}>
+                  <Input name="sender_name" defaultValue={settings.sender_name ?? ""} placeholder={business.name} maxLength={60} />
+                </Field>
+                <Field label="Replies go to" name="reply_to" error={errors.reply_to} hint="Blank sends replies to your contact email.">
+                  <Input name="reply_to" type="email" inputMode="email" defaultValue={settings.reply_to ?? ""} placeholder="e.g. bookings@yourbusiness.co.uk" />
+                </Field>
+              </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Sender name" name="sender_name" error={errors.sender_name}>
-                <Input name="sender_name" defaultValue={settings.sender_name ?? ""} placeholder={business.name} maxLength={60} />
-              </Field>
-              <Field label="Replies go to" name="reply_to" error={errors.reply_to}>
-                <Input name="reply_to" type="email" defaultValue={settings.reply_to ?? ""} placeholder="Your contact email" />
-              </Field>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Customers see the sender name on emails from your address above.
-            </p>
-          </section>
+          </SettingsSection>
 
-          <section className="grid gap-3">
-            <h3 className="font-medium">Messages to customers</h3>
-            <MessageEditor
-              k="confirmation"
-              value={m.confirmation}
-              business={business}
-              errors={errors}
-            />
-            <MessageEditor
-              k="reminder"
-              value={m.reminder}
-              business={business}
-              errors={errors}
-              timing={
-                <Field label="Hours before the appointment" name="reminder_hours_before" error={errors.reminder_hours_before} className="max-w-56">
-                  <Input name="reminder_hours_before" inputMode="numeric" defaultValue={m.reminder.hours_before} />
-                </Field>
-              }
-            />
-            <MessageEditor
-              k="follow_up"
-              value={m.follow_up}
-              business={business}
-              errors={errors}
-              timing={
-                <Field label="Days after the job" name="follow_up_days_after" error={errors.follow_up_days_after} className="max-w-56">
-                  <Input name="follow_up_days_after" inputMode="numeric" defaultValue={m.follow_up.days_after} />
-                </Field>
-              }
-            />
-            <MessageEditor
-              k="review_request"
-              value={m.review_request}
-              business={business}
-              errors={errors}
-              timing={
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Days after the job" name="review_request_days_after" error={errors.review_request_days_after}>
-                    <Input name="review_request_days_after" inputMode="numeric" defaultValue={m.review_request.days_after} />
+          <SettingsSection
+            id="messages"
+            title="Messages to customers"
+            description="Open one to change what it says and when it goes. The preview shows the real email with example details."
+            bare
+          >
+            <div className="grid gap-3">
+              <MessageEditor k="confirmation" value={m.confirmation} business={business} errors={errors} />
+              <MessageEditor
+                k="reminder"
+                value={m.reminder}
+                business={business}
+                errors={errors}
+                timing={
+                  <Field label="Sent" name="reminder_hours_before" error={errors.reminder_hours_before} className="max-w-60">
+                    <NumberInput name="reminder_hours_before" unit="hours before" min={1} max={168} defaultValue={m.reminder.hours_before} />
                   </Field>
-                  <Field label="Your review link (Google, Facebook…)" name="review_url" error={errors.review_url}>
-                    <Input name="review_url" defaultValue={m.review_request.review_url ?? googleReviewUrl ?? ""} placeholder="https://g.page/r/…/review" />
+                }
+              />
+              <MessageEditor
+                k="follow_up"
+                value={m.follow_up}
+                business={business}
+                errors={errors}
+                timing={
+                  <Field label="Sent" name="follow_up_days_after" error={errors.follow_up_days_after} className="max-w-60">
+                    <NumberInput name="follow_up_days_after" unit="days after" min={1} max={60} defaultValue={m.follow_up.days_after} />
                   </Field>
-                </div>
-              }
-            />
-            <MessageEditor
-              k="quote_follow_up"
-              value={m.quote_follow_up}
-              business={business}
-              errors={errors}
-              timing={
-                <Field label="Days after the quote" name="quote_follow_up_days_after" error={errors.quote_follow_up_days_after} className="max-w-56">
-                  <Input name="quote_follow_up_days_after" inputMode="numeric" defaultValue={m.quote_follow_up.days_after} />
-                </Field>
-              }
-            />
-            <MessageEditor k="rebook_reminder" value={m.rebook_reminder} business={business} errors={errors} />
-            <MessageEditor k="slot_opened" value={m.slot_opened} business={business} errors={errors} />
-            <p className="text-xs text-muted-foreground">
-              Aftercare, review requests, quote follow-ups and rebooking reminders ask customers back, so they only go to
-              customers who ticked the box to hear from you, with an unsubscribe link.
-            </p>
-            <details className="text-sm">
-              <summary className="cursor-pointer text-muted-foreground">Fields you can use in messages</summary>
-              <ul className="mt-2 grid gap-1 sm:grid-cols-2">
-                {Object.entries(TEMPLATE_FIELDS).map(([k, label]) => (
-                  <li key={k}>
-                    <code className="rounded bg-muted px-1">{`{${k}}`}</code> <span className="text-muted-foreground">{label}</span>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          </section>
-
-          <section className="grid gap-3">
-            <h3 className="font-medium">Alerts to you</h3>
-            <div className="flex flex-wrap gap-x-6 gap-y-2">
-              <Check name="alerts_new_lead" label="New enquiry" defaultChecked={settings.alerts.new_lead} />
-              <Check name="alerts_new_booking" label="New booking" defaultChecked={settings.alerts.new_booking} />
-              <Check name="alerts_cancellation" label="Cancellations and changes" defaultChecked={settings.alerts.cancellation} />
+                }
+              />
+              <MessageEditor
+                k="review_request"
+                value={m.review_request}
+                business={business}
+                errors={errors}
+                timing={
+                  <div className="grid gap-4 @lg:grid-cols-[14rem_minmax(0,1fr)]">
+                    <Field label="Sent" name="review_request_days_after" error={errors.review_request_days_after}>
+                      <NumberInput
+                        name="review_request_days_after"
+                        unit="days after"
+                        min={0}
+                        max={30}
+                        defaultValue={m.review_request.days_after}
+                      />
+                    </Field>
+                    <Field label="Your review link" name="review_url" error={errors.review_url} hint="Google, Facebook or wherever you collect reviews.">
+                      <Input
+                        name="review_url"
+                        type="url"
+                        inputMode="url"
+                        defaultValue={m.review_request.review_url ?? googleReviewUrl ?? ""}
+                        placeholder="e.g. g.page/r/…/review"
+                      />
+                    </Field>
+                  </div>
+                }
+              />
+              <MessageEditor
+                k="quote_follow_up"
+                value={m.quote_follow_up}
+                business={business}
+                errors={errors}
+                timing={
+                  <Field label="Sent" name="quote_follow_up_days_after" error={errors.quote_follow_up_days_after} className="max-w-60">
+                    <NumberInput
+                      name="quote_follow_up_days_after"
+                      unit="days after"
+                      min={1}
+                      max={30}
+                      defaultValue={m.quote_follow_up.days_after}
+                    />
+                  </Field>
+                }
+              />
+              <MessageEditor k="rebook_reminder" value={m.rebook_reminder} business={business} errors={errors} />
+              <MessageEditor k="slot_opened" value={m.slot_opened} business={business} errors={errors} />
+              <p className="px-1 text-sm text-muted-foreground">
+                Aftercare, review requests, quote follow-ups and rebooking reminders ask customers back, so they only go to
+                customers who ticked the box to hear from you, with an unsubscribe link.
+              </p>
+              <details className="rounded-lg border px-4 py-3 text-sm">
+                <summary className="cursor-pointer font-medium">Fields you can use in messages</summary>
+                <ul className="mt-3 grid gap-1.5 @lg:grid-cols-2">
+                  {Object.entries(TEMPLATE_FIELDS).map(([k, label]) => (
+                    <li key={k}>
+                      <code className="rounded bg-muted px-1">{`{${k}}`}</code> <span className="text-muted-foreground">{label}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             </div>
-            <p className="text-xs text-muted-foreground">
-              An enquiry alert comes after someone leaves their details without booking. Booking requests you need to
-              approve, disputes and refunds are always emailed.
-            </p>
-            <Field label="Send alerts to" name="alerts_email" error={errors.alerts_email} className="max-w-md">
-              <Input name="alerts_email" type="email" defaultValue={settings.alerts.email ?? ""} placeholder={ownerEmail ?? "Your login email"} />
-            </Field>
-          </section>
-        </>
+          </SettingsSection>
+
+          <SettingsSection
+            id="alerts"
+            title="Alerts to you"
+            description="Booking requests you need to approve, disputes and refunds are always emailed."
+          >
+            <div className="grid gap-4">
+              <Switch name="alerts_new_lead" defaultChecked={settings.alerts.new_lead} description="When someone leaves their details without booking.">
+                New enquiry
+              </Switch>
+              <Switch name="alerts_new_booking" defaultChecked={settings.alerts.new_booking} description="Each time a customer books.">
+                New booking
+              </Switch>
+              <Switch
+                name="alerts_cancellation"
+                defaultChecked={settings.alerts.cancellation}
+                description="When a customer cancels or moves their booking."
+              >
+                Cancellations and changes
+              </Switch>
+              <Field label="Send alerts to" name="alerts_email" error={errors.alerts_email} hint="Blank sends them to your login email." className="border-t pt-4 @lg:max-w-md">
+                <Input
+                  name="alerts_email"
+                  type="email"
+                  inputMode="email"
+                  defaultValue={settings.alerts.email ?? ""}
+                  placeholder={ownerEmail ?? "Your login email"}
+                />
+              </Field>
+            </div>
+          </SettingsSection>
+        </SettingsStack>
       )}
     </SaveForm>
   );
@@ -178,52 +221,65 @@ function MessageEditor({
   errors: Record<string, string | undefined>;
   timing?: React.ReactNode;
 }) {
+  const [enabled, setEnabled] = useState(value.enabled);
   const [subject, setSubject] = useState(value.subject);
   const [body, setBody] = useState(value.body);
-  const invalid = errors[`${k}_subject`] || errors[`${k}_body`];
+  const invalid = [`${k}_subject`, `${k}_body`, ...(MESSAGE_FIELDS[k] ?? [])].some((f) => errors[f]);
   // Drawn only while it's open: a closed one has no height to measure.
-  const [open, setOpen] = useState(Boolean(invalid));
+  const [open, setOpen] = useState(invalid);
+  const wording = defaultTemplate(k);
+  const isDefault = subject === wording.subject && body === wording.body;
 
   return (
     // Open when there's an error inside, so it can be seen.
-    <details className="group rounded-xl border bg-card" open={invalid ? true : undefined} onToggle={(e) => setOpen(e.currentTarget.open)}>
-      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+    <details
+      className="group rounded-xl bg-card ring-1 ring-foreground/10"
+      open={invalid ? true : undefined}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+    >
+      <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
         <span className="min-w-0 flex-1">
           <span className="font-medium">{CUSTOMER_MESSAGES[k].label}</span>
           <span className="block text-sm text-muted-foreground">{CUSTOMER_MESSAGES[k].when}</span>
         </span>
-        <span className="text-xs text-muted-foreground">{value.enabled ? "On" : "Off"}</span>
+        {invalid && <Badge tone="danger">Check this</Badge>}
+        <Badge tone={enabled ? "success" : "neutral"}>{enabled ? "On" : "Off"}</Badge>
         <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
       </summary>
-      <div className="grid gap-4 border-t px-4 py-4">
-        <Check name={`${k}_enabled`} label="Send this message" defaultChecked={value.enabled} />
+      <div className="grid gap-5 border-t px-4 py-5 sm:px-6">
+        <Switch name={`${k}_enabled`} checked={enabled} onChange={(e) => setEnabled(e.target.checked)}>
+          Send this message
+        </Switch>
         {timing}
-        <Field label="Subject" name={`${k}_subject`} error={errors[`${k}_subject`]}>
-          <Input name={`${k}_subject`} value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={150} />
-        </Field>
-        <Field label="Message" name={`${k}_body`} error={errors[`${k}_body`]}>
-          <Textarea
-            name={`${k}_body`}
-            rows={6}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            maxLength={3000}
-          />
-        </Field>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="justify-self-start"
-          onClick={() => {
-            const d = defaultTemplate(k);
-            setSubject(d.subject);
-            setBody(d.body);
-          }}
-        >
-          Reset to our wording
-        </Button>
-        {open && <EmailPreview k={k} subject={subject} body={body} business={business} />}
+        <div className="grid gap-5 @4xl:grid-cols-2 @4xl:items-start">
+          <div className="grid gap-4">
+            <Field label="Subject" name={`${k}_subject`} error={errors[`${k}_subject`]}>
+              <Input name={`${k}_subject`} value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={150} />
+            </Field>
+            <Field label="Message" name={`${k}_body`} error={errors[`${k}_body`]}>
+              <Textarea name={`${k}_body`} rows={9} value={body} onChange={(e) => setBody(e.target.value)} maxLength={3000} />
+            </Field>
+            <Button
+              type="button"
+              variant="outline"
+              className="justify-self-start"
+              disabled={isDefault}
+              onClick={async () => {
+                const confirmed = await askToConfirm({
+                  title: "Go back to our wording?",
+                  description: "Your subject and message for this email are replaced with ours. Nothing changes until you save.",
+                  confirmLabel: "Use our wording",
+                });
+                if (!confirmed) return;
+                setSubject(wording.subject);
+                setBody(wording.body);
+              }}
+            >
+              <RotateCcw /> Reset to our wording
+            </Button>
+          </div>
+          {open && <EmailPreview k={k} subject={subject} body={body} business={business} />}
+        </div>
       </div>
     </details>
   );

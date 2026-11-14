@@ -63,10 +63,15 @@ export const locationsFormSchema = z
       return problem("offers_mobile", "Offer at least one: jobs at the customer's address, or at your shop.");
     }
 
+    // Each postcode is only checked while its kind of job is on: the form
+    // keeps the other side's fields hidden, where a mistake couldn't be seen.
+    // One that doesn't parse while switched off is kept as nothing.
     const base = postcodeOrBlank(v.base_postcode);
-    if (!base.ok) return problem("base_postcode", "Enter a full UK postcode, like BS1 4DJ.");
+    if (!base.ok && v.offers_mobile) return problem("base_postcode", "Enter a full UK postcode, like BS1 4DJ.");
     const unit = postcodeOrBlank(v.unit_postcode);
-    if (!unit.ok) return problem("unit_postcode", "Enter a full UK postcode, like BS1 4DJ.");
+    if (!unit.ok && v.offers_unit) return problem("unit_postcode", "Enter a full UK postcode, like BS1 4DJ.");
+    const basePostcode = base.ok ? base.value : null;
+    const unitPostcode = unit.ok ? unit.value : null;
 
     // Territories are drawn on the Coverage Area page; leave them as they are.
     let service_area: ServiceArea | undefined = {};
@@ -76,8 +81,10 @@ export const locationsFormSchema = z
       const miles = whole("The distance", 1, 500).safeParse(v.radius_miles);
       if (!miles.success) {
         if (v.offers_mobile) return problem("radius_miles", miles.error.issues[0].message);
+        // Hidden while mobile jobs are off: leave the area as it was.
+        service_area = undefined;
       } else {
-        if (v.offers_mobile && !base.value) {
+        if (v.offers_mobile && !basePostcode) {
           return problem("base_postcode", "Enter where your vans start from, so we can measure the distance.");
         }
         service_area = { radius_miles: miles.data };
@@ -85,9 +92,13 @@ export const locationsFormSchema = z
     } else if (v.area_type === "districts") {
       const districts = [...new Set(v.districts.toUpperCase().split(/[\s,;]+/).filter(Boolean))];
       const bad = districts.find((d) => !OUTCODE.test(d));
-      if (bad) return problem("districts", `"${bad}" isn't a postcode district. Use the first part, like BS1 or BS16.`);
-      if (districts.length === 0) {
-        if (v.offers_mobile) return problem("districts", "List the postcode districts you cover.");
+      if (!v.offers_mobile && (bad || districts.length === 0)) {
+        // Hidden while mobile jobs are off: leave the area as it was.
+        service_area = undefined;
+      } else if (bad) {
+        return problem("districts", `"${bad}" isn't a postcode district. Use the first part, like BS1 or BS16.`);
+      } else if (districts.length === 0) {
+        return problem("districts", "List the postcode districts you cover.");
       } else {
         service_area = { districts };
       }
@@ -95,16 +106,16 @@ export const locationsFormSchema = z
 
     if (v.offers_unit) {
       if (!v.unit_address) return problem("unit_address", "Enter your shop's address.");
-      if (!unit.value) return problem("unit_postcode", "Enter your shop's postcode.");
+      if (!unitPostcode) return problem("unit_postcode", "Enter your shop's postcode.");
     }
 
     return {
       offers_mobile: v.offers_mobile,
       offers_unit: v.offers_unit,
-      base_postcode: base.value,
+      base_postcode: basePostcode,
       ...(service_area && { service_area }),
       unit_address: v.unit_address || null,
-      unit_postcode: unit.value,
+      unit_postcode: unitPostcode,
     };
   });
 

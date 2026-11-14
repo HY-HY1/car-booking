@@ -1,3 +1,4 @@
+import { readableOn } from "@leadgen/core/branding/colors";
 import { getRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
 
@@ -26,6 +27,9 @@ export async function GET() {
   const config = {
     name: tenant.name,
     brand: tenant.branding.primary_color,
+    // Black or white text on the brand colour, by the same rule as the
+    // booking page and the preview in Settings → Booking page.
+    onBrand: readableOn(tenant.branding.primary_color),
     accent: tenant.branding.accent_color,
     label: tenant.branding.button_label ?? "Instant quote",
     side: tenant.branding.button_position,
@@ -45,6 +49,7 @@ export async function GET() {
 function script(config: {
   name: string;
   brand: string;
+  onBrand: string;
   accent: string;
   label: string;
   side: "left" | "right";
@@ -66,7 +71,7 @@ function script(config: {
   var font = "font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;";
   var button = el("button",
     font + "position:fixed;" + cfg.side + ":20px;bottom:20px;z-index:" + Z + ";border:0;border-radius:999px;" +
-    "padding:14px 22px;font-size:16px;font-weight:600;cursor:pointer;color:#fff;background:" + cfg.brand + ";" +
+    "padding:14px 22px;font-size:16px;font-weight:600;cursor:pointer;color:" + cfg.onBrand + ";background:" + cfg.brand + ";" +
     "box-shadow:0 6px 24px rgba(0,0,0,.25);", cfg.label);
   button.type = "button";
   button.setAttribute("aria-haspopup", "dialog");
@@ -79,7 +84,7 @@ function script(config: {
   panel.setAttribute("aria-label", "Instant quote from " + cfg.name);
 
   var header = el("div",
-    "display:flex;align-items:center;justify-content:space-between;padding:12px 16px;color:#fff;background:" + cfg.brand + ";");
+    "display:flex;align-items:center;justify-content:space-between;padding:12px 16px;color:" + cfg.onBrand + ";background:" + cfg.brand + ";");
   header.appendChild(el("strong", "font-size:16px;", cfg.name));
   var close = el("button", "border:0;background:none;color:inherit;font-size:26px;line-height:1;cursor:pointer;padding:0 4px;", "\u00d7");
   close.type = "button";

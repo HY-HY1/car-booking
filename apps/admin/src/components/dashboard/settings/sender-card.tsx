@@ -4,15 +4,17 @@ import { useState, useTransition } from "react";
 import { RefreshCw, Trash2 } from "lucide-react";
 import type { SenderRecord, SenderStatus } from "@leadgen/core/email/senders";
 import { checkSenderAction, removeSenderAction } from "@/app/app/[tenant]/settings/notifications/actions";
-import { CopyText } from "@/components/platform/copy-text";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Field, SaveForm, type Action } from "../form-kit";
-import { toast } from "@/components/ui/toast";
 import { askToConfirm } from "@/components/ui/confirm-dialog";
+import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/toast";
+import { Field, SaveForm, type Action } from "../form-kit";
+import { DnsRecords } from "./general-forms";
 
 // Settings → Notifications: the address the business's emails come from, on
-// its own domain, and the DNS records that prove it can send from it.
+// its own domain, and the DNS records that prove it can send from it. The page
+// keys this on the address, so a check of one address never shows on another.
 
 export type SenderView = {
   address: string;
@@ -37,24 +39,26 @@ export function SenderCard({
   const [status, setStatus] = useState<SenderStatus | null>(null);
   const [message, setMessage] = useState<string>();
   const current = status ?? sender?.status;
+  const verified = current === "verified";
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-5">
       {sender && (
-        <div className="grid gap-3 rounded-xl border bg-card p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="truncate font-mono text-sm">{sender.address}</p>
-              <p className="text-xs text-muted-foreground">
-                {current === "verified" ? "Verified · emails go out from this address" : "Waiting for DNS · nothing is sent from it yet"}
-              </p>
+        <div className="grid gap-4 rounded-lg border p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="grid min-w-0 gap-1.5">
+              <p className="truncate font-mono text-sm font-medium">{sender.address}</p>
+              <div>
+                <Badge tone={verified ? "success" : "warning"}>
+                  {verified ? "Verified · emails go out from this address" : "Waiting for DNS · nothing is sent from it yet"}
+                </Badge>
+              </div>
             </div>
             {!readOnly && (
               <div className="flex flex-wrap gap-2">
-                {current !== "verified" && (
+                {!verified && (
                   <Button
                     type="button"
-                    size="sm"
                     variant="outline"
                     disabled={pending}
                     onClick={() =>
@@ -71,14 +75,12 @@ export function SenderCard({
                 )}
                 <Button
                   type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="text-destructive"
+                  variant="destructive"
                   disabled={pending}
                   onClick={async () => {
                     const confirmed = await askToConfirm({
                       title: `Stop sending from ${sender.address}?`,
-                      description: "Customers won't get emails until you set up an address again.",
+                      description: "Customers won't get any emails until you set up an address again.",
                       confirmLabel: "Stop sending",
                       destructive: true,
                     });
@@ -96,58 +98,40 @@ export function SenderCard({
             )}
           </div>
 
-          {current !== "verified" && sender.records.length > 0 && (
-            <div className="grid gap-2 text-sm">
-              <p className="text-muted-foreground">
-                Add these records where you manage {sender.domain}&apos;s DNS (your domain registrar, or Cloudflare), then
-                press Check DNS. They sit alongside your existing email, so mail to your inbox keeps working.
-              </p>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[36rem] text-left text-xs">
-                  <thead className="text-muted-foreground">
-                    <tr>
-                      <th className="py-1 pr-3 font-medium">Type</th>
-                      <th className="py-1 pr-3 font-medium">Name / host</th>
-                      <th className="py-1 pr-3 font-medium">Value</th>
-                      <th className="py-1 font-medium">Priority</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sender.records.map((r) => (
-                      <tr key={`${r.type}-${r.fullName}`} className="border-t align-top">
-                        <td className="py-2 pr-3 font-mono">{r.type}</td>
-                        <td className="py-2 pr-3">
-                          <CopyText value={r.host} label={`${r.type} name`} />
-                          <span className="mt-1 block text-muted-foreground">({r.fullName})</span>
-                        </td>
-                        <td className="max-w-80 py-2 pr-3">
-                          <CopyText value={r.value} label={`${r.type} value`} />
-                        </td>
-                        <td className="py-2 font-mono">{r.priority ?? ""}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          {!verified && sender.records.length > 0 && (
+            <DnsRecords
+              intro={`Add these records where you manage ${sender.domain}'s DNS (your domain registrar, or Cloudflare), then press Check DNS. They sit alongside your existing email, so mail to your inbox keeps working.`}
+              records={sender.records}
+            />
           )}
 
-          {current !== "verified" && sender.checkError && !message && (
-            <p className="text-sm text-amber-800 dark:text-amber-300">{sender.checkError}</p>
-          )}
-          {message && (
-            <p role="alert" className="text-sm text-amber-800 dark:text-amber-300">
-              {message}
+          {!verified && (message ?? sender.checkError) && (
+            <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              {message ?? sender.checkError}
             </p>
           )}
         </div>
       )}
 
       {!readOnly && (
-        <SaveForm action={action} submitLabel={sender ? "Change address" : "Set up address"} resetOnSave savedText="Saved.">
+        <SaveForm action={action} submitLabel={sender ? "Change address" : "Set up address"} resetOnSave savedText="Saved. Now add the DNS records shown.">
           {(errors) => (
-            <Field label={sender ? "Use a different address" : "Your email address"} name="address" error={errors.address} className="max-w-md">
-              <Input name="address" type="email" placeholder="hello@yourbusiness.co.uk" autoComplete="off" />
+            <Field
+              label={sender ? "Use a different address" : "Your email address"}
+              name="address"
+              error={errors.address}
+              hint={sender ? "Replaces the one above once you save." : undefined}
+              className="max-w-md"
+            >
+              <Input
+                name="address"
+                type="email"
+                inputMode="email"
+                placeholder="e.g. hello@yourbusiness.co.uk"
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+              />
             </Field>
           )}
         </SaveForm>

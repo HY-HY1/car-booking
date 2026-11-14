@@ -8,7 +8,8 @@ import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { createClient } from "@/lib/supabase/server";
 import { failed, fieldErrors, plain, requireOwner } from "../shared";
 
-// Settings → Payments. Owner-only (RLS enforces the same).
+// Settings → Payments. Owners and managers (settings.edit); RLS lets the
+// same people write.
 
 export async function saveDepositAction(slug: string, formData: FormData): Promise<SaveState> {
   const { tenant, denied } = await requireOwner(slug);

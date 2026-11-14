@@ -10,41 +10,15 @@ import {
   resourceFormSchema,
 } from "@leadgen/core/booking/settings-rules";
 import { askingFormSchema, parsePolicyForm } from "@leadgen/core/settings/forms";
-import { policyOf } from "@leadgen/core/settings/policy";
+import { storedPolicyOf } from "@leadgen/core/settings/policy";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
-import { requireTenant } from "@/lib/auth";
 import { nextOrder, writeOrder } from "@/lib/reorder";
 import { createClient } from "@/lib/supabase/server";
+import { failed, fieldErrors, plain, requireOwner } from "../shared";
 
-// Saves from Settings → Hours & rules. Owner-only (RLS enforces the same). Every
-// write is filtered on the tenant from the URL's membership check, never an
-// id from the form.
-
-function fieldErrors(error: z.ZodError): SaveState {
-  const errors: Record<string, string> = {};
-  for (const issue of error.issues) {
-    const field = String(issue.path[0] ?? "form");
-    errors[field] ??= issue.message;
-  }
-  return { errors, message: errors.form };
-}
-
-async function requireOwner(slug: string) {
-  const { tenant, can } = await requireTenant(slug);
-  if (!can("settings.edit")) return { tenant, denied: { message: "Your access level doesn't include changing settings." } };
-  return { tenant, denied: null };
-}
-
-function failed(what: string, error: unknown): SaveState {
-  console.error(`${what} failed`, error);
-  return { message: `Couldn't save ${what}. Try again.` };
-}
-
-function plain(formData: FormData) {
-  const values: Record<string, string> = {};
-  for (const [key, value] of formData) if (typeof value === "string") values[key] = value;
-  return values;
-}
+// Saves from Settings → Hours & rules. Owners and managers (settings.edit);
+// RLS lets the same people write. Every write is filtered on the tenant from
+// the URL's membership check, never an id from the form.
 
 async function updateSettings(slug: string, schema: z.ZodType<Record<string, unknown>>, what: string, formData: FormData) {
   const { tenant, denied } = await requireOwner(slug);
@@ -86,7 +60,8 @@ export async function saveAsking(slug: string, formData: FormData): Promise<Save
 }
 
 // Cancellation and rescheduling cut-offs. The refund side (Settings →
-// Payments) is kept as it is.
+// Payments) is kept as it is, and so is the whole policy when it's switched
+// off, ready for switching back on.
 export async function savePolicy(slug: string, formData: FormData): Promise<SaveState> {
   const { tenant, denied } = await requireOwner(slug);
   if (denied) return denied;
@@ -99,14 +74,15 @@ export async function savePolicy(slug: string, formData: FormData): Promise<Save
   if (current.error) return failed("the cancellation policy", current.error);
   if (!current.data) return { message: "Booking isn't set up for this business yet." };
 
-  const parsed = parsePolicyForm(plain(formData), policyOf(current.data.cancellation_policy));
+  const parsed = parsePolicyForm(plain(formData), storedPolicyOf(current.data.cancellation_policy));
   if (!parsed.success) return fieldErrors(parsed.error);
   const { error } = await supabase
     .from("booking_settings")
     .update({ cancellation_policy: parsed.data })
     .eq("tenant_id", tenant.id);
   if (error) return failed("the cancellation policy", error);
-  await logActivity(tenant.id, "settings.cancellation", "Changed the cancellation policy");
+  const on = formData.get("policy_enabled") === "on";
+  await logActivity(tenant.id, "settings.cancellation", on ? "Changed the cancellation policy" : "Switched off the cancellation policy");
   refresh();
   return { saved: true };
 }
@@ -123,12 +99,14 @@ export async function saveResource(slug: string, id: string | null, formData: Fo
   const supabase = await createClient();
   if (id) {
     if (!z.uuid().safeParse(id).success) return { message: "That one no longer exists." };
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("resources")
       .update(fields)
       .eq("tenant_id", tenant.id)
-      .eq("id", id);
+      .eq("id", id)
+      .select("id");
     if (error) return failed("that", error);
+    if (!data?.length) return { message: "That one no longer exists." };
   } else {
     const { error } = await supabase
       .from("resources")

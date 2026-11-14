@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { assistantOf } from "@leadgen/core/settings/assistant";
 import { AssistantForm } from "@/components/dashboard/settings/assistant-form";
+import { SettingsSection, SettingsStack } from "@/components/dashboard/settings/section";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { saveAssistantAction } from "./actions";
@@ -17,27 +17,29 @@ export default async function AssistantPage({ params }: PageProps<"/app/[tenant]
   if (error) throw error;
 
   return (
-    <div className="grid max-w-3xl gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            AI booking assistant <Badge tone="info">Coming soon</Badge>
-          </CardTitle>
-          <CardDescription>
-            This isn&apos;t live yet, and customers won&apos;t get any replies from it. When it launches it will answer
-            enquiries for you using your prices, hours and booking rules. These are the choices you&apos;ll have.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AssistantForm
-            settings={assistantOf(data.agent_rules)}
-            businessName={data.name}
-            action={saveAssistantAction.bind(null, slug)}
-            // Nothing can act on these yet, so nothing can be changed.
-            readOnly
-          />
-        </CardContent>
-      </Card>
-    </div>
+    <SettingsStack>
+      <div className="grid gap-1 rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-950 sm:px-6 dark:bg-sky-950/40 dark:text-sky-100">
+        <p className="font-medium">Coming soon</p>
+        <p>
+          The assistant isn&apos;t live yet, and customers won&apos;t get any replies from it. When it launches it will answer
+          enquiries for you using your prices, hours and booking rules. Below are the choices you&apos;ll have; they can&apos;t
+          be changed until then.
+        </p>
+      </div>
+      <SettingsSection
+        id="assistant"
+        title="AI booking assistant"
+        badge={<Badge tone="info">Coming soon</Badge>}
+        description="What it handles, how it sounds, when it chases enquiries up and when it hands over to you."
+      >
+        <AssistantForm
+          settings={assistantOf(data.agent_rules)}
+          businessName={data.name}
+          action={saveAssistantAction.bind(null, slug)}
+          // Nothing can act on these yet, so nothing can be changed.
+          readOnly
+        />
+      </SettingsSection>
+    </SettingsStack>
   );
 }

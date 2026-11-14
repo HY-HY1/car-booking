@@ -3,8 +3,9 @@ import { emailBrandOf } from "@leadgen/core/branding/email-brand";
 import { senderRecords, type SenderStatus } from "@leadgen/core/email/senders";
 import { notificationsOf } from "@leadgen/core/settings/notifications";
 import { NotificationsForm } from "@/components/dashboard/settings/notification-form";
+import { ReadOnlyNotice, SettingsSection, SettingsStack } from "@/components/dashboard/settings/section";
 import { SenderCard } from "@/components/dashboard/settings/sender-card";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { saveNotificationsAction, saveSenderAction } from "./actions";
@@ -25,40 +26,42 @@ export default async function NotificationsPage({ params }: PageProps<"/app/[ten
   if (business.error) throw business.error;
   if (sender.error) throw sender.error;
   const s = sender.data;
+  const verified = s?.status === "verified";
 
   return (
-    <div className="grid max-w-3xl gap-4">
-      {readOnly && (
-        <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">Your access level lets you see these but not change them.</p>
-      )}
-      <Card>
-        <CardHeader>
-          <CardTitle>Your email address</CardTitle>
-          <CardDescription>
-            Customers get their confirmations and reminders from this address, with replies going to you. Use one on your
-            own domain, like hello@yourbusiness.co.uk.{" "}
-            {s?.status !== "verified" && "Until it's verified, customers aren't sent any emails."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SenderCard
-            slug={slug}
-            sender={
-              s
-                ? {
-                    address: s.address,
-                    domain: s.domain,
-                    status: s.status as SenderStatus,
-                    checkError: s.check_error,
-                    records: senderRecords(s.domain, s.records),
-                  }
-                : null
-            }
-            action={saveSenderAction.bind(null, slug)}
-            readOnly={readOnly}
-          />
-        </CardContent>
-      </Card>
+    <SettingsStack>
+      {readOnly && <ReadOnlyNotice />}
+      <SettingsSection
+        id="sender"
+        title="Your email address"
+        badge={<Badge tone={verified ? "success" : s ? "warning" : "danger"}>{verified ? "Verified" : s ? "Waiting for DNS" : "Not set up"}</Badge>}
+        description={
+          <>
+            Customers get their confirmations and reminders from this address, and their replies come to you. Use one on your
+            own domain, like hello@yourbusiness.co.uk.
+            {!verified && <span className="mt-2 block font-medium text-foreground">Until it&apos;s verified, customers aren&apos;t sent any emails.</span>}
+          </>
+        }
+      >
+        {/* Keyed on the address, so a check of the old one never shows on a new one. */}
+        <SenderCard
+          key={s?.address ?? "none"}
+          slug={slug}
+          sender={
+            s
+              ? {
+                  address: s.address,
+                  domain: s.domain,
+                  status: s.status as SenderStatus,
+                  checkError: s.check_error,
+                  records: senderRecords(s.domain, s.records),
+                }
+              : null
+          }
+          action={saveSenderAction.bind(null, slug)}
+          readOnly={readOnly}
+        />
+      </SettingsSection>
       <NotificationsForm
         settings={notificationsOf(business.data.notification_settings)}
         business={emailBrandOf({
@@ -67,11 +70,11 @@ export default async function NotificationsPage({ params }: PageProps<"/app/[ten
           contactPhone: business.data.contact_phone,
           branding: business.data.branding,
         })}
-        ownerEmail={user.email}
+        ownerEmail={user.email ?? null}
         googleReviewUrl={google.data?.review_url ?? null}
         action={saveNotificationsAction.bind(null, slug)}
         readOnly={readOnly}
       />
-    </div>
+    </SettingsStack>
   );
 }

@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ExternalLink } from "lucide-react";
 import { bookingSettingsSchema } from "@leadgen/core/booking/config";
 import { policyOf } from "@leadgen/core/settings/policy";
 import { syncAccountStatus } from "@leadgen/core/stripe/accounts";
 import { DepositForm, RefundForm } from "@/components/dashboard/settings/payment-forms";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReadOnlyNotice, SettingsSection, SettingsStack } from "@/components/dashboard/settings/section";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { appUrl } from "@/lib/urls";
 import { connectStripeAction } from "../actions";
 import { saveDepositAction, saveRefundRulesAction } from "./actions";
-import { appUrl } from "@/lib/urls";
 
-export const metadata: Metadata = { title: "Payments settings" };
+export const metadata: Metadata = { title: "Payments" };
 
 export default async function PaymentsSettingsPage({
   params,
@@ -46,77 +48,80 @@ export default async function PaymentsSettingsPage({
 
   const settings = settingsRow.data ? bookingSettingsSchema.parse(settingsRow.data) : null;
   const policy = settings ? policyOf(settings.cancellation_policy) : null;
+  const link = "underline underline-offset-4 hover:text-foreground";
 
   return (
-    <div className="grid max-w-3xl gap-4">
-      {!canEdit && (
-        <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">Your access level lets you see these but not change them.</p>
-      )}
-      <Card>
-        <CardHeader>
-          <CardTitle>Stripe</CardTitle>
-          <CardDescription>Customers pay deposits straight into your own Stripe account, and Stripe pays you out.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 text-sm">
+    <SettingsStack>
+      {!canEdit && <ReadOnlyNotice />}
+      <SettingsSection
+        id="stripe"
+        title="Stripe"
+        badge={
+          <Badge tone={stripeReady ? "success" : stripeAccountId ? "warning" : "neutral"}>
+            {stripeReady ? "Connected" : stripeAccountId ? "Setup not finished" : "Not connected"}
+          </Badge>
+        }
+        description="Customers pay deposits straight into your own Stripe account, and Stripe pays you out."
+      >
+        <div className="grid gap-4">
           <p>
             {stripeReady
-              ? "Stripe is connected. Customers pay by card when they book."
+              ? "Customers pay by card when they book."
               : stripeAccountId
                 ? "Your Stripe setup isn't finished yet, so customers can't pay online. Bookings are taken without a payment step until it is."
-                : "Stripe isn't connected. Bookings are taken without a payment step, and you collect any deposit yourself."}
+                : "Bookings are taken without a payment step, and you collect any deposit yourself."}
           </p>
-          {can("stripe.connect") && !stripeReady && (
-            <form action={connectStripeAction.bind(null, slug)}>
-              <Button type="submit">{stripeAccountId ? "Continue Stripe setup" : "Connect Stripe"}</Button>
-            </form>
+          {!stripeReady &&
+            (can("stripe.connect") ? (
+              <form action={connectStripeAction.bind(null, slug)}>
+                <Button type="submit" size="lg">
+                  {stripeAccountId ? "Continue Stripe setup" : "Connect Stripe"}
+                </Button>
+              </form>
+            ) : (
+              <p className="text-muted-foreground">Only the business owner can connect Stripe.</p>
+            ))}
+          {stripeReady && (
+            <div className="flex flex-wrap gap-2">
+              <a href="https://dashboard.stripe.com" target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline" })}>
+                Stripe Dashboard <ExternalLink />
+              </a>
+              {can("money") && (
+                <Link href={appUrl(`/${slug}/payments`)} className={buttonVariants({ variant: "outline" })}>
+                  See every payment
+                </Link>
+              )}
+            </div>
           )}
           {stripeReady && (
-            <p className="text-muted-foreground">
-              Payouts, bank details and fees are managed in{" "}
-              <a href="https://dashboard.stripe.com" target="_blank" rel="noreferrer" className="underline underline-offset-4">
-                your Stripe Dashboard
-              </a>
-              . See every payment under{" "}
-              <Link href={appUrl(`/${slug}/payments`)} className="underline underline-offset-4">
-                Payments
-              </Link>
-              .
-            </p>
+            <p className="text-muted-foreground">Payouts, bank details and Stripe&apos;s fees are managed in your Stripe Dashboard.</p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </SettingsSection>
 
       {settings && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Deposit</CardTitle>
-            <CardDescription>What customers pay to secure a booking.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DepositForm deposit={settings.deposit} action={saveDepositAction.bind(null, slug)} readOnly={!canEdit} />
-          </CardContent>
-        </Card>
+        <SettingsSection id="deposit" title="Deposit" description="What customers pay to secure a booking.">
+          <DepositForm deposit={settings.deposit} stripeReady={stripeReady} action={saveDepositAction.bind(null, slug)} readOnly={!canEdit} />
+        </SettingsSection>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Refunds when customers cancel</CardTitle>
-          <CardDescription>Follows your cancellation policy&apos;s cut-off.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {policy ? (
-            <RefundForm policy={policy} action={saveRefundRulesAction.bind(null, slug)} readOnly={!canEdit} />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              You haven&apos;t set a cancellation policy, so refunds are up to you case by case.{" "}
-              <Link href={appUrl(`/${slug}/settings/booking#policy-heading`)} className="underline underline-offset-4">
-                Set one under Booking
-              </Link>
-              .
-            </p>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+      <SettingsSection
+        id="refunds"
+        title="Refunds when customers cancel"
+        description="Follows the cut-off in your cancellation policy. Refunds are never sent automatically: you send each one with a click."
+      >
+        {policy ? (
+          <RefundForm policy={policy} action={saveRefundRulesAction.bind(null, slug)} readOnly={!canEdit} />
+        ) : (
+          <p className="text-muted-foreground">
+            You haven&apos;t switched on a cancellation policy, so refunds are up to you case by case.{" "}
+            <Link href={appUrl(`/${slug}/settings/booking#policy`)} className={link}>
+              Set one under Hours &amp; rules
+            </Link>
+            .
+          </p>
+        )}
+      </SettingsSection>
+    </SettingsStack>
   );
 }

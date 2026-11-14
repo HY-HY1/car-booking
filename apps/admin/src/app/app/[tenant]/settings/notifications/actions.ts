@@ -9,7 +9,7 @@ import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { createClient } from "@/lib/supabase/server";
 import { failed, fieldErrors, plain, requireOwner } from "../shared";
 
-// Settings → Notifications: the whole set is saved at once. Owner-only.
+// Settings → Notifications: the whole set is saved at once. Owners and managers.
 export async function saveNotificationsAction(slug: string, formData: FormData): Promise<SaveState> {
   const { tenant, denied } = await requireOwner(slug);
   if (denied) return denied;

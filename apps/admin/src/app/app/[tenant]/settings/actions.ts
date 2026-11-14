@@ -22,8 +22,8 @@ export async function connectStripeAction(slug: string) {
 
 // ------------------------------------------------------------------ General
 
-// Business name, contact details, what they do, time zone and VAT. Owner-only
-// (RLS enforces the same).
+// Business name, contact details, what they do, time zone and VAT. Owners
+// and managers (settings.edit); RLS lets the same people write.
 export async function saveGeneralAction(slug: string, formData: FormData): Promise<SaveState> {
   const { tenant, denied } = await requireOwner(slug);
   if (denied) return denied;
@@ -37,8 +37,11 @@ export async function saveGeneralAction(slug: string, formData: FormData): Promi
   const tz = await supabase
     .from("booking_settings")
     .update({ timezone: parsed.data.timezone })
-    .eq("tenant_id", tenant.id);
+    .eq("tenant_id", tenant.id)
+    .select("tenant_id");
   if (tz.error) return failed("the time zone", tz.error);
+  // No booking rules yet: the rest is saved, but the time zone has nowhere to go.
+  if (!tz.data?.length) return { message: "Saved, apart from the time zone: set up booking first, then choose it." };
   await logActivity(tenant.id, "settings.business", "Changed the business details");
   refresh();
   return { saved: true };

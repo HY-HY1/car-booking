@@ -6,7 +6,7 @@ import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { createClient } from "@/lib/supabase/server";
 import { failed, fieldErrors, plain, requireOwner } from "../shared";
 
-// Settings → AI assistant, stored as tenants.agent_rules. Owner-only.
+// Settings → AI assistant, stored as tenants.agent_rules. Owners and managers.
 export async function saveAssistantAction(slug: string, formData: FormData): Promise<SaveState> {
   const { tenant, denied } = await requireOwner(slug);
   if (denied) return denied;

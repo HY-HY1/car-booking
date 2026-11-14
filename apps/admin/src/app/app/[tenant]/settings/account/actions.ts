@@ -8,6 +8,7 @@ import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { cleanCode } from "@leadgen/core/account/rules";
 import { logActivity } from "@/lib/activity";
 import { requireTenant, requireUser } from "@/lib/auth";
+import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@/lib/supabase/server";
 import { fieldErrors, plain } from "../shared";
 import { appUrl } from "@/lib/urls";
@@ -51,24 +52,57 @@ export async function changeEmailAction(slug: string, formData: FormData): Promi
   return { saved: true };
 }
 
+// Asks for the current password, and a code from the app when two-factor is
+// on, so a session left open on someone else's computer can't be used to
+// lock the owner out.
 export async function changePasswordAction(slug: string, formData: FormData): Promise<SaveState> {
-  const { tenant } = await requireTenant(slug);
+  const { tenant, user } = await requireTenant(slug);
+  const current = String(formData.get("current") ?? "");
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
+  if (!current) return { errors: { current: "Enter your current password." } };
   if (password.length < 10) return { errors: { password: "Use at least 10 characters." } };
   if (password !== confirm) return { errors: { confirm: "The two passwords don't match." } };
+  if (password === current) return { errors: { password: "That's your current password. Choose a new one." } };
+
+  if (!user.email || !(await passwordIsRight(user.email, current))) {
+    return { errors: { current: "That isn't your current password." } };
+  }
 
   const supabase = await createClient();
+  const { data: factors } = await supabase.auth.mfa.listFactors();
+  const factor = factors?.totp.find((f) => f.status === "verified");
+  if (factor) {
+    const code = cleanCode(formData.get("code"));
+    if (!code) return { errors: { code: "Enter the 6-digit code from your app." } };
+    const check = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+    if (check.error) return { errors: { code: WRONG_CODE } };
+  }
+
   const { error } = await supabase.auth.updateUser({ password });
   if (error) {
-    return {
-      errors: {
-        password: error.code === "same_password" ? "That's your current password. Choose a new one." : "Couldn't use that password. Try a different one.",
-      },
-    };
+    if (error.code === "same_password") return { errors: { password: "That's your current password. Choose a new one." } };
+    if (error.code === "weak_password") return { errors: { password: "That password is too easy to guess. Try a longer one." } };
+    if (error.code === "reauthentication_needed") {
+      return { message: "For your security, sign out and back in, then change your password straight away." };
+    }
+    console.error("Password change failed", error);
+    return { message: "Couldn't change your password. Try again." };
   }
   await logActivity(tenant.id, "account.password_changed", "Changed their password");
   return { saved: true };
+}
+
+// Checks a password without touching this browser's session: a separate
+// client that keeps nothing, signed straight back out.
+async function passwordIsRight(email: string, password: string) {
+  const check = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
+    cookies: { getAll: () => [], setAll: () => {} },
+  });
+  const { error } = await check.auth.signInWithPassword({ email, password });
+  if (error) return false;
+  await check.auth.signOut({ scope: "local" });
+  return true;
 }
 
 // ------------------------------------------------------------- two-factor
@@ -113,6 +147,8 @@ export async function confirmTwoFactorAction(slug: string, factorId: string, cod
   return {};
 }
 
+// Needs a code from the app, so an unattended laptop can't turn it off. Every
+// authenticator on the account comes off, not just the first.
 export async function disableTwoFactorAction(slug: string, code: string): Promise<TwoFactorResult> {
   const { tenant } = await requireTenant(slug);
   const clean = cleanCode(code);
@@ -120,15 +156,27 @@ export async function disableTwoFactorAction(slug: string, code: string): Promis
 
   const supabase = await createClient();
   const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
-  const factor = factors?.totp[0];
-  if (listError || !factor) return { error: "Couldn't turn it off just now. Try again." };
+  const verified = factors?.totp.filter((f) => f.status === "verified") ?? [];
+  if (listError || verified.length === 0) return { error: "Couldn't turn it off just now. Try again." };
 
-  const check = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code: clean });
-  if (check.error) return { error: WRONG_CODE };
-  const { error } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
-  if (error) {
-    console.error("Turning off two-factor failed", error);
-    return { error: "Couldn't turn it off just now. Try again." };
+  // The code can come from any of them.
+  let proven = false;
+  for (const factor of verified) {
+    const check = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code: clean });
+    if (!check.error) {
+      proven = true;
+      break;
+    }
+  }
+  if (!proven) return { error: WRONG_CODE };
+
+  for (const factor of factors?.all ?? []) {
+    if (factor.factor_type !== "totp") continue;
+    const { error } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+    if (error) {
+      console.error("Turning off two-factor failed", error);
+      return { error: "Couldn't turn it off just now. Try again." };
+    }
   }
   await logActivity(tenant.id, "account.two_factor_off", "Turned off two-factor login");
   refresh();

@@ -9,20 +9,15 @@ import { privacyExtrasFormSchema } from "@leadgen/core/settings/forms";
 import type { SaveState } from "../../pricing/actions";
 import { requireTenant } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { failed, fieldErrors, requireOwner } from "../shared";
 
 const text = (formData: FormData, key: string) => String(formData.get(key) ?? "").trim();
-
-function fieldErrors(error: z.ZodError): SaveState {
-  const errors: Record<string, string> = {};
-  for (const issue of error.issues) errors[String(issue.path[0] ?? "form")] ??= issue.message;
-  return { errors };
-}
 
 // Who is responsible for customers' data, shown in the privacy notice on the
 // booking page, and how long customer details are kept.
 export async function savePrivacySettings(slug: string, formData: FormData): Promise<SaveState> {
-  const { tenant, can } = await requireTenant(slug);
-  if (!can("settings.edit")) return { message: "Your access level doesn't include changing this." };
+  const { tenant, denied } = await requireOwner(slug);
+  if (denied) return denied;
 
   const parsed = privacySettingsSchema.safeParse({
     legalName: text(formData, "legalName"),
@@ -42,10 +37,7 @@ export async function savePrivacySettings(slug: string, formData: FormData): Pro
       retention_months: parsed.data.retentionMonths,
     })
     .eq("id", tenant.id);
-  if (error) {
-    console.error("Privacy settings save failed", error);
-    return { message: "Couldn't save. Try again." };
-  }
+  if (error) return failed("your privacy details", error);
   await logActivity(tenant.id, "settings.privacy", "Changed the privacy settings");
   refresh();
   return { saved: true };
@@ -54,8 +46,8 @@ export async function savePrivacySettings(slug: string, formData: FormData): Pro
 // Their own privacy policy link, the marketing tick box wording and how long
 // customer photos are kept.
 export async function savePrivacyExtras(slug: string, formData: FormData): Promise<SaveState> {
-  const { tenant, can } = await requireTenant(slug);
-  if (!can("settings.edit")) return { message: "Your access level doesn't include changing this." };
+  const { tenant, denied } = await requireOwner(slug);
+  if (denied) return denied;
   const parsed = privacyExtrasFormSchema.safeParse({
     privacy_policy_url: text(formData, "privacy_policy_url"),
     marketing_consent_text: text(formData, "marketing_consent_text"),
@@ -65,10 +57,7 @@ export async function savePrivacyExtras(slug: string, formData: FormData): Promi
 
   const supabase = await createClient();
   const { error } = await supabase.from("tenants").update(parsed.data).eq("id", tenant.id);
-  if (error) {
-    console.error("Privacy extras save failed", error);
-    return { message: "Couldn't save. Try again." };
-  }
+  if (error) return failed("the booking page privacy settings", error);
   await logActivity(tenant.id, "settings.privacy", "Changed the privacy settings");
   refresh();
   return { saved: true };
@@ -147,38 +136,43 @@ export async function logRequest(slug: string, formData: FormData): Promise<Save
     details: parsed.data.details || null,
     source: "manual",
   });
-  if (error) {
-    console.error("Log request failed", error);
-    return { message: "Couldn't log the request. Try again." };
-  }
+  if (error) return failed("the request", error);
   await logActivity(tenant.id, "customer.data_request_logged", "Logged a data request");
   refresh();
   return { saved: true };
 }
 
 // Progress on a request: status, whether identity has been checked, and what
-// was done. Closing it stamps the date.
+// was done. Closing it stamps the date; saving it again while it's closed
+// keeps that date, and reopening it clears it.
 export async function updateRequest(slug: string, id: string, formData: FormData): Promise<SaveState> {
   const { tenant } = await requireTenant(slug);
+  if (!z.uuid().safeParse(id).success) return { message: "That request no longer exists." };
   const status = text(formData, "status");
   if (!(status in REQUEST_STATUSES)) return { message: "Pick a status." };
   const closed = status === "completed" || status === "refused";
 
   const supabase = await createClient();
+  const current = await supabase
+    .from("data_requests")
+    .select("closed_at")
+    .eq("tenant_id", tenant.id)
+    .eq("id", id)
+    .maybeSingle();
+  if (current.error) return failed("the request", current.error);
+  if (!current.data) return { message: "That request no longer exists." };
+
   const { error } = await supabase
     .from("data_requests")
     .update({
       status,
       identity_checked: formData.get("identity_checked") === "on",
       outcome_notes: text(formData, "outcome_notes").slice(0, 2000) || null,
-      closed_at: closed ? new Date().toISOString() : null,
+      closed_at: closed ? (current.data.closed_at ?? new Date().toISOString()) : null,
     })
     .eq("tenant_id", tenant.id)
     .eq("id", id);
-  if (error) {
-    console.error("Update request failed", error);
-    return { message: "Couldn't save. Try again." };
-  }
+  if (error) return failed("the request", error);
   await logActivity(tenant.id, "customer.data_request_updated", "Updated a data request");
   refresh();
   return { saved: true };

@@ -46,16 +46,22 @@ export function ApiKeys({
         }}
       >
         <Label htmlFor="api-key-name">New key</Label>
-        <Input id="api-key-name" name="name" maxLength={60} placeholder="Main website" required />
+        <Input id="api-key-name" name="name" maxLength={60} placeholder="e.g. Main website" required />
         <fieldset className="mt-2 grid gap-2">
           <legend className="mb-1 text-sm font-medium">What it can do</legend>
           {SCOPE_KEYS.map((scope) => (
-            <Checkbox key={scope} name="scopes" value={scope} defaultChecked={DEFAULT_SCOPES.includes(scope)}>
+            <Checkbox
+              key={scope}
+              name="scopes"
+              value={scope}
+              defaultChecked={DEFAULT_SCOPES.includes(scope)}
+              labelClassName="rounded-lg border p-3"
+            >
               <span className="font-medium">{API_SCOPES[scope].label}</span>
               <span className="block text-muted-foreground">{API_SCOPES[scope].detail}</span>
             </Checkbox>
           ))}
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Only tick what the site or tool needs. Anything with customer details should stay on a server you trust.
           </p>
         </fieldset>
@@ -78,7 +84,7 @@ export function ApiKeys({
       {keys.length === 0 ? (
         <EmptyState compact>No keys yet.</EmptyState>
       ) : (
-        <ul className="divide-y rounded-xl border">
+        <ul className="divide-y rounded-lg border">
           {keys.map((k) => (
             <li key={k.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
               <span className="flex min-w-0 items-center gap-3">
@@ -99,8 +105,7 @@ export function ApiKeys({
               ) : (
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  variant="destructive"
                   disabled={pending}
                   onClick={async () => {
                     const confirmed = await askToConfirm({

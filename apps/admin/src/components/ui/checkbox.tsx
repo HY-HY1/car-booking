@@ -29,7 +29,7 @@ function Choice({
   )
   if (children == null) return box
   return (
-    <label className={cn("flex items-start gap-2 text-sm has-disabled:cursor-not-allowed has-disabled:opacity-60", labelClassName)}>
+    <label className={cn("flex items-start gap-2 text-sm pointer-coarse:py-1.5 has-disabled:cursor-not-allowed has-disabled:opacity-60", labelClassName)}>
       {box}
       <span className="min-w-0">{children}</span>
     </label>

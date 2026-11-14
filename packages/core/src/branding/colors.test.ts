@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bestTextOn, contrast, dashboardBrandCss, readableOn, visibleOn } from "./colors";
+import { bestTextOn, brandOn, contrast, dashboardBrandCss, readableOn, visibleOn } from "./colors";
 
 describe("readableOn", () => {
   it("picks white text on dark colours and black on light ones", () => {
@@ -36,6 +36,20 @@ describe("dashboardBrandCss", () => {
   it("marks the active nav item in the secondary colour, or the main one without it", () => {
     expect(dashboardBrandCss(brand)).toContain("--nav-active: #9a3412;");
     expect(dashboardBrandCss({ ...brand, secondary_color: "#0ea5e9" })).toContain("--nav-active: #0ea5e9;");
+  });
+
+  it("turns a near-black brand into a clear light button in dark mode, not a grey one", () => {
+    const css = dashboardBrandCss({ ...brand, primary_color: "#18181b" });
+    const dark = css.split(".dark [data-brand]")[1];
+    expect(dark).toContain("--primary: #e5e5e5;");
+    expect(dark).toContain("--primary-foreground: #0a0a0a;");
+  });
+
+  it("keeps a dark brand's hue when lightening it for dark mode", () => {
+    const lifted = brandOn("#1e3a8a", "#0a0a0a", 4.5);
+    expect(contrast(lifted, "#0a0a0a")).toBeGreaterThanOrEqual(4.5);
+    const [r, , b] = [1, 3, 5].map((i) => parseInt(lifted.slice(i, i + 2), 16));
+    expect(b).toBeGreaterThan(r + 40);
   });
 
   it("never writes anything but #rrggbb values", () => {

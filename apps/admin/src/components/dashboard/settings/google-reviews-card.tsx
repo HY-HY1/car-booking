@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { CopyText } from "@/components/platform/copy-text";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Field, SaveForm, type Action } from "../form-kit";
-import { ActionButton, DisconnectButton, OutcomeNote, type Outcome } from "./connection-bits";
+import { ActionButton, AppHeader, appCard, DisconnectButton, OutcomeNote, type Outcome } from "./connection-bits";
 
 // Settings → Integrations: Google Business Profile, for reviews.
 
@@ -49,14 +50,11 @@ export function GoogleReviewsCard(props: ReviewsCardProps) {
   const live = connection?.status === "active";
 
   return (
-    <li className="grid gap-4 rounded-xl border bg-card p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <span className="min-w-0">
-          <span className="font-medium">Google Business reviews</span>
-          <span className="block text-sm text-muted-foreground">
-            Your Google reviews in the dashboard, and replies to them without leaving it.
-          </span>
-        </span>
+    <li className={appCard}>
+      <AppHeader
+        name="Google Business reviews"
+        about="Your Google reviews in the dashboard, and replies to them without leaving it."
+        badge={
         <Badge tone={live && connection.locationChosen ? "success" : connection ? "warning" : "neutral"}>
           {!connection
             ? configured
@@ -68,13 +66,14 @@ export function GoogleReviewsCard(props: ReviewsCardProps) {
                 ? "Connected"
                 : "Pick your business"}
         </Badge>
-      </div>
+        }
+      />
 
       <OutcomeNote note={props.outcome ? OUTCOMES[props.outcome] : undefined} />
 
       {configured && !connection && (
         <>
-          <ul className="grid gap-1 text-sm text-muted-foreground">
+          <ul className="grid list-disc gap-1 pl-5 text-muted-foreground">
             <li>New reviews show on the Reviews page, with the ones still waiting for a reply at the top.</li>
             <li>Replies you write there go straight onto Google, as your business.</li>
             <li>Your review link is filled in for review request emails.</li>
@@ -91,7 +90,7 @@ export function GoogleReviewsCard(props: ReviewsCardProps) {
 
       {connection && !live && (
         <div className="grid gap-3">
-          <p className="text-sm">
+          <p>
             Google stopped letting us in{connection.email ? ` to ${connection.email}` : ""}
             {connection.lastError ? `: ${connection.lastError}` : "."}
           </p>
@@ -108,15 +107,15 @@ export function GoogleReviewsCard(props: ReviewsCardProps) {
 
       {connection && live && !connection.locationChosen && (
         <div className="grid gap-3">
-          {connection.lastError && <p className="text-sm text-destructive">{connection.lastError}</p>}
+          {connection.lastError && <p className="text-destructive">{connection.lastError}</p>}
           {props.locations === null ? (
-            <p className="text-sm text-muted-foreground">Couldn&apos;t load your businesses from Google just now. Reload to try again.</p>
+            <p className="text-muted-foreground">Couldn&apos;t load your businesses from Google just now. Reload to try again.</p>
           ) : props.locations.length === 0 ? (
-            <p className="text-sm">
+            <p>
               {connection.email ?? "This Google account"} doesn&apos;t manage any business profiles. Connect the account that does.
             </p>
           ) : (
-            <SaveForm action={props.chooseAction} readOnly={!canEdit} submitLabel="Use this business" savedText="Saved. Your reviews are coming in now.">
+            <SaveForm action={props.chooseAction} readOnly={!canEdit} alwaysEnabled submitLabel="Use this business" savedText="Saved. Your reviews are coming in now.">
               {(errors) => (
                 <Field label="Which business?" name="location" error={errors.location}>
                   <Select name="location" defaultValue={props.locations?.[0]?.locationName}>
@@ -139,7 +138,7 @@ export function GoogleReviewsCard(props: ReviewsCardProps) {
       )}
 
       {connection && live && connection.locationChosen && (
-        <div className="grid gap-3 text-sm">
+        <div className="grid gap-3">
           <p>
             Showing reviews for <span className="font-medium">{connection.locationTitle}</span>
             {connection.email ? `, connected as ${connection.email}` : ""}.
@@ -155,9 +154,9 @@ export function GoogleReviewsCard(props: ReviewsCardProps) {
             </div>
           )}
           <div className="flex flex-wrap gap-3">
-            <a href={props.reviewsHref} className={buttonVariants({ variant: "outline" })}>
+            <Link href={props.reviewsHref} className={buttonVariants({ variant: "outline" })}>
               See your reviews
-            </a>
+            </Link>
             {canEdit && <ActionButton label="Check for new reviews" busyLabel="Checking…" done="Reviews updated" action={props.refreshAction} />}
             {canEdit && <Disconnect action={props.disconnectAction} />}
           </div>

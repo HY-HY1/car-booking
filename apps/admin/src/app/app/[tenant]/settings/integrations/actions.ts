@@ -20,8 +20,9 @@ import { requireTenant } from "@/lib/auth";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { failed, plain, requireOwner } from "../shared";
 
-// Settings → Integrations → Google Calendar. Owners and managers; written
-// with the secret key, so requireOwner is what stops anyone else.
+// Settings → Integrations. Connected apps are for owners and managers,
+// written with the secret key, so requireOwner is what stops anyone else.
+// Webhooks are the owner's (requireDeveloper).
 
 // Google's calendar ids: "primary", an address, or a long group id.
 const CALENDAR_ID = /^[^\s]{1,1024}$/;
@@ -231,7 +232,13 @@ export async function rollWebhookSecretAction(slug: string, id: string): Promise
   const { tenant, denied } = await requireDeveloper(slug);
   if (denied) return { error: denied };
   if (!z.uuid().safeParse(id).success) return { error: "That webhook no longer exists." };
-  const secret = await rollSecret(tenant.id, id);
+  let secret: string | null;
+  try {
+    secret = await rollSecret(tenant.id, id);
+  } catch (error) {
+    console.error("Rolling a webhook secret failed", error);
+    return { error: "Couldn't make a new secret. Try again." };
+  }
   if (!secret) return { error: "That webhook no longer exists." };
   await logActivity(tenant.id, "settings.webhook_secret", "Made a new webhook signing secret");
   return { secret };

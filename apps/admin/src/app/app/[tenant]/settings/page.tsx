@@ -1,17 +1,26 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { GeneralForm } from "@/components/dashboard/settings/general-forms";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReadOnlyNotice, SettingsSection, SettingsStack } from "@/components/dashboard/settings/section";
+import { CopyText } from "@/components/platform/copy-text";
 import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { saveGeneralAction } from "./actions";
 import { appUrl } from "@/lib/urls";
+import { saveGeneralAction } from "./actions";
 
-export const metadata: Metadata = { title: "Settings" };
+export const metadata: Metadata = { title: "Business details" };
+
+function whereYouWork(mobile: boolean, unit: boolean) {
+  if (mobile && unit) return "Mobile jobs and jobs at your unit";
+  if (mobile) return "Mobile jobs only";
+  if (unit) return "Jobs at your unit only";
+  return "Not set";
+}
 
 export default async function SettingsPage({ params }: PageProps<"/app/[tenant]/settings">) {
   const { tenant: slug } = await params;
   const { tenant, can } = await requireAccess(slug, "settings.view");
+  const readOnly = !can("settings.edit");
 
   // RLS limits every read to this user's businesses; the filters pick this one.
   const supabase = await createClient();
@@ -28,58 +37,52 @@ export default async function SettingsPage({ params }: PageProps<"/app/[tenant]/
   if (settings.error) throw settings.error;
   if (members.error) throw members.error;
 
-  const where = settings.data
-    ? [settings.data.offers_mobile && "mobile", settings.data.offers_unit && "at your unit"].filter(Boolean).join(" and ")
-    : "";
+  const s = settings.data;
+  const people = members.count ?? 1;
+  const link = "underline underline-offset-4 hover:text-foreground";
 
   return (
-    <div className="grid max-w-3xl gap-4">
-      {!can("settings.edit") && (
-        <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">Your access level lets you see these but not change them.</p>
-      )}
-      <Card>
-        <CardHeader>
-          <CardTitle>Your business</CardTitle>
-          <CardDescription>
-            The name customers see everywhere, and how they reach you.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <GeneralForm
-            values={{ ...business.data, timezone: settings.data?.timezone ?? "Europe/London" }}
-            action={saveGeneralAction.bind(null, slug)}
-            readOnly={!can("settings.edit")}
-          />
-        </CardContent>
-      </Card>
+    <SettingsStack>
+      {readOnly && <ReadOnlyNotice />}
+      <SettingsSection
+        id="business"
+        title="Your business"
+        description="The name customers see on your booking page and in every email, and how they get in touch with you."
+      >
+        <GeneralForm
+          values={{ ...business.data, timezone: s?.timezone ?? "Europe/London" }}
+          action={saveGeneralAction.bind(null, slug)}
+          readOnly={readOnly}
+        />
+      </SettingsSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>At a glance</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-            <dt className="text-muted-foreground">Dashboard ID</dt>
-            <dd className="font-mono">{tenant.slug}</dd>
-            <dt className="text-muted-foreground">Where you work</dt>
-            <dd>
-              {where ? `Jobs ${where}` : "Not set"}
-              {settings.data?.base_postcode && <span className="text-muted-foreground">, vans start from {settings.data.base_postcode}</span>}
-              {" · "}
-              <Link href={appUrl(`/${slug}/settings/booking`)} className="underline underline-offset-4">
-                Change
-              </Link>
-            </dd>
-            <dt className="text-muted-foreground">Team</dt>
-            <dd>
-              {members.count ?? 1} {members.count === 1 ? "person" : "people"} ·{" "}
-              <Link href={appUrl(`/${slug}/team`)} className="underline underline-offset-4">
-                Manage staff
-              </Link>
-            </dd>
-          </dl>
-        </CardContent>
-      </Card>
-    </div>
+      <SettingsSection id="glance" title="At a glance" description="Set elsewhere, shown here so you can check them.">
+        <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+          <dt className="text-muted-foreground">Your dashboard</dt>
+          <dd className="min-w-0">
+            <CopyText value={appUrl(`/${slug}`, { absolute: true })} label="dashboard link" />
+          </dd>
+          <dt className="text-muted-foreground">Where you work</dt>
+          <dd>
+            {s ? whereYouWork(s.offers_mobile, s.offers_unit) : "Not set"}
+            {s?.offers_mobile && s.base_postcode && (
+              <span className="text-muted-foreground">, vans start from {s.base_postcode}</span>
+            )}
+            <span className="text-muted-foreground"> · </span>
+            <Link href={appUrl(`/${slug}/settings/booking`)} className={link}>
+              Change
+            </Link>
+          </dd>
+          <dt className="text-muted-foreground">Team</dt>
+          <dd>
+            {people} {people === 1 ? "person" : "people"}
+            <span className="text-muted-foreground"> · </span>
+            <Link href={appUrl(`/${slug}/team`)} className={link}>
+              Manage staff
+            </Link>
+          </dd>
+        </dl>
+      </SettingsSection>
+    </SettingsStack>
   );
 }

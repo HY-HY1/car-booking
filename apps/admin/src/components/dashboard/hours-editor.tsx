@@ -5,7 +5,8 @@ import { Plus, X } from "lucide-react";
 import type { DayKey, WeeklyHours } from "@leadgen/core/booking/config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 
 const WEEK: { key: DayKey; label: string }[] = [
   { key: "mon", label: "Monday" },
@@ -39,14 +40,15 @@ export function HoursEditor({ name, initial, label }: { name: string; initial: W
         const windows = hours[key] ?? [];
         const open = windows.length > 0;
         return (
-          <div key={key} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border px-3 py-2">
-            <Checkbox
-              labelClassName="w-32 font-medium"
-              checked={open}
-              onChange={(e) => set(key, e.target.checked ? [["08:00", "17:00"]] : [])}
-            >
+          <div key={key} className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border px-3 py-2", !open && "bg-muted/30")}>
+            <label className="flex w-36 cursor-pointer items-center gap-3 text-sm font-medium has-disabled:cursor-not-allowed">
+              <Switch
+                checked={open}
+                aria-label={`Open on ${dayName}`}
+                onChange={(e) => set(key, e.target.checked ? [["08:00", "17:00"]] : [])}
+              />
               {dayName}
-            </Checkbox>
+            </label>
             {open ? (
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 {windows.map((w, i) => (
@@ -112,6 +114,8 @@ export function HoursEditor({ name, initial, label }: { name: string; initial: W
         variant="outline"
         size="sm"
         className="justify-self-start"
+        disabled={!hours.mon?.length}
+        title={hours.mon?.length ? undefined : "Open Monday first"}
         onClick={() => {
           const monday = hours.mon ?? [];
           setHours((h) => ({ ...h, tue: monday, wed: monday, thu: monday, fri: monday }));

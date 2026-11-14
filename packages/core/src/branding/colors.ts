@@ -60,9 +60,57 @@ export function visibleOn(hex: string, background: string, min = 3) {
   return toHex(towards);
 }
 
+function toHsl(hex: string): [number, number, number] {
+  const [r, g, b] = channels(hex).map((c) => c / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h / 6, s, l];
+}
+
+function fromHsl(h: number, s: number, l: number) {
+  const hue = (p: number, q: number, t: number) => {
+    const u = t < 0 ? t + 1 : t > 1 ? t - 1 : t;
+    if (u < 1 / 6) return p + (q - p) * 6 * u;
+    if (u < 1 / 2) return q;
+    if (u < 2 / 3) return p + (q - p) * (2 / 3 - u) * 6;
+    return p;
+  };
+  if (s === 0) return toHex([l * 255, l * 255, l * 255]);
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  return toHex([hue(p, q, h + 1 / 3), hue(p, q, h), hue(p, q, h - 1 / 3)].map((c) => c * 255));
+}
+
+// The dashboard's own neutral buttons (globals.css --primary), for a brand
+// colour with no hue to keep.
+const NEUTRAL = { light: "#171717", dark: "#e5e5e5" };
+
+// The brand colour for a dashboard button or highlight. Like visibleOn, but it
+// keeps the hue: the colour is made lighter or darker rather than mixed with
+// white or black, which turns most colours a murky grey. A black, white or
+// grey brand that doesn't stand out becomes the dashboard's own neutral
+// (light on a dark page), so its buttons never look switched off.
+export function brandOn(hex: string, background: string, min = 3) {
+  if (contrast(hex, background) >= min) return hex.toLowerCase();
+  const dark = luminance(background) <= 0.5;
+  const [h, s, l] = toHsl(hex);
+  if (s < 0.15) return dark ? NEUTRAL.dark : NEUTRAL.light;
+  for (let step = 1; step <= 40; step++) {
+    const t = step / 40;
+    const shifted = fromHsl(h, s, dark ? l + (1 - l) * t : l * (1 - t));
+    if (contrast(shifted, background) >= min) return shifted;
+  }
+  return dark ? "#ffffff" : "#000000";
+}
+
 // The dashboard's page and sidebar colours (globals.css), as hex, and how far
 // the main colour must stand out from them. Dark mode asks for more, so a
-// near-black brand turns into a clear light button rather than a murky grey.
+// dark brand turns into a clear light button rather than a murky grey.
 const LIGHT = { page: "#ffffff", sidebar: "#fafafa", min: 3 };
 const DARK = { page: "#0a0a0a", sidebar: "#171717", min: 4.5 };
 
@@ -71,8 +119,8 @@ const DARK = { page: "#0a0a0a", sidebar: "#171717", min: 4.5 };
 // safe to put in a <style> tag.
 export function dashboardBrandCss(branding: Pick<Branding, "primary_color" | "accent_color" | "secondary_color">) {
   const mode = (bg: typeof LIGHT) => {
-    const primary = visibleOn(branding.primary_color, bg.page, bg.min);
-    const sidebarPrimary = visibleOn(branding.primary_color, bg.sidebar, bg.min);
+    const primary = brandOn(branding.primary_color, bg.page, bg.min);
+    const sidebarPrimary = brandOn(branding.primary_color, bg.sidebar, bg.min);
     const vars: Record<string, string> = {
       "--primary": primary,
       "--primary-foreground": bestTextOn(primary),
@@ -83,7 +131,7 @@ export function dashboardBrandCss(branding: Pick<Branding, "primary_color" | "ac
     };
     // The selected menu item: the secondary colour if there is one, else the main one.
     const secondary = branding.secondary_color && HEX.test(branding.secondary_color) ? branding.secondary_color : null;
-    const navActive = secondary ? visibleOn(secondary, bg.sidebar, 1.5) : sidebarPrimary;
+    const navActive = secondary ? brandOn(secondary, bg.sidebar, 1.5) : sidebarPrimary;
     vars["--nav-active"] = navActive;
     vars["--nav-active-foreground"] = bestTextOn(navActive);
     return Object.entries(vars)

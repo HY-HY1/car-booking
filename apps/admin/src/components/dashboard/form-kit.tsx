@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
-import { ChevronDown, Plus, Trash2, X } from "lucide-react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Check as CheckIcon, ChevronDown, Plus, Trash2, X } from "lucide-react";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { askToConfirm } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
-import { useUnsavedChanges } from "./unsaved-changes";
+import { useChangeTracking } from "./unsaved-changes";
 
 // The pieces the dashboard's editors are built from: a form that saves
 // through a server action and shows its errors, collapsible rows, and labelled
@@ -19,6 +19,24 @@ import { useUnsavedChanges } from "./unsaved-changes";
 export type Action = (formData: FormData) => Promise<SaveState>;
 
 export type Errors = Record<string, string | undefined>;
+
+// How the forms in one part of the dashboard behave. Settings turns on
+// requireChanges (Save stays off until something's changed, and says when
+// it's saved) and the footer look (a divided row: status left, buttons right).
+const SaveFormStyle = createContext({ requireChanges: false, footer: false });
+
+export function SaveFormDefaults({
+  requireChanges = false,
+  footer = false,
+  children,
+}: {
+  requireChanges?: boolean;
+  footer?: boolean;
+  children: React.ReactNode;
+}) {
+  const value = useMemo(() => ({ requireChanges, footer }), [requireChanges, footer]);
+  return <SaveFormStyle.Provider value={value}>{children}</SaveFormStyle.Provider>;
+}
 
 export function SaveForm({
   action,
@@ -29,10 +47,14 @@ export function SaveForm({
   savedText = "Saved. Customers see this now.",
   extra,
   sticky,
+  alwaysEnabled,
+  danger,
   children,
 }: {
   action: Action;
   readOnly?: boolean;
+  // A form that adds something: it starts empty and is emptied again once
+  // saved, so it's never "unchanged" and Save is always on.
   resetOnSave?: boolean;
   onSaved?: () => void;
   submitLabel?: string;
@@ -41,12 +63,20 @@ export function SaveForm({
   extra?: React.ReactNode;
   // Keep the save buttons in view at the bottom of long forms.
   sticky?: boolean;
+  // Save is on even with nothing changed (what's showing is a valid choice
+  // that hasn't been saved yet, like a pre-picked option).
+  alwaysEnabled?: boolean;
+  // Saving deletes or ends something: a red button.
+  danger?: boolean;
   children: (errors: Errors) => React.ReactNode;
 }) {
+  const style = useContext(SaveFormStyle);
   const [state, setState] = useState<SaveState>({});
   const [pending, startTransition] = useTransition();
   const form = useRef<HTMLFormElement>(null);
-  const markSaved = useUnsavedChanges(form, !readOnly);
+  const { markSaved, changed } = useChangeTracking(form, !readOnly);
+  // "Saved" shows from a save until the next edit.
+  const [savedShown, setSavedShown] = useState(false);
   // Read once the save has finished: while it's going, the fields are disabled
   // and a form leaves disabled fields out.
   const justSaved = useRef(false);
@@ -56,6 +86,22 @@ export function SaveForm({
     markSaved();
   }, [pending, markSaved]);
 
+  const needsChange = style.requireChanges && !resetOnSave && !alwaysEnabled;
+  const canSave = !pending && (!needsChange || changed);
+  const status = state.message ? (
+    <span className="text-destructive">{state.message}</span>
+  ) : state.errors ? (
+    <span className="text-destructive">Check the highlighted fields.</span>
+  ) : changed && needsChange ? (
+    <span className="inline-flex items-center gap-2 text-muted-foreground">
+      <span aria-hidden className="size-2 rounded-full bg-amber-500" /> Unsaved changes
+    </span>
+  ) : savedShown && !changed ? (
+    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+      <CheckIcon className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden /> Saved
+    </span>
+  ) : null;
+
   return (
     <form
       ref={form}
@@ -63,6 +109,7 @@ export function SaveForm({
       className="grid gap-5"
       onSubmit={(e) => {
         e.preventDefault();
+        if (!canSave) return;
         const formData = new FormData(e.currentTarget);
         startTransition(async () => {
           let result: SaveState;
@@ -81,34 +128,53 @@ export function SaveForm({
             toast.success(savedText);
             if (resetOnSave) form.current?.reset();
             justSaved.current = true;
+            setSavedShown(true);
             onSaved?.();
           }
         });
       }}
     >
-      <fieldset disabled={readOnly || pending} className="grid gap-5">
+      <fieldset disabled={readOnly || pending} className="grid min-w-0 gap-5">
         {children(state.errors ?? {})}
       </fieldset>
-      {!readOnly && (
-        <div
-          className={cn(
-            "flex flex-wrap items-center gap-3",
-            sticky && "sticky bottom-(--bottom-nav) z-10 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80",
-          )}
-        >
-          <Button type="submit" size="lg" disabled={pending}>
-            {pending ? "Saving…" : submitLabel}
-          </Button>
-          {extra}
-          <p role="status" className="text-sm">
-            {state.message ? (
-              <span className="text-destructive">{state.message}</span>
-            ) : state.errors ? (
-              <span className="text-destructive">Check the highlighted fields.</span>
-            ) : null}
-          </p>
-        </div>
-      )}
+      {!readOnly &&
+        (style.footer ? (
+          <div
+            className={cn(
+              "flex flex-wrap items-center justify-between gap-x-4 gap-y-3",
+              // Long forms: a bar that floats at the bottom of the screen
+              // while there's more form below, and settles at the end.
+              sticky
+                ? "sticky bottom-[calc(var(--bottom-nav)+0.75rem)] z-10 rounded-xl bg-card/95 px-4 py-3 shadow-lg ring-1 ring-foreground/10 backdrop-blur supports-[backdrop-filter]:bg-card/85"
+                : "border-t pt-4",
+            )}
+          >
+            <p role="status" className="min-h-5 text-sm">
+              {status}
+            </p>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {extra}
+              <Button type="submit" size="lg" variant={danger ? "destructive" : "default"} disabled={!canSave}>
+                {pending ? "Saving…" : submitLabel}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "flex flex-wrap items-center gap-3",
+              sticky && "sticky bottom-(--bottom-nav) z-10 -mx-4 border-t bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80",
+            )}
+          >
+            <Button type="submit" size="lg" variant={danger ? "destructive" : "default"} disabled={!canSave}>
+              {pending ? "Saving…" : submitLabel}
+            </Button>
+            {extra}
+            <p role="status" className="text-sm">
+              {status}
+            </p>
+          </div>
+        ))}
     </form>
   );
 }
@@ -166,9 +232,9 @@ export function DeleteButton({ what, note, action }: { what: string; note?: stri
   return (
     <Button
       type="button"
-      variant="ghost"
+      variant="destructive"
+      size="lg"
       disabled={pending}
-      className="text-destructive"
       onClick={async () => {
         const confirmed = await askToConfirm({
           title: `Delete ${what}?`,

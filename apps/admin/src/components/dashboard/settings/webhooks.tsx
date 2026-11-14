@@ -6,6 +6,7 @@ import { CopyText } from "@/components/platform/copy-text";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { askToConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
@@ -88,7 +89,7 @@ export function Webhooks(props: Props) {
       </ul>
 
       {adding ? (
-        <div className="rounded-lg border p-3">
+        <div className="rounded-lg border p-4">
           <SaveForm action={create} submitLabel="Add webhook" savedText="Added." extra={<Button type="button" variant="ghost" onClick={() => setAdding(false)}>Cancel</Button>}>
             {(errors) => <EndpointFields errors={errors} />}
           </SaveForm>
@@ -110,15 +111,21 @@ function EndpointFields({ errors, endpoint }: { errors: Errors; endpoint?: Webho
   return (
     <div className="grid gap-4">
       <Field label="Send to" name="url" error={errors.url} hint="An https address on your server, Zapier, Make or similar.">
-        <Input name="url" type="url" required defaultValue={endpoint?.url} placeholder="https://example.com/webhooks/bookings" />
+        <Input name="url" type="url" required defaultValue={endpoint?.url} inputMode="url" placeholder="e.g. https://example.com/webhooks/bookings" />
       </Field>
       <Field label="Name (optional)" name="description" error={errors.description}>
-        <Input name="description" defaultValue={endpoint?.description ?? ""} placeholder="Our CRM" maxLength={200} />
+        <Input name="description" defaultValue={endpoint?.description ?? ""} placeholder="e.g. Our CRM" maxLength={200} />
       </Field>
       <fieldset className="grid gap-2">
         <legend className="mb-1 text-sm font-medium">Send these events</legend>
         {WEBHOOK_EVENT_KEYS.map((key) => (
-          <Checkbox key={key} name="events" value={key} defaultChecked={endpoint ? endpoint.events.includes(key) : key !== "booking.updated"}>
+          <Checkbox
+            key={key}
+            name="events"
+            value={key}
+            defaultChecked={endpoint ? endpoint.events.includes(key) : key !== "booking.updated"}
+            labelClassName="rounded-lg border p-3"
+          >
             <code className="text-xs">{key}</code>
             <span className="block text-muted-foreground">{WEBHOOK_EVENTS[key]}</span>
           </Checkbox>
@@ -126,9 +133,9 @@ function EndpointFields({ errors, endpoint }: { errors: Errors; endpoint?: Webho
         {errors.events && <p className="text-sm text-destructive">{errors.events}</p>}
       </fieldset>
       {endpoint && (
-        <Checkbox name="active" defaultChecked={endpoint.active}>
+        <Switch name="active" defaultChecked={endpoint.active} description="Off stops anything being sent to it.">
           Switched on
-        </Checkbox>
+        </Switch>
       )}
     </div>
   );
@@ -153,7 +160,7 @@ function Endpoint({
   const run = (fn: () => Promise<void>) => startTransition(fn);
 
   return (
-    <li className="grid gap-3 rounded-lg border p-3 text-sm">
+    <li className="grid gap-3 rounded-lg border p-4 text-sm">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <span className="min-w-0">
           {e.description && <span className="block font-medium">{e.description}</span>}
@@ -188,12 +195,11 @@ function Endpoint({
         </SaveForm>
       ) : (
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>
+          <Button type="button" variant="outline" onClick={() => setEditing(true)}>
             Edit
           </Button>
           <Button
             type="button"
-            size="sm"
             variant="outline"
             disabled={pending || !e.active}
             onClick={() =>
@@ -209,14 +215,14 @@ function Endpoint({
           </Button>
           <Button
             type="button"
-            size="sm"
-            variant="outline"
+            variant="destructive"
             disabled={pending}
             onClick={async () => {
               const ok = await askToConfirm({
                 title: "Make a new signing secret?",
                 description: "The old one stops working straight away, so update your server as soon as you've copied the new one.",
                 confirmLabel: "Make new secret",
+                destructive: true,
               });
               if (!ok) return;
               run(async () => {
@@ -230,9 +236,7 @@ function Endpoint({
           </Button>
           <Button
             type="button"
-            size="sm"
-            variant="ghost"
-            className="text-destructive"
+            variant="destructive"
             disabled={pending}
             onClick={async () => {
               const ok = await askToConfirm({
@@ -245,6 +249,7 @@ function Endpoint({
               run(async () => {
                 const r = await deleteAction(e.id);
                 if (r.error) toast.error(r.error);
+                else toast.success("Webhook deleted");
               });
             }}
           >
