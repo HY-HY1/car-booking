@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PRICE } from "@/lib/brand";
+import { PRICE, SITE_NAME } from "@/lib/brand";
 import { appUrl } from "@/lib/urls";
 
 // Small pieces shared by the marketing pages (app/(marketing)/(site)).
@@ -53,5 +53,16 @@ export function CtaBand({ title = "Get your booking link today." }: { title?: st
         </div>
       </div>
     </section>
+  );
+}
+
+// The old wordmark: orange square and condensed name. The sign-up page still
+// wears the old look; the rebuilt site uses Logo in site-header.tsx.
+export function Wordmark({ className = "" }: { className?: string }) {
+  return (
+    <span className={`lp-display flex items-center gap-2 text-2xl ${className}`}>
+      <span aria-hidden className="size-2.5 bg-(--hi)" />
+      {SITE_NAME}
+    </span>
   );
 }

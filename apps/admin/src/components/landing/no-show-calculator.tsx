@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { PRODUCT_NAME } from "@/lib/brand";
+import { SITE_NAME } from "@/lib/brand";
 
 // What no-shows cost a year, against a year of the subscription. Plain
 // arithmetic on the visitor's own numbers; nothing is saved or sent.
@@ -60,7 +60,7 @@ export function NoShowCalculator({ yearlyPounds }: { yearlyPounds: number }) {
           <dd className="lp-display mt-2 text-6xl text-[#d9430b] tabular-nums">{pounds(lost)}</dd>
         </div>
         <div className="p-6 sm:p-8">
-          <dt className="lp-data text-[11px] tracking-[0.14em] text-(--graphite) uppercase">A year of {PRODUCT_NAME}</dt>
+          <dt className="lp-data text-[11px] tracking-[0.14em] text-(--graphite) uppercase">A year of {SITE_NAME}</dt>
           <dd className="lp-display mt-2 text-6xl tabular-nums">{pounds(yearlyPounds)}</dd>
         </div>
       </dl>

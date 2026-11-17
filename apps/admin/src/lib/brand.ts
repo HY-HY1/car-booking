@@ -9,3 +9,8 @@ export { PRODUCT_NAME } from "@leadgen/core/brand";
 // The one plan. Keep in step with the Stripe price new businesses subscribe
 // to (STRIPE_SUBSCRIPTION_PRICE_ID).
 export const PRICE = { monthly: "£49", yearlyPounds: 49 * 12, trialDays: 14 };
+
+// The name the public site and sign-up page show. A stand-in until the
+// product's new brand is chosen (2026-11-16); the dashboard and emails still
+// use PRODUCT_NAME. Swap this one line when the real name lands.
+export const SITE_NAME = "ASCND";

@@ -1,0 +1,143 @@
+/* The rebuilt marketing site: header, footer and home page. Dark, with one
+   green accent taken from the logo's stripes. Every colour the new pages use
+   is one of these tokens, so the brand changes here. Pages still on the old
+   look sit under (legacy)/ with landing.css. */
+
+.site {
+  --bg: #07090a;
+  --fg: #f4f5f4;
+  --muted: #9aa19d;
+  --line: rgb(255 255 255 / 0.08);
+  --soft: rgb(255 255 255 / 0.04);
+  --accent: #34d399;
+  --accent-deep: #10b981;
+  --accent-fg: #03140c;
+  --glow: rgb(52 211 153 / 0.18);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  color-scheme: dark;
+}
+
+.site a:focus-visible,
+.site button:focus-visible,
+.site summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* The hero's backdrop: a faint grid that fades out from the top centre, under
+   a green glow. */
+.site-grid {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 40%, transparent 100%);
+}
+
+.site-glow {
+  background: radial-gradient(ellipse 55% 45% at 50% 0%, var(--glow), transparent 70%);
+}
+
+/* The main call to action: a lit green button. */
+.site-cta {
+  background: linear-gradient(180deg, var(--accent), var(--accent-deep));
+  color: var(--accent-fg);
+  box-shadow:
+    0 0 0 1px rgb(52 211 153 / 0.4),
+    0 8px 32px -6px rgb(52 211 153 / 0.55);
+  transition:
+    box-shadow 200ms,
+    transform 200ms;
+}
+
+.site-cta:hover {
+  box-shadow:
+    0 0 0 1px rgb(52 211 153 / 0.6),
+    0 10px 40px -4px rgb(52 211 153 / 0.7);
+  transform: translateY(-1px);
+}
+
+/* The hero comes up once on load, a beat apart. */
+@keyframes site-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.site-rise {
+  animation: site-rise 700ms cubic-bezier(0.2, 0.8, 0.2, 1) var(--delay, 0ms) both;
+}
+
+/* The headline's rotating word (components/landing/rotating-word.tsx): each
+   letter drops in from above, then falls away below, a beat apart. */
+@keyframes site-letter-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.55em);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes site-letter-out {
+  to {
+    opacity: 0;
+    transform: translateY(0.45em);
+    filter: blur(6px);
+  }
+}
+
+.site-letter {
+  display: inline-block;
+  white-space: pre;
+  animation: site-letter-in 550ms cubic-bezier(0.2, 0.8, 0.2, 1) calc(var(--i) * 40ms) both;
+}
+
+.site-word-out .site-letter {
+  animation: site-letter-out 300ms cubic-bezier(0.5, 0, 0.75, 0) calc(var(--i) * 25ms) both;
+}
+
+/* FAQ answers slide open where the browser can animate to auto height, and
+   just appear where it can't. */
+.site-faq {
+  interpolate-size: allow-keywords;
+}
+
+.site-faq::details-content {
+  block-size: 0;
+  overflow: hidden;
+  transition:
+    block-size 250ms ease,
+    content-visibility 250ms allow-discrete;
+}
+
+.site-faq[open]::details-content {
+  block-size: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-faq::details-content {
+    transition: none;
+  }
+  .site-rise,
+  .site-letter,
+  .site-word-out .site-letter {
+    animation: none;
+  }
+  .site-cta,
+  .site-cta:hover {
+    transition: none;
+    transform: none;
+  }
+}

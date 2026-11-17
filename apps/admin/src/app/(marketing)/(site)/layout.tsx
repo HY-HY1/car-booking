@@ -1,21 +1,21 @@
 import type { Metadata } from "next";
+import { siteFont } from "@/components/landing/fonts";
 import { SiteFooter } from "@/components/landing/site-footer";
-import { landingFonts } from "@/components/landing/fonts";
 import { SiteHeader } from "@/components/landing/site-header";
-import { PRODUCT_NAME } from "@/lib/brand";
-import "./landing.css";
+import { SITE_NAME } from "@/lib/brand";
+import "./site.css";
 
-// The public site: home, features, pricing, about. Its look is a printed job
-// sheet: oil black and paper, condensed display type, times and prices in
-// mono, one hi-vis orange.
+// The public site. Header, footer and home page are being rebuilt from bare
+// bones (site.css); the other pages keep the old look until they're redone
+// (./(legacy)/layout.tsx).
 
 export const metadata: Metadata = {
-  title: { default: PRODUCT_NAME, template: `%s · ${PRODUCT_NAME}` },
+  title: { default: SITE_NAME, template: `%s · ${SITE_NAME}` },
 };
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`lp ${landingFonts} flex min-h-dvh flex-col antialiased`}>
+    <div className={`site ${siteFont} flex min-h-dvh flex-col antialiased`}>
       <SiteHeader />
       <main className="flex-1">{children}</main>
       <SiteFooter />

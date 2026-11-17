@@ -10,7 +10,7 @@ export function NavLink({ href, className = "", children }: { href: string; clas
     <Link
       href={href}
       aria-current={current ? "page" : undefined}
-      className={`${className} ${current ? "text-(--paper) underline decoration-(--hi) decoration-2 underline-offset-8" : "text-(--mist) hover:text-(--paper)"}`}
+      className={`${className} ${current ? "font-medium text-(--fg)" : "text-(--muted) hover:text-(--fg)"}`}
     >
       {children}
     </Link>

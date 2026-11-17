@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { fromHeader, renderEmail } from "@leadgen/core/email/compose";
 import { deliver, fromAddress } from "@leadgen/core/email/transport";
 import { checkContact, contactEmail, type ContactMessage } from "@leadgen/core/marketing/contact";
-import { PRODUCT_NAME } from "@/lib/brand";
+import { SITE_NAME } from "@/lib/brand";
 
 export type ContactState = {
   sent?: { name: string; email: string };
@@ -37,18 +37,18 @@ export async function sendContact(_prev: ContactState, formData: FormData): Prom
     return { error: "Sorry, the form isn't working right now. Please try again later.", values };
   }
 
-  const { subject, text: body } = contactEmail(m, PRODUCT_NAME);
+  const { subject, text: body } = contactEmail(m, SITE_NAME);
   const { text, html } = renderEmail({
     content: { subject, eyebrow: "Contact form", heading: subject, body },
     audience: "platform",
-    brand: { name: PRODUCT_NAME },
-    footer: [`Sent from the ${PRODUCT_NAME} website contact form. Reply to answer ${m.email}.`],
+    brand: { name: SITE_NAME },
+    footer: [`Sent from the ${SITE_NAME} website contact form. Reply to answer ${m.email}.`],
   });
   const result = await deliver({
-    from: fromHeader(`${PRODUCT_NAME} website`, fromAddress()),
+    from: fromHeader(`${SITE_NAME} website`, fromAddress()),
     to,
     replyTo: m.email,
-    subject: `[${PRODUCT_NAME}] ${subject}`,
+    subject: `[${SITE_NAME}] ${subject}`,
     text,
     html,
     // A double-click or resubmit of the same message sends it once.

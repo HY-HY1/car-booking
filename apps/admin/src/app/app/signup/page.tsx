@@ -3,15 +3,15 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { TRIAL_DAYS } from "@leadgen/core/billing/rules";
 import { landingFonts } from "@/components/landing/fonts";
-import { Wordmark } from "@/components/landing/site-header";
+import { Wordmark } from "@/components/landing/ui";
 import { getCurrentUser } from "@/lib/auth";
-import { PRICE, PRODUCT_NAME } from "@/lib/brand";
+import { PRICE, SITE_NAME } from "@/lib/brand";
 import { appUrl, marketingUrl } from "@/lib/urls";
 import { SignUpForm } from "./signup-form";
 // The marketing site's colours and type, for the panel beside the form.
 import "../../(marketing)/(site)/landing.css";
 
-export const metadata: Metadata = { title: `Start your free trial · ${PRODUCT_NAME}` };
+export const metadata: Metadata = { title: `Start your free trial · ${SITE_NAME}` };
 
 const POINTS = [
   { title: "Instant quotes", text: "Customers get a price from your own rules, in seconds." },
@@ -37,7 +37,7 @@ export default function SignUpPage() {
       <aside className="lp relative hidden flex-col justify-between gap-10 overflow-hidden px-12 py-10 lg:flex xl:px-16">
         {/* A strip of hi-vis down the edge, as on the marketing pages. */}
         <span aria-hidden className="absolute inset-y-0 right-0 w-1 bg-(--hi)" />
-        <Link href={marketingUrl("/")} aria-label={`${PRODUCT_NAME} home`} className="justify-self-start">
+        <Link href={marketingUrl("/")} aria-label={`${SITE_NAME} home`} className="justify-self-start">
           <Wordmark />
         </Link>
 
@@ -69,7 +69,7 @@ export default function SignUpPage() {
 
       {/* On a phone: the brand and the price, across the top. */}
       <header className="lp grid gap-4 px-4 pt-5 pb-6 sm:px-10 lg:hidden">
-        <Link href={marketingUrl("/")} aria-label={`${PRODUCT_NAME} home`} className="justify-self-start">
+        <Link href={marketingUrl("/")} aria-label={`${SITE_NAME} home`} className="justify-self-start">
           <Wordmark />
         </Link>
         <div className="grid gap-1.5">
