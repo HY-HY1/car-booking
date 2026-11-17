@@ -143,7 +143,7 @@ export function SearchSelect({
             id={`${id}-list`}
             role="listbox"
             aria-label={label}
-            className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-neutral-200 bg-white text-base shadow-lg"
+            className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-neutral-200 bg-surface text-base shadow-lg"
           >
             {shown.map((group, g) => (
               <li key={g} role="presentation">

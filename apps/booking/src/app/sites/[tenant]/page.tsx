@@ -47,7 +47,7 @@ export default async function Home() {
   return (
     <SiteFrame tenant={tenant}>
       <main className="flex flex-1 flex-col">
-        <section className="relative isolate overflow-hidden bg-brand text-brand-fg">
+        <section className="relative isolate overflow-hidden bg-brand-base text-brand-base-fg">
           {tenant.branding.cover_url && (
             // The brand colour shows through, so the text stays readable on any photo.
             // eslint-disable-next-line @next/next/no-img-element
@@ -112,7 +112,7 @@ export default async function Home() {
           </section>
         )}
 
-        <section aria-labelledby="how-title" className="border-y bg-white py-14 sm:py-20">
+        <section aria-labelledby="how-title" className="border-y bg-surface py-14 sm:py-20">
           <div className={cn(container, "grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:items-center")}>
             <div>
               <h2 id="how-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -196,7 +196,7 @@ export default async function Home() {
 
 function InfoCard({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <div className="grid content-start gap-3 rounded-2xl border bg-white p-6 text-sm text-neutral-600">
+    <div className="grid content-start gap-3 rounded-2xl border bg-surface p-6 text-sm text-neutral-600">
       <span aria-hidden className="grid size-10 place-items-center rounded-xl bg-neutral-100 text-neutral-700">
         {icon}
       </span>

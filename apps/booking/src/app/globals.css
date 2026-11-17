@@ -1,19 +1,87 @@
 @import "tailwindcss";
 
-/* Tenant colours are set per request in layout.tsx from the tenant's
-   branding; these are the fallbacks for pages with no tenant. */
+/* Dark mode is a class on <html>, set before the page paints by the script
+   in layout.tsx from the visitor's choice (components/theme-toggle.tsx).
+   Light unless they pick dark; the device setting is not followed. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Tenant colours are set per request on <body> in layout.tsx from the
+   tenant's branding (lib/theme.ts); these are the fallbacks for pages with
+   no tenant. Each brand colour comes as a light-page and a dark-page
+   version: on a dark page a dark brand colour is lightened until buttons
+   and highlights stand out again. */
 :root {
-  --brand: #18181b;
-  --brand-fg: #ffffff;
+  --brand-light: #18181b;
+  --brand-light-fg: #ffffff;
+  --brand-dark: #ededed;
+  --brand-dark-fg: #0a0a0a;
   --accent: #3b82f6;
   --accent-fg: #ffffff;
+
+  --page: #fafafa;
+  --surface: #ffffff;
+  --ink: #0a0a0a;
+}
+
+body {
+  --brand: var(--brand-light);
+  --brand-fg: var(--brand-light-fg);
+  background: var(--page);
+  color: var(--ink);
+}
+
+.dark {
+  color-scheme: dark;
+  --page: #0a0a0a;
+  --surface: #171717;
+  --ink: #f5f5f5;
+
+  /* The grey scale runs the other way: what was a pale fill or border on
+     white becomes a slightly lighter grey on the dark surface, and dark
+     text becomes light text. Every page is drawn in neutral-*, so this
+     one swap restyles them all. */
+  --color-neutral-50: #1c1c1c;
+  --color-neutral-100: #232323;
+  --color-neutral-200: #2e2e2e;
+  --color-neutral-300: #3d3d3d;
+  --color-neutral-400: #737373;
+  --color-neutral-500: #9a9a9a;
+  --color-neutral-600: #b5b5b5;
+  --color-neutral-700: #cfcfcf;
+  --color-neutral-800: #e0e0e0;
+  --color-neutral-900: #ededed;
+  --color-neutral-950: #f5f5f5;
+
+  /* Notices: pale tints become deep ones, dark text becomes light. The
+     strong reds (600, 700) stay, as they fill the cancel button. */
+  --color-amber-50: #2b2110;
+  --color-amber-200: #5c4413;
+  --color-amber-900: #fde68a;
+  --color-amber-950: #fef3c7;
+  --color-red-50: #2d1414;
+  --color-red-200: #6b2222;
+  --color-red-800: #fecaca;
+  --color-red-900: #fee2e2;
+  --color-emerald-50: #0f2a20;
+  --color-emerald-900: #a7f3d0;
+}
+
+.dark body {
+  --brand: var(--brand-dark);
+  --brand-fg: var(--brand-dark-fg);
 }
 
 @theme inline {
   --color-brand: var(--brand);
   --color-brand-fg: var(--brand-fg);
+  /* The brand exactly as the business chose it, in both modes: the header
+     and the hero panels, where their logo sits on it. */
+  --color-brand-base: var(--brand-light);
+  --color-brand-base-fg: var(--brand-light-fg);
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
+  /* Cards, inputs and panels: white on the light page. */
+  --color-surface: var(--surface);
   --font-sans: var(--font-sans);
 }
 
@@ -27,11 +95,6 @@
   ::file-selector-button {
     border-color: var(--color-neutral-200, currentColor);
   }
-}
-
-body {
-  background: #fafafa;
-  color: #0a0a0a;
 }
 
 /* The arrow on the shared dropdown, which turns the browser's own off. */

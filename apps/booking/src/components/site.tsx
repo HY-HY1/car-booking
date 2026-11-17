@@ -5,6 +5,7 @@ import { formatPhone } from "@leadgen/core/customer-fields";
 import type { PublicTenant } from "@leadgen/core/tenants";
 import { cn } from "@/lib/cn";
 import { pageUrl } from "@/lib/urls";
+import { ThemeToggle } from "./theme-toggle";
 
 // The frame every customer page sits in: the business's header, the page,
 // and a footer with how to reach them and the legal links. The booking pages
@@ -45,7 +46,7 @@ export function SiteFrame({
 export function SiteHeader({ tenant, bookButton = true }: { tenant: Tenant; bookButton?: boolean }) {
   const website = tenant.branding.website_url;
   return (
-    <header className="bg-brand text-brand-fg">
+    <header className="bg-brand-base text-brand-base-fg">
       <div className={cn(container, "flex h-16 items-center justify-between gap-4")}>
         <Link href={pageUrl(tenant)} className="flex min-w-0 items-center gap-3 font-semibold tracking-tight">
           {tenant.branding.logo_url ? (
@@ -88,7 +89,7 @@ export function SiteFooter({ tenant, bottomBar = false }: { tenant: Tenant; bott
   const { phone, email } = tenant.contact;
   const website = tenant.branding.website_url;
   return (
-    <footer className={cn("border-t bg-white", bottomBar && "pb-20 sm:pb-0")}>
+    <footer className={cn("border-t bg-surface", bottomBar && "pb-20 sm:pb-0")}>
       <div className={cn(container, "grid gap-8 py-10 sm:grid-cols-[1fr_auto] sm:gap-12")}>
         <div className="grid content-start gap-2">
           <p className="font-semibold tracking-tight">{tenant.name}</p>
@@ -132,7 +133,12 @@ export function SiteFooter({ tenant, bottomBar = false }: { tenant: Tenant; bott
           <p>
             &copy; {new Date().getFullYear()} {tenant.name}
           </p>
-          <LegalLinks tenant={tenant} />
+          <div className="flex items-center justify-between gap-4">
+            <LegalLinks tenant={tenant} />
+            {/* Light or dark mode: tucked away down here, as most visitors
+                won't look for it. */}
+            <ThemeToggle className="-m-1.5 grid size-7 shrink-0 place-items-center rounded-full text-neutral-400 transition hover:text-neutral-900 [&_svg]:size-3.5" />
+          </div>
         </div>
       </div>
     </footer>

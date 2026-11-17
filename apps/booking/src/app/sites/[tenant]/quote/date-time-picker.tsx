@@ -49,7 +49,7 @@ export function DateTimePicker({ today, openDates, date, onPickDate, slots, load
 
   return (
     <div className="grid gap-5">
-      <div className="rounded-2xl border bg-white p-3 sm:p-4">
+      <div className="rounded-2xl border bg-surface p-3 sm:p-4">
         <div className="mb-3 flex items-center justify-between">
           <button
             type="button"
@@ -147,7 +147,7 @@ export function DateTimePicker({ today, openDates, date, onPickDate, slots, load
                           "rounded-xl border px-3 py-3 text-center font-medium transition",
                           slot?.startsAt === s.startsAt
                             ? "border-brand bg-brand text-brand-fg"
-                            : "border-neutral-200 bg-white hover:border-neutral-500",
+                            : "border-neutral-200 bg-surface hover:border-neutral-500",
                         )}
                       >
                         {s.time}

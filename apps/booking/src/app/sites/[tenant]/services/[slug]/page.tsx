@@ -168,7 +168,7 @@ export default async function ServicePage({ params }: PageProps<"/sites/[tenant]
               <h2 id="faqs" className="text-xl font-semibold tracking-tight">
                 Questions
               </h2>
-              <div className="divide-y rounded-2xl border bg-white">
+              <div className="divide-y rounded-2xl border bg-surface">
                 {faqs.map((f, i) => (
                   <details key={i} className="group px-4 py-3">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium [&::-webkit-details-marker]:hidden">
@@ -189,7 +189,7 @@ export default async function ServicePage({ params }: PageProps<"/sites/[tenant]
       </div>
 
       {others.length > 0 && (
-        <section aria-labelledby="more" className="border-t bg-white py-12 sm:py-16">
+        <section aria-labelledby="more" className="border-t bg-surface py-12 sm:py-16">
           <div className={container}>
             <h2 id="more" className="mb-6 text-xl font-semibold tracking-tight sm:text-2xl">
               Other services
@@ -206,7 +206,7 @@ export default async function ServicePage({ params }: PageProps<"/sites/[tenant]
       )}
 
       {/* Phones: the price and button stay in reach. */}
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-surface/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs text-neutral-500">From</p>
@@ -229,7 +229,7 @@ function Hero({ service, allServices }: { service: Service; allServices: string 
   // The tagline and short description are often the same sentence.
   const description = service.description?.trim();
   return (
-    <section className="relative isolate overflow-hidden bg-brand text-brand-fg">
+    <section className="relative isolate overflow-hidden bg-brand-base text-brand-base-fg">
       {image && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={image} alt="" className="absolute inset-0 -z-10 size-full object-cover" />
@@ -262,7 +262,7 @@ function Hero({ service, allServices }: { service: Service; allServices: string 
 
 function PriceCard({ service, href }: { service: Service; href: string }) {
   return (
-    <div className="grid gap-4 rounded-2xl border bg-white p-6 shadow-sm">
+    <div className="grid gap-4 rounded-2xl border bg-surface p-6 shadow-sm">
       <div>
         <p className="text-sm text-neutral-500">From</p>
         <p className="text-3xl font-semibold tracking-tight">{formatPence(service.base_price_pence)}</p>

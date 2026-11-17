@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 // The customer pages' form controls: all 44px tall, in the business's colours.
 
 export const controlClass =
-  "h-11 w-full rounded-xl border border-neutral-300 bg-white px-3 text-base outline-none placeholder:text-neutral-400 focus:border-brand focus:ring-2 focus:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-60";
+  "h-11 w-full rounded-xl border border-neutral-300 bg-surface px-3 text-base outline-none placeholder:text-neutral-400 focus:border-brand focus:ring-2 focus:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-60";
 
 export function Input({ className, ...props }: ComponentProps<"input">) {
   return <input className={cn(controlClass, className)} {...props} />;
@@ -34,7 +34,7 @@ export function Field({ label, error, children }: { label: ReactNode; error?: st
     <label className="grid gap-1.5 text-sm font-medium">
       {label}
       {children}
-      {error && <span className="font-normal text-red-600">{error}</span>}
+      {error && <span className="font-normal text-red-600 dark:text-red-400">{error}</span>}
     </label>
   );
 }

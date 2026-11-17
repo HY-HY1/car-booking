@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { getRequestTenant } from "@/lib/tenant";
 import { themeStyle } from "@/lib/theme";
+import { THEME_SCRIPT } from "@/lib/theme-script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -21,7 +22,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const tenant = await getRequestTenant();
   return (
-    <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
+    // The theme script may add "dark" to <html> before React loads.
+    <html lang="en" className={`${geistSans.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body
         className="flex min-h-full flex-col font-sans"
         style={tenant ? themeStyle(tenant.branding) : undefined}

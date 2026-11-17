@@ -10,7 +10,7 @@ export function RequestForm() {
 
   if (state.done) {
     return (
-      <p className="mt-6 rounded-xl border bg-white p-4">
+      <p className="mt-6 rounded-xl border bg-surface p-4">
         Thanks, we&apos;ve got your request. We&apos;ll reply within one month, and we may contact you
         first to check it&apos;s really you.
       </p>
@@ -40,7 +40,7 @@ export function RequestForm() {
       <div aria-hidden className="absolute -left-[9999px]">
         <label>Website<input name="website" tabIndex={-1} autoComplete="off" /></label>
       </div>
-      {state.message && <p className="text-sm text-red-600">{state.message}</p>}
+      {state.message && <p className="text-sm text-red-600 dark:text-red-400">{state.message}</p>}
       <button
         type="submit"
         disabled={pending}

@@ -5,7 +5,7 @@ import { formatPhone } from "@leadgen/core/customer-fields";
 export function ContactLinks({ phone, email }: { phone: string | null; email: string | null }) {
   if (!phone && !email) return null;
   const link =
-    "inline-flex h-11 max-w-full items-center gap-2 rounded-full border border-current/25 bg-white px-4 text-sm font-medium text-neutral-900 transition hover:border-neutral-400";
+    "inline-flex h-11 max-w-full items-center gap-2 rounded-full border border-current/25 bg-surface px-4 text-sm font-medium text-neutral-900 transition hover:border-neutral-400";
   return (
     <div className="flex flex-wrap gap-2">
       {phone && (

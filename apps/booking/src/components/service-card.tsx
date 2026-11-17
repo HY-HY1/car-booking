@@ -14,7 +14,7 @@ export function ServiceCard({ service, href }: { service: Service; href: string 
   return (
     <Link
       href={href}
-      className="group flex h-full flex-col overflow-hidden rounded-2xl border bg-white shadow-xs transition hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-md"
+      className="group flex h-full flex-col overflow-hidden rounded-2xl border bg-surface shadow-xs transition hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-md"
     >
       <div className="relative aspect-video overflow-hidden bg-brand/15 text-neutral-500">
         {service.image_path ? (
@@ -26,7 +26,7 @@ export function ServiceCard({ service, href }: { service: Service; href: string 
             className="size-full object-cover transition duration-300 group-hover:scale-[1.03]"
           />
         ) : (
-          <div aria-hidden className="grid size-full place-items-center bg-linear-to-br from-white/40 to-transparent">
+          <div aria-hidden className="grid size-full place-items-center bg-linear-to-br from-surface/40 to-transparent">
             <Sparkles className="size-7 opacity-70" />
           </div>
         )}

@@ -46,7 +46,7 @@ export default async function ManagePage({ params, searchParams }: PageProps<"/s
               <h1 className="text-2xl font-semibold">{booking.serviceName ?? "Your booking"}</h1>
             </div>
 
-            <dl className="grid gap-3 rounded-2xl border bg-white p-4 text-sm">
+            <dl className="grid gap-3 rounded-2xl border bg-surface p-4 text-sm">
               <Detail icon={<CalendarDays className="size-4" />} label="When">
                 {formatFullDateTime(booking.startsAt, booking.timezone)}
               </Detail>
@@ -93,7 +93,7 @@ export default async function ManagePage({ params, searchParams }: PageProps<"/s
               </form>
             )}
             {booking.balanceToPayPence > 0 && (
-              <form action={payBalanceAction.bind(null, token)} className="grid gap-3 rounded-2xl border bg-white p-4 text-sm">
+              <form action={payBalanceAction.bind(null, token)} className="grid gap-3 rounded-2xl border bg-surface p-4 text-sm">
                 <p>
                   You have <span className="font-medium">{formatPence(booking.balanceToPayPence)}</span> left to pay. You can pay it now if you&apos;d like to.
                 </p>

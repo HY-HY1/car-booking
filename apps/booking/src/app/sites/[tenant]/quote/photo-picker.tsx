@@ -116,7 +116,7 @@ export function PhotoPicker({
                 <img src={p.preview} alt="" className="size-full object-cover" />
               )}
               {p.status === "uploading" && (
-                <div className="absolute inset-0 grid place-items-center bg-white/60">
+                <div className="absolute inset-0 grid place-items-center bg-surface/60">
                   <Loader2 className="size-6 animate-spin text-neutral-700" aria-label="Uploading" />
                 </div>
               )}
@@ -147,7 +147,7 @@ export function PhotoPicker({
         </ul>
       )}
       {room > 0 && (
-        <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-full border border-neutral-300 bg-white px-4 py-2.5 text-sm font-medium hover:border-neutral-400 focus-within:ring-2 focus-within:ring-brand/30">
+        <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-full border border-neutral-300 bg-surface px-4 py-2.5 text-sm font-medium hover:border-neutral-400 focus-within:ring-2 focus-within:ring-brand/30">
           <Camera className="size-4" />
           {photos.length ? "Add more photos" : "Add photos"}
           <input

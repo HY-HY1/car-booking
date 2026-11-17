@@ -6,7 +6,7 @@ import { formatFullDateTime } from "@leadgen/core/dates";
 import { ContactLinks } from "@/components/contact-links";
 
 const button =
-  "inline-flex h-11 items-center justify-center gap-2 rounded-full border border-neutral-300 bg-white px-4 text-sm font-medium transition hover:border-neutral-400";
+  "inline-flex h-11 items-center justify-center gap-2 rounded-full border border-neutral-300 bg-surface px-4 text-sm font-medium transition hover:border-neutral-400";
 
 export function calendarEntry(id: string, booking: BookingSummary, businessName: string, contact: { phone: string | null; email: string | null }): CalendarEntry {
   return {
@@ -67,7 +67,7 @@ export function Booked({
         {when}
       </p>
 
-      <dl className="mt-3 grid w-full grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-2xl border bg-white p-4 text-left text-sm">
+      <dl className="mt-3 grid w-full grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-2xl border bg-surface p-4 text-left text-sm">
         <dt className="text-neutral-500">Reference</dt>
         <dd className="text-right font-mono font-medium">{bookingReference(id)}</dd>
         <dt className="text-neutral-500">Takes about</dt>

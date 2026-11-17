@@ -607,7 +607,7 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
     <div className={props.embedded ? "grid gap-6" : "grid items-start gap-6 lg:grid-cols-[1fr_22rem]"}>
       <div className="grid gap-4">
         {phase === "pay" && checkoutUrl && (
-          <div className="grid justify-items-center gap-3 rounded-2xl border bg-white py-12 text-center">
+          <div className="grid justify-items-center gap-3 rounded-2xl border bg-surface py-12 text-center">
             <Loader2 className="size-8 animate-spin text-neutral-400" />
             <h2 className="text-xl font-semibold">Taking you to our secure payment page…</h2>
             <p className="max-w-sm text-sm text-neutral-500">
@@ -621,7 +621,7 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
         )}
 
         {phase === "done" && (
-          <div className="grid justify-items-center gap-3 rounded-2xl border bg-white py-12 text-center">
+          <div className="grid justify-items-center gap-3 rounded-2xl border bg-surface py-12 text-center">
             <Loader2 className="size-8 animate-spin text-neutral-400" />
             <h2 className="text-xl font-semibold">Booking you in…</h2>
           </div>
@@ -788,7 +788,7 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                         <button
                           type="button"
                           onClick={addCar}
-                          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-neutral-300 bg-white p-4 font-medium transition hover:border-neutral-500"
+                          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-neutral-300 bg-surface p-4 font-medium transition hover:border-neutral-500"
                         >
                           <Plus className="size-4" /> Add {extras.length ? "another" : "a second"} car
                         </button>
@@ -1092,7 +1092,7 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
             <StepCard {...cardProps("confirm")}>
               {quote && a.slot && (
                 <div className="grid gap-5">
-                  <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-2xl border bg-white p-4 text-sm">
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-2xl border bg-surface p-4 text-sm">
                     <dt className="text-neutral-500">When</dt>
                     <dd>
                       {formatFullDateTime(a.slot.startsAt, timezone)}
@@ -1143,14 +1143,14 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                     <TextField label="Anything else we should know? (optional)" value={a.notes} onChange={(notes) => set({ notes })} multiline />
                   )}
                   {props.policy && (
-                    <div className="rounded-xl border bg-white p-3 text-sm text-neutral-600">
+                    <div className="rounded-xl border bg-surface p-3 text-sm text-neutral-600">
                       <p className="mb-1 font-medium text-neutral-900">Cancellations and changes</p>
                       {props.policy.map((line) => (
                         <p key={line}>{line}</p>
                       ))}
                     </div>
                   )}
-                  <div className="grid gap-2 rounded-xl border bg-white p-3 text-sm">
+                  <div className="grid gap-2 rounded-xl border bg-surface p-3 text-sm">
                     <label htmlFor="promo-code" className="font-medium text-neutral-900">Discount code</label>
                     {promo ? (
                       <p className="flex items-center justify-between gap-3">
@@ -1296,7 +1296,7 @@ function StepCard({
     <section
       id={`step-${id}`}
       aria-labelledby={`step-${id}-title`}
-      className={`scroll-mt-4 rounded-2xl border bg-white ${state === "todo" ? "border-dashed border-neutral-300 opacity-70" : "border-neutral-200"}`}
+      className={`scroll-mt-4 rounded-2xl border bg-surface ${state === "todo" ? "border-dashed border-neutral-300 opacity-70" : "border-neutral-200"}`}
     >
       <header className="flex items-center gap-3 p-4">
         <span
@@ -1366,7 +1366,7 @@ function Summary({
   ].filter((r): r is [string, string] => Boolean(r[1]));
   return (
     <aside aria-label="Your booking" className={`grid gap-3 ${sticky ? "lg:sticky lg:top-6" : ""}`}>
-      <div className="rounded-2xl border bg-white p-4">
+      <div className="rounded-2xl border bg-surface p-4">
         <h2 className="mb-3 font-semibold">Your booking</h2>
         {rows.length > 0 ? (
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
@@ -1427,7 +1427,7 @@ function ExtraCarCard({
   const fits = service ? addOns.filter((x) => addOnFitsService(x, service.id)) : [];
   const { make, model } = carName(car);
   return (
-    <div className="grid gap-4 rounded-2xl border bg-white p-4">
+    <div className="grid gap-4 rounded-2xl border bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
         <h4 className="font-semibold">Car {n}</h4>
         <button type="button" onClick={onRemove} className="text-sm text-neutral-500 underline underline-offset-4 hover:text-neutral-900">
@@ -1574,7 +1574,7 @@ function ServiceCard({
       type="button"
       onClick={onClick}
       aria-pressed={selected}
-      className={`w-full overflow-hidden rounded-2xl border bg-white text-left transition hover:border-neutral-400 ${
+      className={`w-full overflow-hidden rounded-2xl border bg-surface text-left transition hover:border-neutral-400 ${
         selected ? "border-brand ring-2 ring-brand" : "border-neutral-200"
       }`}
     >
@@ -1628,7 +1628,7 @@ function Option({
       type="button"
       onClick={onClick}
       aria-pressed={selected}
-      className={`flex w-full items-center gap-3 rounded-2xl border bg-white p-4 text-left transition hover:border-neutral-400 ${
+      className={`flex w-full items-center gap-3 rounded-2xl border bg-surface p-4 text-left transition hover:border-neutral-400 ${
         selected ? "border-brand ring-2 ring-brand" : "border-neutral-200"
       }`}
     >
@@ -1761,7 +1761,7 @@ function PriceBar({
         : null;
   return (
     <div
-      className={`sticky bottom-0 z-10 -mx-4 flex items-baseline justify-between gap-3 border-t bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur ${embedded ? "" : "sm:-mx-6 lg:hidden"}`}
+      className={`sticky bottom-0 z-10 -mx-4 flex items-baseline justify-between gap-3 border-t bg-surface/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur ${embedded ? "" : "sm:-mx-6 lg:hidden"}`}
     >
       <span className="font-semibold">
         {quote ? formatPence(quote.total_pence) : service && `From ${formatPence(service.base_price_pence)}`}
@@ -1809,6 +1809,6 @@ function goToCheckout(url: string) {
 
 function chip(selected: boolean) {
   return `shrink-0 rounded-xl border px-3 py-2 text-center text-sm transition ${
-    selected ? "border-brand bg-brand text-brand-fg" : "border-neutral-200 bg-white hover:border-neutral-400"
+    selected ? "border-brand bg-brand text-brand-fg" : "border-neutral-200 bg-surface hover:border-neutral-400"
   }`;
 }
