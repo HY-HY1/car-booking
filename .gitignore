@@ -49,3 +49,12 @@ stripe.exe
 
 # vercel CLI project link
 .vercel
+
+# scratch files kept locally, not in the repo
+.rest
+stripeforward.txt
+command.md
+check-tmp.mjs
+
+# written by `next dev` into each app
+apps/*/AGENTS.md

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cn } from "cn"
+import { cn } from "@/lib/utils"
 import { Input } from "./input"
 
 // An amount in pounds, with the £ in the field. className sizes the whole

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cn } from "cn"
+import { cn } from "@/lib/utils"
 
 // What a list or section shows when there's nothing in it. Compact is for one
 // inside a card or a form.

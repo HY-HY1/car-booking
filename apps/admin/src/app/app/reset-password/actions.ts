@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { setMustChangePassword } from "@leadgen/core/account/password-change";
 import { createClient } from "@/lib/supabase/server";
 import { appUrl } from "@/lib/urls";
 
@@ -13,8 +14,10 @@ export async function confirmPasswordReset(token: string): Promise<ResetState> {
   if (!token) return { error: "This link isn't complete. Ask for a new one." };
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.verifyOtp({ type: "recovery", token_hash: token });
-  if (error) return { error: "This link has expired or has already been used. Ask for a new one." };
+  const { data, error } = await supabase.auth.verifyOtp({ type: "recovery", token_hash: token });
+  if (error || !data.user) return { error: "This link has expired or has already been used. Ask for a new one." };
+  // The one time /account/password may set a password without the old one.
+  await setMustChangePassword(data.user.id, true);
 
   redirect(appUrl("/account/password"));
 }

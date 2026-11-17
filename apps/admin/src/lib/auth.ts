@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
+import { emailCheckPending } from "@leadgen/core/account/email-check";
 import { awaitingSecondFactor } from "@leadgen/core/account/rules";
 import { hasAccess } from "@leadgen/core/billing/rules";
 import { can, type Permission, type Role } from "@leadgen/core/team/access";
@@ -12,7 +13,10 @@ import { appUrl, loginUrl, secondFactorUrl } from "@/lib/urls";
 export type TenantRole = Role;
 export type Tenant = { id: string; name: string; slug: string; subscription_status: string | null };
 export type Membership = { role: TenantRole; tenant: Tenant };
-export type CurrentUser = { id: string; email: string | null };
+// emailUnchecked: signed up but hasn't pressed the link in our email yet
+// (account/email-check.ts). From the session, so it can be out of date until
+// the session refreshes; /verify-email reads it fresh.
+export type CurrentUser = { id: string; email: string | null; emailUnchecked: boolean };
 
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const supabase = await createClient();
@@ -21,6 +25,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   return {
     id: data.claims.sub,
     email: typeof data.claims.email === "string" ? data.claims.email : null,
+    emailUnchecked: emailCheckPending(data.claims.app_metadata),
   };
 });
 
@@ -80,6 +85,8 @@ export async function requireTenant(slug: string) {
   if (!hasAccess(membership.tenant.subscription_status)) {
     redirect(appUrl(`/signup/billing?tenant=${encodeURIComponent(slug)}`));
   }
+  // Card added, email not yet confirmed: the dashboard waits for that.
+  if (user.emailUnchecked) redirect(appUrl(`/verify-email?next=${encodeURIComponent(appUrl(`/${slug}`))}`));
   const role = membership.role;
   // What this person's access level allows (team/access.ts).
   return { user, ...membership, can: (permission: Permission) => can(role, permission) };

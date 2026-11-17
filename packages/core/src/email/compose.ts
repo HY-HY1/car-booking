@@ -1,5 +1,6 @@
 import { formatPence } from "../booking/config";
 import { PRODUCT_NAME } from "../brand";
+import { addressHasLink, looksLikeLink } from "../customer-fields";
 import { readableOn, visibleOn } from "../branding/colors";
 import type { CustomerMessage } from "../settings/notifications";
 
@@ -60,8 +61,18 @@ export function formatMoney(pence: number) {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", minimumFractionDigits: 2 }).format(pence / 100);
 }
 
+// "there" for a name saved before names were checked for web addresses
+// (customer-fields.ts), so "Hi there," rather than a link in the greeting.
 export function firstName(name: string) {
-  return name.trim().split(/\s+/)[0] ?? "";
+  const first = name.trim().split(/\s+/)[0] ?? "";
+  return looksLikeLink(first) ? "there" : first;
+}
+
+// Customer-typed text going into an email with any web or email address
+// broken up, so neither our linkify() nor the mail app makes it a link.
+export function unlinked(text: string) {
+  if (!addressHasLink(text)) return text;
+  return text.replace(/:\/\//g, ": //").replace(/www\./gi, "www .").replace(/@/g, " at ");
 }
 
 // An address typed in lower case ("80 springbank way, gl51 0qx") with
@@ -475,6 +486,21 @@ export function requestReceived(f: BookingFacts): Composed {
   };
 }
 
+// Double opt-in: the customer ticked "send me offers" on the booking page,
+// and it only counts once they confirm from their own inbox.
+export function marketingConsent(f: { customerName: string; businessName: string }, url: string): Composed {
+  return {
+    subject: `Confirm you'd like offers from ${f.businessName}`,
+    eyebrow: "Offers and news",
+    heading: "Confirm your subscription",
+    body: `Hi ${firstName(f.customerName)},
+
+You asked to hear about offers and news from ${f.businessName}. Confirm below and we'll add you. Until then you won't get any.`,
+    button: { label: "Yes, send me offers", url },
+    after: "Didn't ask for this? Ignore this email and you won't be added.",
+  };
+}
+
 export function declined(f: BookingFacts, opts: { reason: string | null; refundedPence: number | null }): Composed {
   const reason = opts.reason ? `\n\n${opts.reason}` : "";
   const refund =
@@ -794,6 +820,18 @@ export function ownerPaymentProblem(detail: string, link: string): Composed {
 }
 
 // ---------------------------------------------------------------- accounts
+
+// Sign-up: checking the new owner owns their email (account/email-check.ts).
+export function confirmEmail(url: string): Composed {
+  return {
+    subject: "Confirm your email address",
+    eyebrow: "Your account",
+    heading: "Confirm your email",
+    body: "Press the button to confirm this is your email address. Your dashboard opens once you have.",
+    button: { label: "Confirm my email", url },
+    after: "Didn't sign up? Ignore this email and the account won't be used.",
+  };
+}
 
 export function passwordReset(url: string): Composed {
   return {

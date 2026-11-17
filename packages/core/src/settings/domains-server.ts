@@ -18,19 +18,63 @@ export async function addCustomDomain(tenantId: string, hostname: string) {
   // 23505: hostnames are unique across all businesses.
   if (error?.code === "23505") return { ok: false as const, message: "That address is already connected to a booking page." };
   if (error) throw error;
-  await addDomainToHosting(hostname);
+  // Not given to Vercel yet: only once its DNS proves it's theirs
+  // (checkCustomDomain), so nobody can add someone else's domain to the project.
   return { ok: true as const };
 }
 
-// TODO(custom domains): add the domain to the Vercel project, so Vercel serves
-// it and issues its certificate. Until this is wired up, a platform admin adds
-// each verified domain by hand (Vercel → Project → Settings → Domains, or
-// `vercel domains add <domain> bookings-cars`). When it is: POST
-// https://api.vercel.com/v10/projects/{project}/domains with { name: hostname }
-// and a VERCEL_TOKEN, call the matching DELETE from removeCustomDomain, and
-// show Vercel's own verification records next to ours in Settings.
-async function addDomainToHosting(hostname: string) {
-  void hostname;
+// Vercel has to know a domain before it serves it and issues its
+// certificate, so each one is added to the Vercel project through its API
+// (needs VERCEL_API_TOKEN and VERCEL_PROJECT_ID, plus VERCEL_TEAM_ID for a
+// team's project). Unknown hosts are routed to the booking app (vercel.json).
+// Without the token a platform admin adds each domain by hand (Vercel →
+// Project → Settings → Domains) and marks it verified in the admin panel, and
+// owners are told it'll be connected within a day.
+const VERCEL_API = "https://api.vercel.com";
+
+export function hostingConnected() {
+  return Boolean(process.env.VERCEL_API_TOKEN && process.env.VERCEL_PROJECT_ID);
+}
+
+async function vercel(method: "GET" | "POST" | "DELETE", path: string, body?: object) {
+  const team = process.env.VERCEL_TEAM_ID ? `?teamId=${encodeURIComponent(process.env.VERCEL_TEAM_ID)}` : "";
+  const project = encodeURIComponent(process.env.VERCEL_PROJECT_ID!);
+  return fetch(`${VERCEL_API}${path.replace("{project}", project)}${team}`, {
+    method,
+    headers: { Authorization: `Bearer ${process.env.VERCEL_API_TOKEN}`, "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(10_000),
+  });
+}
+
+// True once Vercel has the domain (added now, or already there).
+async function addDomainToHosting(hostname: string): Promise<boolean> {
+  if (!hostingConnected()) return false;
+  try {
+    const res = await vercel("POST", "/v10/projects/{project}/domains", { name: hostname });
+    if (res.ok) return true;
+    const error = ((await res.json().catch(() => ({}))) as { error?: { code?: string; message?: string } }).error;
+    // A conflict: fine if it's already on this project from an earlier try.
+    if (res.status === 409) {
+      const mine = await vercel("GET", `/v9/projects/{project}/domains/${encodeURIComponent(hostname)}`);
+      if (mine.ok) return true;
+    }
+    console.error("[domains] Vercel refused", hostname, res.status, error);
+    return false;
+  } catch (error) {
+    console.error("[domains] couldn't reach Vercel", hostname, error);
+    return false;
+  }
+}
+
+async function removeDomainFromHosting(hostname: string) {
+  if (!hostingConnected()) return;
+  try {
+    const res = await vercel("DELETE", `/v9/projects/{project}/domains/${encodeURIComponent(hostname)}`);
+    if (!res.ok && res.status !== 404) console.error("[domains] Vercel didn't remove", hostname, res.status);
+  } catch (error) {
+    console.error("[domains] couldn't reach Vercel to remove", hostname, error);
+  }
 }
 
 async function lookup<T>(fn: () => Promise<T>): Promise<T | null> {
@@ -81,6 +125,17 @@ export async function checkCustomDomain(tenantId: string, domainId: string) {
     problems.push(`We can't see the TXT record with your code at ${VERIFY_PREFIX}.${domain.hostname} yet.`);
   }
 
+  // The records are right: Vercel has to take the domain too before it's
+  // live. Without the API connected, that's done by hand (see above).
+  if (problems.length === 0 && !(await addDomainToHosting(domain.hostname))) {
+    problems.push(
+      hostingConnected()
+        ? "Your DNS is right, but we couldn't finish connecting it just now. Try again in a few minutes."
+        : "Your DNS is right. We'll finish connecting it on our side within a day: check back here then.",
+    );
+    if (!hostingConnected()) console.warn(`[domains] ${domain.hostname} is ready to add in Vercel by hand`);
+  }
+
   const verified = problems.length === 0;
   const update = await db
     .from("domains")
@@ -100,7 +155,7 @@ export async function removeCustomDomain(tenantId: string, domainId: string) {
   const db = createAdminClient();
   const { data, error } = await db
     .from("domains")
-    .select("id")
+    .select("id, hostname")
     .eq("tenant_id", tenantId)
     .eq("id", domainId)
     .maybeSingle();
@@ -108,6 +163,7 @@ export async function removeCustomDomain(tenantId: string, domainId: string) {
   if (!data) return { ok: true as const };
   const removed = await db.from("domains").delete().eq("tenant_id", tenantId).eq("id", domainId);
   if (removed.error) throw removed.error;
+  await removeDomainFromHosting(data.hostname);
   return { ok: true as const };
 }
 

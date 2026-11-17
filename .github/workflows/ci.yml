@@ -1,0 +1,35 @@
+# Every push and pull request: a clean install from the lockfile, then the
+# same checks to run before deploying. No secrets: the builds use stand-in
+# values, since nothing is fetched from Supabase or Stripe while building.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      ROUTING_MODE: path
+      NEXT_PUBLIC_ROUTING_MODE: path
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci
+      SUPABASE_SECRET_KEY: sb_secret_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

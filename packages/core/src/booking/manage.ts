@@ -14,7 +14,7 @@ import { dayRange } from "./availability";
 import { bookableDatesFor, openSlots } from "./capacity";
 import type { LocationType } from "./config";
 import { getBookingConfig, loadBusyByResource, type BookingConfig, type EngineResult, type Slot } from "./engine";
-import { customerOptions, depositOwed, refundLine, verifyManageToken, type CustomerOptions } from "./manage-rules";
+import { customerOptions, depositOwed, manageLinkExpired, refundLine, verifyManageToken, type CustomerOptions } from "./manage-rules";
 import { isIsoDate, localDate, localTime } from "./time";
 
 // A customer cancelling or moving their own booking, from the signed link in
@@ -70,6 +70,8 @@ async function load(tenantId: string, token: string): Promise<Loaded | null> {
   if (booking.error) throw booking.error;
   if (settings.error) throw settings.error;
   if (!booking.data) return null;
+  // Old links stop working (manage-rules.ts).
+  if (manageLinkExpired((booking.data as unknown as Row).ends_at)) return null;
   return {
     row: booking.data as unknown as Row,
     policy: policyOf(settings.data?.cancellation_policy),

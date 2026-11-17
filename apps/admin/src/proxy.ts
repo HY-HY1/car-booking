@@ -50,7 +50,9 @@ export async function proxy(request: NextRequest) {
     cfg.mode === "subdomain" ? (host === "admin" ? adminUrl : appUrl)(pathname + search) : pathname + search;
   const signingIn = internal === "/app/login";
   const isPublic =
-    signingIn || isUnder(internal, "/app/signup") || isUnder(internal, "/app/forgot-password") || isUnder(internal, "/app/reset-password");
+    signingIn || isUnder(internal, "/app/signup") || isUnder(internal, "/app/forgot-password") || isUnder(internal, "/app/reset-password") ||
+    // The emailed link works in any browser, signed in or not: the token is the proof.
+    isUnder(internal, "/app/verify-email/confirm");
   const isProtected = (isUnder(internal, "/app") || isUnder(internal, "/admin")) && !isPublic;
 
   return withSession(request, respond, {

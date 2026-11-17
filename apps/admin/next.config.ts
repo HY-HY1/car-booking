@@ -35,11 +35,29 @@ if (process.env.VERCEL && existsSync(vercelJson)) {
   }
 }
 
+// Sent with every page and file. The dashboard can refund payments and erase
+// customers, so no other site may load it in a frame and trick an owner into
+// clicking (the booking app, which businesses embed, sets its own).
+const SECURITY_HEADERS = [
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), browsing-topics=()" },
+];
+
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+  },
   partialPrefetching: true,
-  // Service header images (up to 5 MB each, a header and up to 8 gallery photos) are uploaded through a server action.
-  experimental: { serverActions: { bodySizeLimit: "45mb" } },
+  // Images are uploaded through server actions, shrunk in the browser first.
+  // Vercel refuses any request over 4.5 MB whatever this says, so it's kept
+  // under that here too, so a too-big upload fails locally the same way.
+  experimental: { serverActions: { bodySizeLimit: "4mb" } },
   transpilePackages: ["@leadgen/core"],
   // Serve images as they are. On Vercel this app runs as one of two
   // services (vercel.json) and /_next/image 404s there, which broke every

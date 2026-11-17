@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cn } from "cn"
+import { cn } from "@/lib/utils"
 
 type ChoiceProps = Omit<React.ComponentProps<"input">, "type"> & {
   // Styles the label around the box, when there is one.

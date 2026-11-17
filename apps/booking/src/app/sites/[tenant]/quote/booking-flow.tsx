@@ -52,6 +52,7 @@ import { DateTimePicker } from "./date-time-picker";
 import { clearDraft, forgetOpeningDraft, openingDraft, parseDraft, saveDraft } from "./draft";
 import { PhotoPicker, type PhotoItem } from "./photo-picker";
 import { formatFullDateTime } from "@leadgen/core/dates";
+import { useHumanCheck } from "@/lib/use-human-check";
 
 // The booking page: every step on one page, the finished ones folded down to
 // a line, with the price following the customer in a summary beside it. The
@@ -288,6 +289,8 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
   const [promo, setPromo] = useState<Promo | null>(null);
   const [promoCode, setPromoCode] = useState("");
   const router = useRouter();
+  // The bot check (Turnstile) for the two calls that email people.
+  const { ref: humanCheckRef, getToken: humanToken } = useHumanCheck();
 
   const service = services.find((s) => s.id === a.serviceId);
   const serviceAddOns = service ? addOns.filter((x) => addOnFitsService(x, service.id)) : [];
@@ -1069,7 +1072,7 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                     disabled={!a.name.trim() || !a.email.trim() || !a.phone.trim()}
                     onClick={() =>
                       run(
-                        () =>
+                        async () =>
                           saveLeadAction({
                             ...quoteRequest(),
                             ...place(),
@@ -1080,7 +1083,7 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                               access: access(),
                               details: details(false),
                             },
-                          }),
+                          }, await humanToken()),
                         next,
                       )
                     }
@@ -1206,7 +1209,7 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                     pending={pending}
                     onClick={() =>
                       run(
-                        () =>
+                        async () =>
                           bookAction({
                             ...quoteRequest(),
                             ...place(),
@@ -1219,7 +1222,7 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                             notes: a.notes,
                             expectedTotalPence: quote.total_pence,
                             promoCode: promo?.code,
-                          }),
+                          }, await humanToken()),
                         (result) => {
                           const url = "checkoutUrl" in result ? result.checkoutUrl : null;
                           clearDraft(slug);
@@ -1228,9 +1231,11 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                             setCheckoutUrl(url);
                             setPhase("pay");
                             goToCheckout(url);
-                          } else if ("bookingId" in result) {
+                          } else if ("confirmedPath" in result) {
                             setPhase("done");
-                            router.push(pageUrl(props.tenant, `/confirmed/${result.bookingId}${props.embedded ? "?embed=1" : ""}`));
+                            const path = result.confirmedPath;
+                            const embed = props.embedded ? `${path.includes("?") ? "&" : "?"}embed=1` : "";
+                            router.push(pageUrl(props.tenant, `${path}${embed}`));
                           }
                         },
                       )
@@ -1246,6 +1251,8 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
               )}
             </StepCard>
 
+            {/* Where the bot check shows, if Cloudflare asks this visitor to tick a box. */}
+            <div ref={humanCheckRef} className="flex justify-center empty:hidden" />
             {(quote || service) && (
               <PriceBar quote={quote} service={service} deposit={pricing.deposit} embedded={props.embedded} />
             )}

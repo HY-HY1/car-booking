@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { createAdminClient } from "../supabase/admin";
 import { wouldLeaveNoOwner, type Role } from "./access";
+import { TEMPORARY_PASSWORD } from "../account/password-change";
 
 // The logins that can open a business (Team → Logins & access). Written
 // with the secret key: callers check the signed-in user can("team.manage")
@@ -85,6 +86,7 @@ export async function addTeamMember(
       email: input.email,
       password: tempPassword,
       email_confirm: true,
+      app_metadata: TEMPORARY_PASSWORD,
       user_metadata: input.name ? { full_name: input.name } : {},
     });
     if (error) throw error;

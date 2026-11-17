@@ -1,6 +1,6 @@
 import "server-only";
 import { unsubscribeCustomer } from "@leadgen/core/privacy/data";
-import { verifyUnsubscribeToken } from "@leadgen/core/privacy/rules";
+import { verifyOptInToken, verifyUnsubscribeToken } from "@leadgen/core/privacy/rules";
 import { createAdminClient } from "@leadgen/core/supabase/admin";
 
 // The customer an unsubscribe link is for. The token proves the link came
@@ -26,4 +26,20 @@ export async function unsubscribeWithToken(tenantId: string, token: string) {
   if (!claim) return false;
   await unsubscribeCustomer(tenantId, claim.customerId, claim.channel);
   return true;
+}
+
+// The customer a marketing opt-in confirmation link is for, on the same terms.
+export async function optInClaim(tenantId: string, token: string) {
+  const secret = process.env.PRIVACY_TOKEN_SECRET;
+  if (!secret || !token) return null;
+  const claim = await verifyOptInToken(secret, token);
+  if (!claim) return null;
+  const { data, error } = await createAdminClient()
+    .from("customers")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("id", claim.customerId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? claim : null;
 }

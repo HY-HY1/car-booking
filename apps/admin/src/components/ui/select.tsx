@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cn } from "cn"
+import { cn } from "@/lib/utils"
 import { controlClass } from "./control"
 
 // A native dropdown, so phones get their own picker. The arrow is drawn in

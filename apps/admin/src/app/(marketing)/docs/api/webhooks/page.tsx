@@ -171,7 +171,7 @@ export default function WebhooksDocs() {
       </p>
       <CodeBlock
         title="201 Created · application/json"
-        code={JSON.stringify({ ...exampleWebhook, secret: "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw" }, null, 2)}
+        code={JSON.stringify({ ...exampleWebhook, secret: "whsec_ZXhhbXBsZS1zaWduaW5nLXNlY3JldA==" }, null, 2)}
       />
       <Statuses
         rows={[

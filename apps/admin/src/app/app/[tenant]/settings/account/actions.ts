@@ -1,5 +1,6 @@
 "use server";
 
+import { setMustChangePassword } from "@leadgen/core/account/password-change";
 import { MIN_PASSWORD } from "@leadgen/core/billing/rules";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
@@ -90,6 +91,8 @@ export async function changePasswordAction(slug: string, formData: FormData): Pr
     console.error("Password change failed", error);
     return { message: "Couldn't change your password. Try again." };
   }
+  // A temporary password replaced here no longer needs /account/password.
+  await setMustChangePassword(user.id, false).catch((e) => console.error("Couldn't clear the temporary-password flag", e));
   await logActivity(tenant.id, "account.password_changed", "Changed their password");
   return { saved: true };
 }

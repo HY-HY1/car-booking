@@ -2,7 +2,7 @@ import { z } from "zod";
 import { SIZE_CLASSES } from "../booking/config";
 import { isUkPostcode } from "../booking/geo";
 import { isIsoDate, zonedTimeToUtc } from "../booking/time";
-import { normalizePhone, normalizePostcode } from "../customer-fields";
+import { looksLikeLink, normalizePhone, normalizePostcode } from "../customer-fields";
 import type { BookingStatus, LeadStatus, SizeClass } from "./types";
 
 // Reading the API's query strings and bodies, and its list cursors. Pure, so
@@ -228,7 +228,9 @@ const text = (max: number) => z.string().trim().max(max);
 
 export const createLeadSchema = z
   .object({
-    name: text(200).min(1, "name is required."),
+    name: text(200)
+      .min(1, "name is required.")
+      .refine((v) => !looksLikeLink(v), "name can't contain a web or email address."),
     email: text(320).toLowerCase().pipe(z.email("email isn't a valid email address.")).optional(),
     phone: text(40)
       .refine((v) => normalizePhone(v) !== null, "phone isn't a valid phone number.")

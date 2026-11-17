@@ -29,11 +29,8 @@
     "@types/react-dom": "^19",
     "concurrently": "^9",
     "eslint": "^9",
-    "eslint-config-next": "16.4.3",
+    "eslint-config-next": "16.4.6",
     "typescript": "^5",
     "vitest": "^5.0.4"
-  },
-  "optionalDependencies": {
-    "@rolldown/binding-win32-x64-msvc": "1.2.13"
   }
 }

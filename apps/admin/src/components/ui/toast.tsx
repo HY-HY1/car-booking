@@ -2,7 +2,7 @@
 
 import { Toast } from "@base-ui/react/toast"
 import { CircleAlert, CircleCheck, X } from "lucide-react"
-import { cn } from "cn"
+import { cn } from "@/lib/utils"
 
 const manager = Toast.createToastManager()
 

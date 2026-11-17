@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { newEmailCheck, sendEmailCheck } from "@leadgen/core/account/email-check";
 import { hitRateLimit } from "@leadgen/core/api/rate-limit";
 import { AWAITING_CHECKOUT, signupSchema, slugCandidates } from "@leadgen/core/billing/rules";
 import { TERMS_VERSION } from "@leadgen/core/privacy/platform";
@@ -33,6 +34,9 @@ const EMAIL_CHECKS_PER_10_MIN = 30;
 // Two stages of typing take a person longer than this; a script, no time.
 const FASTEST_HUMAN_MS = 4_000;
 
+// The visitor's IP address. Vercel sets x-forwarded-for from the connection
+// itself (replacing anything the visitor sent), so it can be trusted there;
+// behind another host it may need changing.
 async function visitor() {
   const h = await headers();
   return h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
@@ -110,12 +114,15 @@ export async function signUpAction(_prev: SignUpState, formData: FormData): Prom
   if (!limit.allowed) return { message: TOO_MANY, values };
 
   const db = createAdminClient();
-  // Confirmed straight away: the card on the next screen is the check that
-  // this is a real person, and there's no email sender to confirm with yet.
+  // Confirmed for Supabase straight away, so they can sign in and add their
+  // card now; our own check (account/email-check.ts) keeps the dashboard
+  // locked until they press the link we email them.
+  const emailCheck = newEmailCheck();
   const created = await db.auth.admin.createUser({
     email: signup.email,
     password: signup.password,
     email_confirm: true,
+    app_metadata: emailCheck.appMetadata,
     user_metadata: { name: signup.name },
   });
   if (created.error) {
@@ -169,6 +176,11 @@ export async function signUpAction(_prev: SignUpState, formData: FormData): Prom
     await db.auth.admin.deleteUser(userId);
     return { message: "Couldn't set up your business. Nothing was saved; please try again.", values };
   }
+
+  // Sent now, so it's waiting in their inbox by the time they've added their card.
+  await sendEmailCheck(userId, signup.email, emailCheck.token).catch((error) =>
+    console.error("Sign-up: couldn't send the email check", error),
+  );
 
   const supabase = await createClient();
   const signedIn = await supabase.auth.signInWithPassword({ email: signup.email, password: signup.password });

@@ -3,7 +3,7 @@
 Roles: each business is the **controller** of its customers' data; ASCND is its
 **processor**. ASCND is the **controller** of the business owners' own account data.
 
-## Built (migration 20261023120000_gdpr.sql, not yet applied)
+## Built (migration 20261023120000_gdpr.sql, applied)
 - **Erasure**: owner "Erase customer" on the customer page. No bookings → deleted.
   Has bookings → anonymised (bookings kept for accounts, name/contact/address/notes/
   vehicles/photos removed). Core: `privacy/data.ts` `eraseCustomer`, SQL

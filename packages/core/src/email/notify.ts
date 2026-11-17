@@ -4,7 +4,7 @@ import type Stripe from "stripe";
 import { formatPence, withExtraCars } from "../booking/config";
 import { manageBookingUrl } from "../booking/manage-link";
 import { depositOwed, refundLine } from "../booking/manage-rules";
-import { signUnsubscribeToken } from "../privacy/rules";
+import { signOptInToken, signUnsubscribeToken } from "../privacy/rules";
 import { notificationsOf, renderTemplate, type NotificationSettings, type TemplateField } from "../settings/notifications";
 import type { RefundAdvice } from "../settings/policy";
 import { createAdminClient } from "../supabase/admin";
@@ -27,6 +27,7 @@ import {
   formatDay,
   fromHeader,
   lateRefund,
+  marketingConsent,
   ownerCancellation,
   ownerDispute,
   ownerFooter,
@@ -42,6 +43,7 @@ import {
   rescheduled,
   templateMessage,
   tidyAddress,
+  unlinked,
   type BookingFacts,
   type Composed,
   type EmailBrand,
@@ -80,6 +82,7 @@ export type EmailKind =
   | "rebook_reminder"
   | "slot_opened"
   | "campaign"
+  | "marketing_confirm"
   | "owner_new_booking"
   | "owner_cancellation"
   | "owner_new_lead"
@@ -262,7 +265,7 @@ function bookingFacts(t: TenantContext, b: BookingContext): BookingFacts {
     service: b.service,
     date: formatDay(b.startsAt, t.timezone),
     time: formatClock(b.startsAt, t.timezone),
-    address: tidyAddress(b.address),
+    address: unlinked(tidyAddress(b.address)),
     bookingLink: t.siteUrl,
   };
 }
@@ -469,6 +472,35 @@ export async function notifySlotOpened(tenantId: string, bookingId: string) {
         ),
       });
     }
+  });
+}
+
+// ---------------------------------------------------------------- marketing consent
+
+// The customer ticked "send me offers" on the booking page. Anyone could
+// tick it with someone else's address, so it's recorded as asked for, and
+// only becomes consent once they press the link in this email (the booking
+// site's /subscribe page). Sent once per customer.
+export async function notifyMarketingConsent(tenantId: string, customerId: string) {
+  await quietly("marketing consent", async () => {
+    const secret = process.env.PRIVACY_TOKEN_SECRET;
+    if (!secret) return;
+    const db = createAdminClient();
+    const [t, c] = await Promise.all([
+      loadTenant(db, tenantId),
+      db.from("customers").select("name, email, email_marketing").eq("tenant_id", tenantId).eq("id", customerId).maybeSingle(),
+    ]);
+    if (c.error) throw c.error;
+    if (!t || !c.data?.email || c.data.email_marketing) return;
+    const token = await signOptInToken(secret, customerId);
+    const url = tenantUrl(t.slug, `/subscribe?t=${token}`, { absolute: true, customDomain: t.customDomain });
+    await send(db, t, {
+      kind: "marketing_confirm",
+      dedupeKey: `marketing_confirm:${customerId}`,
+      customerId,
+      to: c.data.email,
+      content: marketingConsent({ customerName: c.data.name, businessName: t.name }, url),
+    });
   });
 }
 

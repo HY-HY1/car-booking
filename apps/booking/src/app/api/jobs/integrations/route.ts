@@ -1,3 +1,4 @@
+import { refuseUnlessCron } from "@leadgen/core/cron-auth";
 import { runReviewJobs } from "@leadgen/core/reviews/sync";
 import { runWebhookJobs } from "@leadgen/core/webhooks/deliver";
 
@@ -5,11 +6,8 @@ import { runWebhookJobs } from "@leadgen/core/webhooks/deliver";
 // clears out old webhook deliveries, and rereads every connected business's
 // Google reviews. Daily (vercel.json); same CRON_SECRET as the other jobs.
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return new Response("Not configured", { status: 404 });
-  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
-    return new Response("Unauthorized", { status: 401 });
-  }
+  const refused = refuseUnlessCron(request);
+  if (refused) return refused;
   const [webhooks, reviews] = await Promise.allSettled([runWebhookJobs(), runReviewJobs()]);
   const outcome = (r: PromiseSettledResult<unknown>) => {
     if (r.status === "fulfilled") return r.value;

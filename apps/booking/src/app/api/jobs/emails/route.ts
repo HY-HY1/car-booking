@@ -1,3 +1,4 @@
+import { refuseUnlessCron } from "@leadgen/core/cron-auth";
 import { runScheduledEmails } from "@leadgen/core/email/notify";
 
 // GET /api/jobs/emails: reminders, aftercare and review requests, and alerts
@@ -5,10 +6,7 @@ import { runScheduledEmails } from "@leadgen/core/email/notify";
 // minutes; Vercel Cron (vercel.json) runs it daily on the Hobby plan, so a
 // more frequent caller sends "Authorization: Bearer $CRON_SECRET" too.
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return new Response("Not configured", { status: 404 });
-  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
-    return new Response("Unauthorized", { status: 401 });
-  }
+  const refused = refuseUnlessCron(request);
+  if (refused) return refused;
   return Response.json({ ok: true, ...(await runScheduledEmails()) });
 }

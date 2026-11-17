@@ -35,8 +35,21 @@ if (process.env.VERCEL && existsSync(vercelJson)) {
   }
 }
 
+// Sent with every page and file. No frame rules: businesses embed the booking
+// page on their own websites (the dashboard's preview frames it too).
+const SECURITY_HEADERS = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), browsing-topics=()" },
+];
+
 const nextConfig: NextConfig = {
   transpilePackages: ["@leadgen/core"],
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+  },
   // In path mode this app shares one origin with the admin app, which owns
   // /_next. This app's own files are served under /booking/_next instead, and
   // /booking/* is routed here (routing/rules.mjs → vercel.json). Kept in

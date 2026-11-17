@@ -6,6 +6,7 @@ import type { Role } from "../team/access";
 import { createAdminClient } from "../supabase/admin";
 import { isCustomHostname } from "../tenants";
 import { bookingSettingsFor, brandingFor, STARTER_SERVICES, startingResources, type NewBusiness } from "./rules";
+import { TEMPORARY_PASSWORD } from "../account/password-change";
 
 // Onboarding and managing businesses (tenants) from the platform admin panel.
 // Everything here uses the secret key, so callers must have already checked
@@ -54,7 +55,12 @@ async function ensureUser(db: SupabaseClient, email: string): Promise<EnsuredUse
   if (existing) return { userId: existing.id, tempPassword: null };
 
   const tempPassword = randomBytes(12).toString("base64url");
-  const { data, error } = await db.auth.admin.createUser({ email, password: tempPassword, email_confirm: true });
+  const { data, error } = await db.auth.admin.createUser({
+    email,
+    password: tempPassword,
+    email_confirm: true,
+    app_metadata: TEMPORARY_PASSWORD,
+  });
   if (error) throw error;
   return { userId: data.user.id, tempPassword };
 }

@@ -23,6 +23,26 @@ export async function verifyManageToken(secret: string, tenantId: string, token:
   return (await verifyHmac(secret, `manage.${tenantId}.${bookingId}`, sig)) ? bookingId : null;
 }
 
+// A link stops working this long after the booking ends: long enough to pay
+// a balance or look back at it, not forever.
+export const MANAGE_LINK_DAYS = 90;
+
+export function manageLinkExpired(endsAt: string, now = new Date()) {
+  return Date.parse(endsAt) + MANAGE_LINK_DAYS * 86_400_000 < now.getTime();
+}
+
+// The key on the confirmation page's address (/confirmed/<id>?k=<key>), given
+// only to the browser that made the booking. Without it the page still shows
+// the booking's state, but not the manage link: a booking id alone (from a
+// shared screenshot, history or a Referer) mustn't let someone cancel it.
+export async function signConfirmedKey(secret: string, tenantId: string, bookingId: string) {
+  return hmac(secret, `confirmed.${tenantId}.${bookingId}`);
+}
+
+export async function verifyConfirmedKey(secret: string, tenantId: string, bookingId: string, key: string) {
+  return Boolean(key) && verifyHmac(secret, `confirmed.${tenantId}.${bookingId}`, key);
+}
+
 // ---------------------------------------------------------------- what's allowed
 
 // Why a change can't be made online:

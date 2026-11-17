@@ -119,6 +119,18 @@ export async function unsubscribeCustomer(tenantId: string, customerId: string, 
   if (error) throw error;
 }
 
+// The customer confirmed, from the link in their own inbox, that they want
+// marketing emails (double opt-in, notifyMarketingConsent).
+export async function confirmMarketingConsent(tenantId: string, customerId: string) {
+  const { error } = await createAdminClient()
+    .from("customers")
+    .update({ email_marketing: true, marketing_basis: "consent", marketing_updated_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("id", customerId)
+    .is("anonymised_at", null);
+  if (error) throw error;
+}
+
 // Erases every customer past their business's retention period. Run weekly.
 export async function runRetention(limit = 200) {
   const db = createAdminClient();

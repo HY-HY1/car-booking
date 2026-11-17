@@ -1,5 +1,5 @@
 import { cloneElement, Fragment, isValidElement, useId, type ReactElement, type ReactNode } from "react"
-import { cn } from "cn"
+import { cn } from "@/lib/utils"
 import { Label } from "./label"
 
 type ControlProps = { id?: string; "aria-invalid"?: boolean; "aria-describedby"?: string }

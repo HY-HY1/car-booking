@@ -15,6 +15,7 @@ import {
   slugify,
   type EditableService,
 } from "@/lib/pricing-fields";
+import { shrinkOrKeep } from "@/lib/shrink-image";
 import { cn } from "@/lib/utils";
 import { Check, DeleteButton, Field, FirstError, SaveForm, type Action, type Errors } from "./form-kit";
 import { Textarea } from "@/components/ui/textarea";
@@ -359,6 +360,20 @@ function Fields({ service, errors }: { service?: EditableService; errors: Errors
 
 // ------------------------------------------------------------------ images
 
+// A save sends every new image in one request, and Vercel refuses requests
+// over 4.5 MB, so images are shrunk in the browser first (as logos are) and
+// new gallery photos are capped per save. The header has its own allowance
+// on top of the gallery's.
+const HEADER_EDGE = 2000;
+const GALLERY_EDGE = 1600;
+const GALLERY_BUDGET = 2.5 * 1024 * 1024;
+
+// As many of the photos, in order, as fit in one save.
+function fitBudget(files: File[]) {
+  let total = 0;
+  return files.filter((f) => (total += f.size) <= GALLERY_BUDGET);
+}
+
 // An object URL for a chosen file, released when it changes or goes away.
 function useObjectUrl(file: File | null | undefined) {
   const url = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
@@ -396,13 +411,21 @@ function HeaderImage({ service, error }: { service?: EditableService; error?: st
         type="file"
         accept="image/jpeg,image/png,image/webp"
         aria-invalid={error ? true : undefined}
-        onChange={(e) => {
-          setFile(e.target.files?.[0] ?? null);
+        onChange={async (e) => {
+          const input = e.target;
+          const picked = input.files?.[0] ?? null;
           setRemove(false);
+          if (!picked) return setFile(null);
+          // Shrunk here and swapped into the input, so the form posts the small copy.
+          const small = await shrinkOrKeep(picked, HEADER_EDGE, 0.85);
+          const transfer = new DataTransfer();
+          transfer.items.add(small);
+          input.files = transfer.files;
+          setFile(small);
         }}
         className="max-w-xl"
       />
-      <p className="text-xs text-muted-foreground">JPG, PNG or WebP, up to 5 MB. Landscape works best (about 16:7).</p>
+      <p className="text-xs text-muted-foreground">JPG, PNG or WebP. Landscape works best (about 16:7). Large photos are resized for you.</p>
       {service?.image_path && (
         <Checkbox
           name="remove_image"
@@ -422,6 +445,7 @@ function Gallery({ service, error }: { service?: EditableService; error?: string
   const [keep, setKeep] = useState<string[]>(saved);
   const [files, setFiles] = useState<File[]>([]);
   const room = GALLERY_MAX - keep.length;
+  const newBytes = files.reduce((n, f) => n + f.size, 0);
   const id = useId();
 
   return (
@@ -455,8 +479,20 @@ function Gallery({ service, error }: { service?: EditableService; error?: string
         ))}
       </ul>
       {/* The chosen files are mirrored into a real input so they post with the form. */}
-      <FilesInput id={id} files={files} onPick={(picked) => setFiles((f) => [...f, ...picked].slice(0, Math.max(room, 0)))} disabled={room - files.length <= 0} />
-      <p className="text-xs text-muted-foreground">Up to {GALLERY_MAX} photos, 5 MB each. They show in the order above.</p>
+      <FilesInput
+        id={id}
+        files={files}
+        onPick={async (picked) => {
+          const small = await Promise.all(picked.map((f) => shrinkOrKeep(f, GALLERY_EDGE, 0.82)));
+          setFiles((f) => fitBudget([...f, ...small].slice(0, Math.max(room, 0))));
+        }}
+        disabled={room - files.length <= 0 || newBytes >= GALLERY_BUDGET}
+      />
+      <p className="text-xs text-muted-foreground">
+        {newBytes >= GALLERY_BUDGET
+          ? "That's as many new photos as one save can take. Save, then add the rest."
+          : `Up to ${GALLERY_MAX} photos. They show in the order above, and large ones are resized for you.`}
+      </p>
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );

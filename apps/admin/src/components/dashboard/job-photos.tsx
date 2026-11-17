@@ -48,12 +48,23 @@ function Stage({
   function chosen(files: FileList | null) {
     if (!files?.length) return;
     const list = [...files];
+    // One photo a request: Vercel refuses requests over 4.5 MB, which a
+    // handful of photos together can pass even shrunk.
     startTransition(async () => {
-      const formData = new FormData();
-      for (const file of list) formData.append("photo", await shrink(file), "photo.jpg");
-      const { error, added } = await upload(stage, formData);
+      let added = 0;
+      let error: string | undefined;
+      for (const file of list) {
+        const formData = new FormData();
+        formData.append("photo", await shrink(file), "photo.jpg");
+        const result = await upload(stage, formData);
+        if (result.error) {
+          error = result.error;
+          break;
+        }
+        added += result.added ?? 0;
+      }
+      if (added) toast.success(`${added} ${added === 1 ? "photo" : "photos"} added`);
       if (error) toast.error(error);
-      else toast.success(`${added} ${added === 1 ? "photo" : "photos"} added`);
       if (input.current) input.current.value = "";
     });
   }

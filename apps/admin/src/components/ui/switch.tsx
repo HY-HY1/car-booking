@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cn } from "cn"
+import { cn } from "@/lib/utils"
 
 type SwitchProps = Omit<React.ComponentProps<"input">, "type"> & {
   // A line under the label saying what switching it does.

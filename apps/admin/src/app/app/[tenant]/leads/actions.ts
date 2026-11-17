@@ -12,12 +12,15 @@ import { createClient } from "@/lib/supabase/server";
 
 const COULD_NOT = "Couldn't save that. Try again.";
 
-async function update(slug: string, id: string, patch: Record<string, unknown>, onlyOpen = false) {
+// `attemptsWas`: only if the count is still this, so it can only ever go up
+// by one from what's stored, whatever number the browser sends.
+async function update(slug: string, id: string, patch: Record<string, unknown>, onlyOpen = false, attemptsWas?: number) {
   const { tenant } = await requireAccess(slug, "leads.view");
   if (!z.uuid().safeParse(id).success) return { tenant, error: "That lead no longer exists." };
   const supabase = await createClient();
   let query = supabase.from("leads").update(patch).eq("tenant_id", tenant.id).eq("id", id);
   if (onlyOpen) query = query.in("status", ["new", "quoted"]);
+  if (attemptsWas !== undefined) query = query.eq("attempts", attemptsWas);
   const { data, error } = await query.select("id");
   if (error) {
     console.error("Updating a lead failed", error);
@@ -36,7 +39,8 @@ export async function saveLeadNotesAction(slug: string, id: string, notes: strin
 
 // One more go at reaching them.
 export async function recordContactAction(slug: string, id: string, attempts: number): Promise<{ error?: string }> {
-  const { tenant, error } = await update(slug, id, { last_contacted_at: new Date().toISOString(), attempts: attempts + 1 });
+  if (!Number.isInteger(attempts) || attempts < 0) return { error: "That lead has changed. Reload the page." };
+  const { tenant, error } = await update(slug, id, { last_contacted_at: new Date().toISOString(), attempts: attempts + 1 }, false, attempts);
   if (error) return { error };
   await logActivity(tenant.id, "customer.lead_contacted", "Recorded contact with a lead");
   refresh();

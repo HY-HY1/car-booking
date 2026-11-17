@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cn } from "cn"
+import { cn } from "@/lib/utils"
 import { Input } from "./input"
 
 // A whole number with its unit in the field ("24 hours", "15 miles"), on the

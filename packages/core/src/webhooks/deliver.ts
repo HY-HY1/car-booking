@@ -1,6 +1,9 @@
 import "server-only";
 import { randomBytes, randomUUID } from "node:crypto";
-import { lookup } from "node:dns/promises";
+import { lookup as dnsLookup, type LookupAddress } from "node:dns";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { isIP, type LookupFunction } from "node:net";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { BOOKING_COLUMNS, bookingResource, LEAD_COLUMNS, leadResource, type BookingRow, type LeadRow } from "../api/resources";
 import { seal, unseal } from "../calendar/crypto";
@@ -147,33 +150,83 @@ export async function sendLeadWebhook(tenantId: string, leadId: string) {
 
 type Attempt = { status: number | null; body: string };
 
-// Refuses to send anywhere on a private network, checked on what the name
-// resolves to now (the address was checked as text when it was saved).
-async function post(url: string, headers: Record<string, string>, body: string): Promise<Attempt> {
-  const target = new URL(url);
-  if (!allowLocal()) {
-    const host = target.hostname.replace(/^\[|\]$/g, "");
-    const addresses = await lookup(host, { all: true }).catch(() => []);
-    if (!addresses.length) return { status: null, body: "The address couldn't be found (DNS)." };
-    if (addresses.some((a) => isPrivateAddress(a.address))) {
-      return { status: null, body: "The address points at a private network, so nothing was sent." };
+// Refuses to send anywhere on a private network. The name is looked up once,
+// that answer is checked, and the connection goes to the address that was
+// checked: looking it up again to connect would let a name that answers
+// differently the second time (DNS rebinding) reach 127.0.0.1 or the cloud's
+// metadata address after passing the check.
+class PrivateAddressError extends Error {
+  code = "EPRIVATE";
+}
+
+const pinnedLookup: LookupFunction = (hostname, options, callback) => {
+  dnsLookup(hostname, { all: true }, (error, found) => {
+    const addresses = found as unknown as LookupAddress[];
+    if (error) return callback(error, "", 4);
+    if (!addresses?.length) return callback(Object.assign(new Error("Not found"), { code: "ENOTFOUND" }), "", 4);
+    if (addresses.some((a) => isPrivateAddress(a.address))) return callback(new PrivateAddressError("Private address"), "", 4);
+    const first = addresses[0]!;
+    // Node asks for every address when it tries IPv4 and IPv6 side by side.
+    if ((options as { all?: boolean }).all) {
+      return (callback as unknown as (e: null, a: LookupAddress[]) => void)(null, [first]);
     }
-  }
-  try {
-    const res = await fetch(target, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "User-Agent": "BookingWebhooks/1", ...headers },
-      body,
-      // A redirect could point anywhere; the receiver should give its final address.
-      redirect: "manual",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+    callback(null, first.address, first.family);
+  });
+};
+
+const PRIVATE = "The address points at a private network, so nothing was sent.";
+
+function post(url: string, headers: Record<string, string>, body: string): Promise<Attempt> {
+  const target = new URL(url);
+  const host = target.hostname.replace(/^\[|\]$/g, "");
+  // An address written as numbers isn't looked up, so it's checked here.
+  if (!allowLocal() && isIP(host) && isPrivateAddress(host)) return Promise.resolve({ status: null, body: PRIVATE });
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (attempt: Attempt) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(attempt);
+    };
+    const send = target.protocol === "https:" ? httpsRequest : httpRequest;
+    const req = send(
+      target,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+          "User-Agent": "BookingWebhooks/1",
+          ...headers,
+        },
+        // Local development may post to localhost; production never can.
+        lookup: allowLocal() ? undefined : pinnedLookup,
+      },
+      // Redirects aren't followed: one could point anywhere, and the receiver
+      // should give its final address.
+      (res) => {
+        let text = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk: string) => {
+          if (text.length < 500) text += chunk;
+        });
+        res.on("end", () => finish({ status: res.statusCode ?? null, body: text.slice(0, 500) }));
+        res.on("error", () => finish({ status: res.statusCode ?? null, body: text.slice(0, 500) }));
+      },
+    );
+    const timer = setTimeout(() => {
+      req.destroy();
+      finish({ status: null, body: `No answer within ${TIMEOUT_MS / 1000} seconds.` });
+    }, TIMEOUT_MS);
+    req.on("error", (error: NodeJS.ErrnoException) => {
+      if (error instanceof PrivateAddressError || error.code === "EPRIVATE") return finish({ status: null, body: PRIVATE });
+      if (error.code === "ENOTFOUND" || error.code === "EAI_AGAIN") return finish({ status: null, body: "The address couldn't be found (DNS)." });
+      finish({ status: null, body: "Couldn't connect." });
     });
-    const text = (await res.text().catch(() => "")).slice(0, 500);
-    return { status: res.status, body: text };
-  } catch (error) {
-    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
-    return { status: null, body: timedOut ? `No answer within ${TIMEOUT_MS / 1000} seconds.` : "Couldn't connect." };
-  }
+    req.end(body);
+  });
 }
 
 type DueRow = {

@@ -28,3 +28,14 @@ export async function hitRateLimit(bucket: string, limit = RATE_LIMIT, windowSec
     resetSeconds: Math.max(0, Math.ceil((Date.parse(data.reset_at) - Date.now()) / 1000)),
   };
 }
+
+// Clears counters that can't count any more: every bucket's window is a day
+// or less, so a row untouched for two days is finished with. Without this the
+// table would keep a row for every IP address that ever visited. Weekly, from
+// the retention job.
+export async function pruneRateLimits() {
+  const cutoff = new Date(Date.now() - 2 * 86_400_000).toISOString();
+  const { error, count } = await createAdminClient().from("api_rate_limits").delete({ count: "exact" }).lt("window_start", cutoff);
+  if (error) throw error;
+  return count ?? 0;
+}

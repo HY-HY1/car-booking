@@ -58,7 +58,7 @@ export async function createDepositCheckout(input: DepositCheckoutInput) {
       },
       expires_at: checkoutExpiresAt(),
       success_url: input.confirmedUrl,
-      cancel_url: `${input.confirmedUrl}?cancelled=1`,
+      cancel_url: withParam(input.confirmedUrl, "cancelled", "1"),
     },
     {
       // Makes it a direct charge on the detailer's account.
@@ -113,4 +113,11 @@ export async function getOpenCheckoutUrl(tenantId: string, bookingId: string) {
     { stripeAccount: accountId },
   );
   return session.status === "open" ? session.url : null;
+}
+
+// The address with one more query parameter, whether or not it has some already.
+function withParam(url: string, name: string, value: string) {
+  const u = new URL(url);
+  u.searchParams.set(name, value);
+  return u.toString();
 }

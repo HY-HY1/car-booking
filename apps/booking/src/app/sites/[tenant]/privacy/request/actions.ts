@@ -2,6 +2,7 @@
 
 import { logPublicRequest } from "@leadgen/core/privacy/data";
 import { publicRequestSchema } from "@leadgen/core/privacy/rules";
+import { TOO_MANY, withinLimit } from "@/lib/limits";
 import { getRequestTenant } from "@/lib/tenant";
 
 export type RequestState = { errors?: Record<string, string>; message?: string; done?: boolean };
@@ -27,6 +28,9 @@ export async function submitRequestAction(_: RequestState, formData: FormData): 
     for (const issue of parsed.error.issues) errors[String(issue.path[0])] ??= issue.message;
     return { errors };
   }
+
+  // Counted once the form is valid, so typos don't use up the allowance.
+  if (!(await withinLimit("privacy", tenant.id))) return { message: TOO_MANY };
 
   try {
     await logPublicRequest(tenant.id, parsed.data);

@@ -65,3 +65,22 @@ export function normalizePostcode(input: string): string {
     ? `${compact.slice(0, -3)} ${compact.slice(-3)}`
     : input.trim().toUpperCase();
 }
+
+// A web or email address inside something a customer typed. Names and
+// addresses go into the business's emails, and mail apps turn addresses into
+// links, so a bot could send phishing links through a real detailer's domain
+// by booking as "https://evil.example Smith". Names have none of these.
+const LINKISH = /:\/\/|www\.|@|[a-z0-9-]\.(?:[a-z]{2,})(?![a-z])/i;
+
+export function looksLikeLink(text: string): boolean {
+  return LINKISH.test(text);
+}
+
+// The same check for street addresses, which can have "St.Ives"-style dots,
+// so only the unmistakable parts count.
+export function addressHasLink(text: string): boolean {
+  return /:\/\/|www\.|@/i.test(text);
+}
+
+export const NAME_HAS_LINK = "Enter just your name, without a web or email address.";
+export const ADDRESS_HAS_LINK = "Enter just the address, without a web or email address.";

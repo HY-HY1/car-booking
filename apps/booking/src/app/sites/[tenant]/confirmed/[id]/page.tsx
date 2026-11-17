@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Clock } from "lucide-react";
 import { formatPence } from "@leadgen/core/booking/config";
 import { getBookingSummary } from "@leadgen/core/booking/engine";
-import { manageBookingUrl } from "@leadgen/core/booking/manage-link";
+import { confirmedKeyValid, manageBookingUrl } from "@leadgen/core/booking/manage-link";
 import { confirmFromCheckout } from "@leadgen/core/stripe/payments";
 import { requireRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
@@ -37,9 +37,11 @@ export default async function ConfirmedPage({ params, searchParams }: PageProps<
       console.error("Checking the deposit with Stripe failed", error);
     }
   }
-  // The same link as in their emails, to change or cancel it later.
-  const manage =
-    booking?.status === "confirmed" || booking?.status === "requested" ? await manageBookingUrl(tenant, id) : null;
+  // The same link as in their emails, to change or cancel it later. Only for
+  // the browser that made the booking (the signed ?k=), not anyone who has
+  // the booking's id.
+  const live = booking?.status === "confirmed" || booking?.status === "requested";
+  const manage = live && (await confirmedKeyValid(tenant.id, id, query.k)) ? await manageBookingUrl(tenant, id) : null;
 
   return (
     <SiteFrame tenant={tenant} embedded={embedded}>

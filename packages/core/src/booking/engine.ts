@@ -4,8 +4,8 @@ import { z } from "zod";
 import { calendarBusyByResource } from "../calendar/sync";
 import { bookingChanged } from "./changed";
 import { sendLeadWebhook } from "../webhooks/deliver";
-import { normalizePhone, normalizePostcode } from "../customer-fields";
-import { notifyBookingSecured } from "../email/notify";
+import { ADDRESS_HAS_LINK, addressHasLink, formatPhone, looksLikeLink, NAME_HAS_LINK, normalizePhone, normalizePostcode } from "../customer-fields";
+import { notifyBookingSecured, notifyMarketingConsent } from "../email/notify";
 import { attachPhotos, MAX_PHOTOS } from "../photos";
 import { verifiedSender } from "../email/senders-server";
 import { notificationsOf } from "../settings/notifications";
@@ -174,7 +174,7 @@ export const quoteRequestSchema = z.object({
 export type QuoteRequest = z.input<typeof quoteRequestSchema>;
 
 export const contactSchema = z.object({
-  name: z.string().trim().min(1, "Enter your name.").max(200),
+  name: z.string().trim().min(1, "Enter your name.").max(200).refine((v) => !looksLikeLink(v), NAME_HAS_LINK),
   email: z.string().trim().toLowerCase().pipe(z.email("Enter a valid email address.")),
   phone: z
     .string()
@@ -194,7 +194,7 @@ const accessSchema = z.object({
 export const leadRequestSchema = quoteRequestSchema.extend({
   contact: contactSchema,
   postcode: postcodeSchema.optional(),
-  addressLine: optionalText(300),
+  addressLine: optionalText(300).refine((v) => !v || !addressHasLink(v), ADDRESS_HAS_LINK),
   source: z.string().max(50).default("booking_page"),
   // Photos uploaded earlier in the flow (see photos.ts), to attach.
   photoIds: z.array(z.uuid()).max(MAX_PHOTOS).default([]),
@@ -541,48 +541,45 @@ async function upsertCustomer(
   place: { postcode?: string; addressLine?: string },
   retry = true,
 ): Promise<string> {
-  const columns = "id, email, phone, address_line, postcode, email_marketing";
   const byEmail = await db
     .from("customers")
-    .select(columns)
+    .select("id, phone, address_line, postcode, email_marketing")
     .eq("tenant_id", tenantId)
     .eq("email", contact.email)
     .maybeSingle();
   if (byEmail.error) throw byEmail.error;
-  let existing = byEmail.data;
-  if (!existing) {
-    const byPhone = await db
-      .from("customers")
-      .select(columns)
-      .eq("tenant_id", tenantId)
-      .eq("phone", contact.phone)
-      .maybeSingle();
-    if (byPhone.error) throw byPhone.error;
-    existing = byPhone.data;
-  }
+  const existing = byEmail.data;
 
   if (existing) {
     // Fill gaps only; never overwrite what the owner has recorded, and
     // never withdraw consent from here (that's an explicit opt-out).
     const patch: Record<string, unknown> = {};
-    if (!existing.email) patch.email = contact.email;
     if (!existing.phone) patch.phone = contact.phone;
     if (!existing.address_line && place.addressLine) patch.address_line = place.addressLine;
     if (!existing.postcode && place.postcode) patch.postcode = place.postcode;
-    if (contact.emailMarketing && !existing.email_marketing) {
-      Object.assign(patch, {
-        email_marketing: true,
-        marketing_basis: "consent",
-        marketing_updated_at: new Date().toISOString(),
-      });
-    }
     if (Object.keys(patch).length) {
       const { error } = await db.from("customers").update(patch).eq("tenant_id", tenantId).eq("id", existing.id);
-      // 23505: the email or phone belongs to another customer; keep both.
+      // 23505: the phone belongs to another customer; keep both.
       if (error && error.code !== "23505") throw error;
     }
+    if (contact.emailMarketing && !existing.email_marketing) await askMarketingConsent(db, tenantId, existing.id);
     return existing.id;
   }
+
+  // Not known by email. Their phone may be on another customer's record, but
+  // a number typed into a public form proves nothing: joining the two would
+  // send that customer's confirmations, invoices and manage links to whatever
+  // address was typed here. So it's a new customer, without the phone (one
+  // customer per number), and a note for the owner to merge them if they're
+  // the same person.
+  const byPhone = await db
+    .from("customers")
+    .select("name")
+    .eq("tenant_id", tenantId)
+    .eq("phone", contact.phone)
+    .maybeSingle();
+  if (byPhone.error) throw byPhone.error;
+  const phoneTaken = byPhone.data;
 
   const { data, error } = await db
     .from("customers")
@@ -590,20 +587,35 @@ async function upsertCustomer(
       tenant_id: tenantId,
       name: contact.name,
       email: contact.email,
-      phone: contact.phone,
+      phone: phoneTaken ? null : contact.phone,
+      notes: phoneTaken
+        ? `Booked online with phone ${formatPhone(contact.phone)}, which is already on ${phoneTaken.name}'s record. If they're the same person, merge them.`
+        : null,
       address_line: place.addressLine ?? null,
       postcode: place.postcode ?? null,
       source: "booking_page",
-      email_marketing: contact.emailMarketing,
-      marketing_basis: contact.emailMarketing ? "consent" : null,
-      marketing_updated_at: contact.emailMarketing ? new Date().toISOString() : null,
     })
     .select("id")
     .single();
   // Created by a parallel request between our lookup and insert.
   if (error?.code === "23505" && retry) return upsertCustomer(db, tenantId, contact, place, false);
   if (error) throw error;
+  if (contact.emailMarketing) await askMarketingConsent(db, tenantId, data.id);
   return data.id;
+}
+
+// A tick in "send me offers" is recorded as asked for, then confirmed from
+// the customer's own inbox before any marketing goes to them (double
+// opt-in): the box can be ticked with anyone's address.
+async function askMarketingConsent(db: SupabaseClient, tenantId: string, customerId: string) {
+  const { error } = await db
+    .from("customers")
+    .update({ email_marketing_requested_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("id", customerId);
+  // 42703: the column's migration isn't applied yet; the email still goes.
+  if (error && error.code !== "42703") console.error("[booking] couldn't record the marketing request", error);
+  await notifyMarketingConsent(tenantId, customerId);
 }
 
 // One open lead per customer: a second enquiry updates it rather than
@@ -850,6 +862,9 @@ export async function holdSlot(
       .select("id")
       .single();
     if (inserted.error?.code === "23P01") continue;
+    // Its promo code hit its limit since the check above: someone else's
+    // booking took the last use (bookings_promo_limit, 20261117120000).
+    if (inserted.error?.message?.includes("promo_used_up")) return fail("promo_invalid", "That code has been used up.");
     if (inserted.error) throw inserted.error;
     data = inserted.data;
     break;

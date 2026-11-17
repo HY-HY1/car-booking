@@ -65,6 +65,24 @@ export const privacySettingsSchema = z.object({
 
 export type MarketingChannel = "email" | "sms" | "whatsapp";
 
+// Confirming a marketing opt-in made on the booking page (double opt-in): the
+// box could be ticked with anyone's address, so it only counts once the
+// customer follows this link from their own inbox.
+const OPT_IN = "opt-in";
+
+export async function signOptInToken(secret: string, customerId: string) {
+  const payload = `${customerId}.${OPT_IN}`;
+  return `${payload}.${await hmac(secret, payload)}`;
+}
+
+export async function verifyOptInToken(secret: string, token: string): Promise<{ customerId: string } | null> {
+  const [customerId, kind, sig, ...rest] = token.split(".");
+  if (rest.length || !customerId || kind !== OPT_IN || !sig) return null;
+  if (!/^[0-9a-f-]{36}$/i.test(customerId)) return null;
+  return (await verifyHmac(secret, `${customerId}.${OPT_IN}`, sig)) ? { customerId } : null;
+}
+
+
 export async function signUnsubscribeToken(secret: string, customerId: string, channel: MarketingChannel) {
   const payload = `${customerId}.${channel}`;
   return `${payload}.${await hmac(secret, payload)}`;
