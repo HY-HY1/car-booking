@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import overview from "@/components/landing/overview.webp";
 import { CountUp } from "@/components/landing/count-up";
+import { CustomiseSection } from "@/components/landing/customise-section";
 import { Faq } from "@/components/landing/faq";
 import { FeaturesSection } from "@/components/landing/features-section";
 import { CustomerFlow, Implementation } from "@/components/landing/how-it-works-sections";
@@ -121,6 +122,8 @@ export default function Home() {
       <Implementation />
 
       <FeaturesSection />
+
+      <CustomiseSection />
 
       <Section id="pricing" title="One plan, everything included" link={["See pricing", "/pricing"]}>
         <div className="rounded-lg border border-(--line) p-8 text-center">
