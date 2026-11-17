@@ -41,6 +41,11 @@ const nextConfig: NextConfig = {
   // Service header images (up to 5 MB each, a header and up to 8 gallery photos) are uploaded through a server action.
   experimental: { serverActions: { bodySizeLimit: "45mb" } },
   transpilePackages: ["@leadgen/core"],
+  // Serve images as they are. On Vercel this app runs as one of two
+  // services (vercel.json) and /_next/image 404s there, which broke every
+  // <Image> on the marketing site; the files are small pre-compressed webp
+  // and png, so the optimiser gained little anyway.
+  images: { unoptimized: true },
   // Requests arrive on localhost:3000 through the dev router, or on
   // app.localhost:3000 and admin.localhost:3000 in subdomain mode.
   allowedDevOrigins: ["localhost", "*.localhost"],
