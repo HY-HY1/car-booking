@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, ChevronRight, Eye, EyeOff, Loader2 } from "lucide-react";
@@ -58,6 +58,15 @@ const POSTCODE_HINT: Record<string, string> = {
 const label = (options: { value: string; label: string }[], value: string) =>
   options.find((o) => o.value === value)?.label ?? value;
 
+// When this page's code first ran in the browser: as good as when the form
+// opened, and fixed, so every render sends the same time.
+let opened = "";
+function openedAt() {
+  opened ||= String(Date.now());
+  return opened;
+}
+const noSubscribe = () => () => {};
+
 export function SignUpForm({ alreadySignedIn }: { alreadySignedIn: boolean }) {
   // Only what was true when the page opened counts: signing up signs the new
   // user in, and that must not send them away mid-way (see page.tsx).
@@ -87,10 +96,8 @@ export function SignUpForm({ alreadySignedIn }: { alreadySignedIn: boolean }) {
   const [checkingEmail, startEmailCheck] = useTransition();
   // When the form opened, sent with it: the server turns away anything sent
   // faster than a person could type it.
-  const started = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (started.current) started.current.value = String(Date.now());
-  }, []);
+  // Empty in the server's render, so hydration agrees, then the browser's time.
+  const startedAt = useSyncExternalStore(noSubscribe, openedAt, () => "");
 
   // Once the account exists there's a card form to show, and no way back.
   const checkout = state.checkout;
@@ -202,7 +209,9 @@ export function SignUpForm({ alreadySignedIn }: { alreadySignedIn: boolean }) {
           <label htmlFor="website">Website</label>
           <input id="website" name="website" tabIndex={-1} autoComplete="off" />
         </div>
-        <input ref={started} type="hidden" name="started" defaultValue="" />
+        {/* Controlled: React re-applies a hidden input's defaultValue on every
+            render, which wiped a value set by hand as soon as anyone typed. */}
+        <input type="hidden" name="started" value={startedAt} />
 
         <div hidden={step !== 0} className="grid gap-5">
           <Field label="Your name" name="name" error={errors.name}>
