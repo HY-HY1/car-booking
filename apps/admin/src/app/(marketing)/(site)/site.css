@@ -19,6 +19,34 @@
   color-scheme: dark;
 }
 
+/* Dashboard components (inputs, buttons, choices) on a site page: the sign-up
+   form. They're drawn from the dashboard's theme variables (globals.css), so
+   pointing those at this palette restyles them without touching them. Goes
+   on its own wrapper inside .site, with the `dark` class for their dark:
+   styles: the dashboard's --muted and --accent mean something else than the
+   site's, so inside it the site's own tokens aren't used. */
+.site .site-form {
+  --background: #07090a;
+  --foreground: #f4f5f4;
+  --card: #0d0f10;
+  --card-foreground: #f4f5f4;
+  --popover: #0d0f10;
+  --popover-foreground: #f4f5f4;
+  --primary: #34d399;
+  --primary-foreground: #03140c;
+  --secondary: rgb(255 255 255 / 0.06);
+  --secondary-foreground: #f4f5f4;
+  --muted: rgb(255 255 255 / 0.06);
+  --muted-foreground: #9aa19d;
+  --accent: rgb(255 255 255 / 0.06);
+  --accent-foreground: #f4f5f4;
+  --border: rgb(255 255 255 / 0.08);
+  --input: rgb(255 255 255 / 0.12);
+  --ring: #34d399;
+  --destructive: #f87171;
+  color: var(--foreground);
+}
+
 .site a:focus-visible,
 .site button:focus-visible,
 .site summary:focus-visible {

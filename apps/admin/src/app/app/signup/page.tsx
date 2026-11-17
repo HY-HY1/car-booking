@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
+import { Check, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { TRIAL_DAYS } from "@leadgen/core/billing/rules";
-import { landingFonts } from "@/components/landing/fonts";
-import { Wordmark } from "@/components/landing/ui";
+import { siteFont } from "@/components/landing/fonts";
+import { Logo } from "@/components/landing/site-header";
 import { getCurrentUser } from "@/lib/auth";
 import { PRICE, SITE_NAME } from "@/lib/brand";
 import { appUrl, marketingUrl } from "@/lib/urls";
 import { SignUpForm } from "./signup-form";
-// The marketing site's colours and type, for the panel beside the form.
-import "../../(marketing)/(site)/landing.css";
+// The marketing site's look (dark, one green accent), so sign-up reads as the
+// same product as the page that sent people here.
+import "../../(marketing)/(site)/site.css";
 
 export const metadata: Metadata = { title: `Start your free trial · ${SITE_NAME}` };
 
@@ -19,70 +21,76 @@ const POINTS = [
   { title: "Deposits that cut no-shows", text: "Paid straight into your own Stripe account." },
 ];
 
-// Sign-up: the product's own look down the side (fixed colours, the same in
-// light and dark mode, as on the marketing site), the form in the dashboard's
-// theme beside it. On a phone the side panel becomes a band across the top.
+// Sign-up, in the marketing site's style: the pitch and the price down the
+// side, the form beside it. On a phone the side becomes a band across the
+// top. The form is built from the dashboard's components, recoloured to the
+// site's palette by the .site-form wrapper (site.css).
 export default function SignUpPage() {
   const signIn = (
+    // Shown inside the .site-form wrapper, so in the dashboard's colour names.
     <p className="text-sm text-muted-foreground">
       Already have an account?{" "}
-      <Link href={appUrl("/login")} className="font-medium text-foreground underline underline-offset-4">
+      <Link href={appUrl("/login")} className="font-medium text-foreground underline underline-offset-4 hover:text-primary">
         Sign in
       </Link>
     </p>
   );
 
   return (
-    <main className={`${landingFonts} grid flex-1 content-start lg:min-h-dvh lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:content-normal`}>
-      <aside className="lp relative hidden flex-col justify-between gap-10 overflow-hidden px-12 py-10 lg:flex xl:px-16">
-        {/* A strip of hi-vis down the edge, as on the marketing pages. */}
-        <span aria-hidden className="absolute inset-y-0 right-0 w-1 bg-(--hi)" />
+    <main
+      className={`site ${siteFont} grid flex-1 content-start antialiased lg:min-h-dvh lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:content-normal`}
+    >
+      <aside className="relative isolate hidden flex-col justify-between gap-10 overflow-hidden border-r border-(--line) px-12 py-10 lg:flex xl:px-16">
+        <div aria-hidden className="site-grid absolute inset-0 -z-10" />
+        <div aria-hidden className="site-glow absolute inset-0 -z-10" />
         <Link href={marketingUrl("/")} aria-label={`${SITE_NAME} home`} className="justify-self-start">
-          <Wordmark />
+          <Logo />
         </Link>
 
         <div className="grid gap-8">
-          <div className="grid gap-4">
-            <p className="lp-data text-xs tracking-[0.2em] text-(--hi) uppercase">Free for {TRIAL_DAYS} days</p>
-            <h1 className="lp-display max-w-xl text-5xl xl:text-6xl 2xl:text-7xl">
-              Turn every enquiry into a <span className="text-(--hi)">booked, paid job.</span>
+          <div className="grid gap-5">
+            <Badge />
+            <h1 className="max-w-xl text-5xl leading-[1.05] font-semibold tracking-tighter text-balance [@media(min-height:960px)]:xl:text-6xl">
+              Turn every enquiry into a <span className="text-(--accent)">booked, paid job.</span>
             </h1>
-            <p className="max-w-sm text-(--mist)">
+            <p className="max-w-sm text-lg text-pretty text-(--muted)">
               A booking page and an Instant quote button for your detailing business, set up in about two minutes.
             </p>
           </div>
-          <ol className="grid max-w-lg gap-3 [@media(max-height:879px)]:hidden">
-            {POINTS.map(({ title, text }, i) => (
-              <li key={title} className="grid grid-cols-[2.5rem_1fr] gap-1 border-t border-(--rule-dark) pt-3">
-                <span className="lp-data text-sm text-(--hi)">{String(i + 1).padStart(2, "0")}</span>
+          {/* Left out on short screens, so the plan card stays in view. */}
+          <ul className="grid max-w-md gap-4 [@media(max-height:919px)]:hidden">
+            {POINTS.map(({ title, text }) => (
+              <li key={title} className="flex gap-3">
+                <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border border-(--line) bg-(--soft)">
+                  <Check aria-hidden className="size-3.5 text-(--accent)" />
+                </span>
                 <span className="grid gap-0.5">
-                  <span className="font-semibold">{title}</span>
-                  <span className="text-sm text-(--mist)">{text}</span>
+                  <span className="font-medium">{title}</span>
+                  <span className="text-sm text-(--muted)">{text}</span>
                 </span>
               </li>
             ))}
-          </ol>
+          </ul>
         </div>
 
-        <PlanTicket />
+        <PlanCard />
       </aside>
 
       {/* On a phone: the brand and the price, across the top. */}
-      <header className="lp grid gap-4 px-4 pt-5 pb-6 sm:px-10 lg:hidden">
+      <header className="relative isolate grid gap-5 overflow-hidden border-b border-(--line) px-4 pt-5 pb-7 sm:px-10 lg:hidden">
+        <div aria-hidden className="site-glow absolute inset-0 -z-10" />
         <Link href={marketingUrl("/")} aria-label={`${SITE_NAME} home`} className="justify-self-start">
-          <Wordmark />
+          <Logo className="h-5" />
         </Link>
-        <div className="grid gap-1.5">
-          <h1 className="lp-display text-4xl">
-            Start your <span className="text-(--hi)">{TRIAL_DAYS}-day</span> free trial
+        <div className="grid gap-2">
+          <h1 className="text-4xl leading-[1.05] font-semibold tracking-tighter">
+            Start your <span className="text-(--accent)">{TRIAL_DAYS}-day</span> free trial
           </h1>
-          <p className="lp-data text-sm text-(--mist)">
-            £0 today · then {PRICE.monthly} a month · cancel any time
-          </p>
+          <p className="text-sm text-(--muted)">£0 today · then {PRICE.monthly} a month · cancel any time</p>
         </div>
       </header>
 
-      <div className="flex flex-col px-4 pt-6 pb-10 sm:px-10 lg:px-16 lg:py-10">
+      <div className="site-form dark flex flex-col px-4 pt-6 pb-10 sm:px-10 lg:px-16 lg:py-10">
         <div className="hidden justify-end lg:flex">{signIn}</div>
         <div className="mx-auto grid w-full max-w-md flex-1 content-start gap-8 lg:content-center lg:py-12">
           <Suspense fallback={<div className="h-96" />}>
@@ -95,8 +103,17 @@ export default function SignUpPage() {
   );
 }
 
-// What they're signing up for, as a job ticket: nothing today, then the price.
-function PlanTicket() {
+function Badge() {
+  return (
+    <p className="inline-flex items-center gap-2 justify-self-start rounded-full border border-(--line) bg-(--soft) px-3 py-1 text-sm text-(--muted)">
+      <Sparkles aria-hidden className="size-4 text-(--accent)" />
+      Free for {TRIAL_DAYS} days
+    </p>
+  );
+}
+
+// What they're signing up for: nothing today, then the price.
+function PlanCard() {
   const rows: [string, string][] = [
     ["Due today", "£0.00"],
     ["Free trial", `${TRIAL_DAYS} days`],
@@ -104,20 +121,20 @@ function PlanTicket() {
     ["Cancel", "Any time"],
   ];
   return (
-    <div className="lp-ticket w-full max-w-sm bg-(--paper) p-5 text-(--ink) shadow-2xl [--tilt:-1.5deg]">
-      <div className="lp-data flex items-center justify-between text-[0.7rem] tracking-[0.18em] uppercase">
-        <span>Your plan</span>
-        <span className="text-(--graphite)">One plan · everything in</span>
+    <div className="w-full max-w-sm rounded-xl border border-(--line) bg-(--bg)/70 p-5 backdrop-blur">
+      <div className="flex items-center justify-between text-sm">
+        <span className="font-medium">Your plan</span>
+        <span className="text-(--muted)">One plan, everything in</span>
       </div>
-      <dl className="lp-data mt-3 grid gap-1.5 border-t border-dashed border-(--rule) pt-3 text-sm">
+      <dl className="mt-4 grid gap-2 border-t border-(--line) pt-4 text-sm">
         {rows.map(([k, v]) => (
           <div key={k} className="flex items-baseline justify-between gap-4">
-            <dt className="text-(--graphite)">{k}</dt>
-            <dd className="font-semibold">{v}</dd>
+            <dt className="text-(--muted)">{k}</dt>
+            <dd className="font-medium tabular-nums">{v}</dd>
           </div>
         ))}
       </dl>
-      <p className="mt-3 border-t border-dashed border-(--rule) pt-3 text-xs text-(--graphite)">
+      <p className="mt-4 border-t border-(--line) pt-4 text-xs text-(--muted)">
         Your card is checked, not charged. Payments are handled by Stripe.
       </p>
     </div>

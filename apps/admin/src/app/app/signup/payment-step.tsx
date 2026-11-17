@@ -19,31 +19,28 @@ const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
 
 // Stripe draws the card fields in an iframe, so they take their look from here
-// rather than from our CSS: matched to the page's colours, radius and font, in
-// light or dark mode as the page is (lib/theme.ts puts .dark on <html>).
-function appearanceFor(dark: boolean): Appearance {
-  const shared = { fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif", borderRadius: "10px", spacingUnit: "4px" };
-  return dark
-    ? {
-        theme: "night",
-        variables: {
-          ...shared,
-          colorPrimary: "#fafafa",
-          colorBackground: "#171717",
-          colorText: "#fafafa",
-          colorTextSecondary: "#a3a3a3",
-          colorDanger: "#f87171",
-        },
-      }
-    : { theme: "stripe", variables: { ...shared, colorPrimary: "#171717", colorText: "#171717", colorDanger: "#dc2626" } };
-}
+// rather than from our CSS: the sign-up page's palette, radius and font
+// (.site-form in app/(marketing)/(site)/site.css). Inter is loaded into the
+// iframe by `fonts`.
+const appearance: Appearance = {
+  theme: "night",
+  variables: {
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+    borderRadius: "10px",
+    spacingUnit: "4px",
+    colorPrimary: "#34d399",
+    colorBackground: "#0d0f10",
+    colorText: "#f4f5f4",
+    colorTextSecondary: "#9aa19d",
+    colorDanger: "#f87171",
+  },
+};
+const fonts = [{ cssSrc: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" }];
 
 export function PaymentStep({ clientSecret, priceLabel }: { clientSecret: string; priceLabel: string }) {
-  // Only ever shown after the form's been filled in, so always in the browser.
-  const [appearance] = useState(() => appearanceFor(document.documentElement.classList.contains("dark")));
   return (
     // The client secret can't change once set, so a new one means a new provider.
-    <CheckoutElementsProvider key={clientSecret} stripe={stripePromise} options={{ clientSecret, elementsOptions: { appearance } }}>
+    <CheckoutElementsProvider key={clientSecret} stripe={stripePromise} options={{ clientSecret, elementsOptions: { appearance, fonts } }}>
       <CardForm priceLabel={priceLabel} />
     </CheckoutElementsProvider>
   );
