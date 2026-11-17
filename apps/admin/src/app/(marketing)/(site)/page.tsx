@@ -2,12 +2,14 @@ import { Check, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import overview from "@/components/landing/overview.webp";
+import { CountUp } from "@/components/landing/count-up";
 import { Faq } from "@/components/landing/faq";
 import { FeaturesSection } from "@/components/landing/features-section";
 import { CustomerFlow, Implementation } from "@/components/landing/how-it-works-sections";
 import { RotatingWord } from "@/components/landing/rotating-word";
-import { BrowserFrame, ClosingCta, Ctas, Section, Slot } from "@/components/landing/site-ui";
+import { BrowserFrame, ClosingCta, Ctas, Section } from "@/components/landing/site-ui";
 import { PRICE, SITE_NAME } from "@/lib/brand";
+import { STATS, STATS_SOURCE } from "@/lib/proof";
 
 // The public landing page, stripped back to its bones to be rebuilt: each
 // section is a title, a line, a call to action and a marked slot for what
@@ -91,10 +93,28 @@ export default function Home() {
         </div>
       </section>
 
-      {/* proof: only real figures and quotes, never placeholders (lib/proof.ts) */}
-      <section className="px-4 pb-20 sm:px-6">
-        <Slot className="mx-auto h-28 max-w-6xl">Proof: real numbers, logos or a quote</Slot>
-      </section>
+      {/* Proof: only real figures, never placeholders (lib/proof.ts). */}
+      {STATS.length > 0 && (
+        <section aria-labelledby="results" className="px-4 pb-16 sm:px-6">
+          <div className="mx-auto max-w-4xl">
+            <h2 id="results" className="sr-only">
+              Results
+            </h2>
+            <dl className="grid grid-cols-3 grid-rows-[auto_auto_auto] divide-x divide-(--line) rounded-xl border border-(--line) bg-(--soft)">
+              {STATS.map((stat) => (
+                <div key={stat.title} className="row-span-3 grid grid-rows-subgrid items-center gap-1 px-2 py-4 text-center sm:px-6 sm:py-5">
+                  <dt className="self-end text-[11px] font-medium text-(--accent) sm:text-xs">{stat.title}</dt>
+                  <dd className="text-2xl font-semibold tracking-tight sm:text-4xl">
+                    <CountUp value={stat.value} />
+                  </dd>
+                  <dd className="self-start text-[11px] leading-snug text-(--muted) sm:text-xs">{stat.label}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-3 text-center text-[11px] text-(--muted)">{STATS_SOURCE}</p>
+          </div>
+        </section>
+      )}
 
       <CustomerFlow />
 

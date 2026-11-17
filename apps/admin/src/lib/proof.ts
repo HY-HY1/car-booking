@@ -19,7 +19,7 @@ export type Testimonial = Placeholder & {
   setup: string;
 };
 
-export type Stat = Placeholder & { value: string; label: string };
+export type Stat = Placeholder & { title: string; value: string; label: string };
 
 export type Result = Placeholder & {
   business: string;
@@ -65,16 +65,17 @@ export const TESTIMONIALS: Testimonial[] = visible<Testimonial>([
   },
 ]);
 
-// Up to four show, in this order. The real ones at the end fill in when the
-// placeholders drop out.
+// The home page's figures, under the hero. Real: the owner's own detailing
+// business, run on the platform (given 2026-11-17). They're one business's
+// results, so STATS_SOURCE says so beside them; widen it, and the labels,
+// only once other detailers' figures are counted in.
 export const STATS: Stat[] = visible<Stat>([
-  { placeholder: true, value: "40+", label: "Detailers and valeters taking bookings" },
-  { placeholder: true, value: "3,200", label: "Jobs booked through their pages" },
-  { placeholder: true, value: "£61k", label: "Deposits paid straight to them" },
-  { value: "0%", label: "Taken from your deposits" },
-  { value: "£0", label: "Booking fees, however many jobs" },
-  { value: "14 days", label: "Free to try, no contract after" },
-]).slice(0, 4);
+  { title: "Repeat customers", value: "40%", label: "of customers book again" },
+  { title: "Paid to detailers", value: "£12,000+", label: "paid straight to the detailer, no cut taken" },
+  { title: "Fewer cancellations", value: "~3%", label: "of customers cancel" },
+]);
+
+export const STATS_SOURCE = "Figures from our own detailing business, which runs its bookings on the platform.";
 
 // One line under the hero's buttons.
 export const HERO_PROOF: (Placeholder & { text: string }) | null =
