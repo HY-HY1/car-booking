@@ -104,3 +104,28 @@ body {
   background-repeat: no-repeat;
   background-size: 1rem;
 }
+
+/* The home page's coverage map (components/home/coverage-map.tsx). Leaflet
+   writes colours as attributes on the circles; CSS wins over those, so the
+   circles take the brand colour and follow light and dark mode. */
+.coverage-circle {
+  stroke: var(--brand);
+  stroke-width: 2;
+  fill: var(--brand);
+  fill-opacity: 0.12;
+}
+.coverage-map .leaflet-container {
+  font: inherit;
+  background: var(--color-neutral-100);
+}
+/* The map tiles only come light: on a dark page they're turned dark. */
+.dark .coverage-map .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+}
+.dark .coverage-map .leaflet-control-attribution {
+  background: rgb(23 23 23 / 0.8);
+  color: var(--color-neutral-500);
+}
+.dark .coverage-map .leaflet-control-attribution a {
+  color: var(--color-neutral-700);
+}

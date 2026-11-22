@@ -8,7 +8,7 @@ import { emailLogoOf } from "@leadgen/core/branding/email-brand";
 import { emailLogoFromUrl, makeEmailLogo } from "@leadgen/core/branding/email-logo";
 import { customHostnameSchema } from "@leadgen/core/settings/domains";
 import { addCustomDomain, checkCustomDomain, makePrimaryDomain, removeCustomDomain } from "@leadgen/core/settings/domains-server";
-import { brandingFormSchema, generalFormSchema } from "@leadgen/core/settings/forms";
+import { brandingFormSchema, generalFormSchema, homeFormSchema } from "@leadgen/core/settings/forms";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { SERVICE_IMAGE_MAX_BYTES, SERVICE_IMAGE_TYPES, serviceImageUrl } from "@/lib/pricing-fields";
 import { stripeOnboardingUrl } from "@/lib/stripe";
@@ -139,6 +139,25 @@ export async function saveBrandingAction(slug: string, formData: FormData): Prom
   if (error) return failed("your booking page", error);
   if (stale.length) await supabase.storage.from(IMAGE_BUCKET).remove(stale);
   await logActivity(tenant.id, "settings.booking_page", "Changed the booking page");
+  refresh();
+  return { saved: true };
+}
+
+// The home page's extra sections: the next free day, the coverage map and the
+// places listed beside it. Stored with the rest of the branding.
+export async function saveHomePageAction(slug: string, formData: FormData): Promise<SaveState> {
+  const { tenant, denied } = await requireOwner(slug);
+  if (denied) return denied;
+  const parsed = homeFormSchema.safeParse(plain(formData));
+  if (!parsed.success) return fieldErrors(parsed.error);
+
+  const supabase = await createClient();
+  const current = await supabase.from("tenants").select("branding").eq("id", tenant.id).single();
+  if (current.error) return failed("your home page", current.error);
+  const branding = { ...((current.data.branding ?? {}) as Record<string, unknown>), home: parsed.data };
+  const { error } = await supabase.from("tenants").update({ branding }).eq("id", tenant.id);
+  if (error) return failed("your home page", error);
+  await logActivity(tenant.id, "settings.booking_page", "Changed what the booking page's home shows");
   refresh();
   return { saved: true };
 }

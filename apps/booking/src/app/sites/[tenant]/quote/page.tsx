@@ -3,6 +3,8 @@ import { bookableDatesForAny } from "@leadgen/core/booking/capacity";
 import { multiCarOf, type LocationType } from "@leadgen/core/booking/config";
 import { localDate } from "@leadgen/core/booking/time";
 import { getBookingConfig } from "@leadgen/core/booking/engine";
+import { isUkPostcode } from "@leadgen/core/booking/geo";
+import { normalizePostcode } from "@leadgen/core/customer-fields";
 import { DEFAULT_MARKETING_CONSENT } from "@leadgen/core/settings/forms";
 import { policyLines, policyOf } from "@leadgen/core/settings/policy";
 import { questionsOf } from "@leadgen/core/settings/questions";
@@ -27,6 +29,8 @@ export default async function QuotePage({ searchParams }: PageProps<"/sites/[ten
   const websiteUrl =
     tenant.branding.website_url ?? (process.env.NODE_ENV === "development" ? "http://localhost:4321" : undefined);
   const serviceParam = typeof query.service === "string" ? query.service.trim().toLowerCase() : "";
+  // ?postcode= comes from the home page's "Do we cover your postcode?".
+  const postcodeParam = typeof query.postcode === "string" && isUkPostcode(query.postcode) ? normalizePostcode(query.postcode) : undefined;
 
   // offers_mobile / offers_unit here already mean "switched on and has a van
   // or bay to do it".
@@ -95,6 +99,7 @@ export default async function QuotePage({ searchParams }: PageProps<"/sites/[ten
           dates={bookableDatesForAny(settings, config.resources, offered, new Date())}
           stripeReady={payments.ready}
           initialServiceId={initialServiceId}
+          initialPostcode={settings.offers_mobile ? postcodeParam : undefined}
           embedded={embedded}
           questions={questionsOf(settings.questions)}
           minPhotos={settings.photos_required ? settings.min_photos : 0}

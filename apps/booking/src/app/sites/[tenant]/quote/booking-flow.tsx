@@ -79,6 +79,8 @@ type Props = {
   stripeReady: boolean;
   // A service picked on its own page, so the form starts after that step.
   initialServiceId?: string;
+  // A postcode already checked on the home page, so it isn't typed again.
+  initialPostcode?: string;
   // Inside the embed script's panel: one narrow column.
   embedded: boolean;
   // Which optional questions this business asks (Settings → Booking).
@@ -264,10 +266,11 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
   const { services, addOns, pricing, timezone, questions: ask } = props;
   const preselected = services.some((x) => x.id === props.initialServiceId);
   const startActive = preselected ? 1 : 0;
-  const startAnswers: Answers = preselected ? { ...EMPTY, serviceId: props.initialServiceId } : EMPTY;
+  const postcode = props.initialPostcode ?? "";
+  const startAnswers: Answers = { ...EMPTY, postcode, ...(preselected ? { serviceId: props.initialServiceId } : {}) };
   const [active, setActive] = useState<number>(draft?.active ?? startActive);
   const [phase, setPhase] = useState<Phase>("form");
-  const [a, setA] = useState<Answers>(draft?.answers ?? startAnswers);
+  const [a, setA] = useState<Answers>(draft ? { ...draft.answers, postcode: draft.answers.postcode || postcode } : startAnswers);
   const [error, setError] = useState<string | null>(null);
   const [slots, setSlots] = useState<Slot[] | null>(null);
   // Days with a start time free; null while that's being worked out.

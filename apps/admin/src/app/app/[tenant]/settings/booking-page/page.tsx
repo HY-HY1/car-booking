@@ -8,7 +8,8 @@ import { requireAccess } from "@/lib/auth";
 import { serviceImageUrl } from "@/lib/pricing-fields";
 import { createClient } from "@/lib/supabase/server";
 import { tenantUrl } from "@/lib/urls";
-import { addDomainAction, saveBrandingAction } from "../actions";
+import { HomePageForm } from "@/components/dashboard/settings/home-page-form";
+import { addDomainAction, saveBrandingAction, saveHomePageAction } from "../actions";
 
 export const metadata: Metadata = { title: "Booking page" };
 
@@ -18,7 +19,7 @@ export default async function BookingPageSettings({ params }: PageProps<"/app/[t
   const readOnly = !can("settings.edit");
 
   const supabase = await createClient();
-  const [business, domains, services] = await Promise.all([
+  const [business, domains, services, shortest, booking] = await Promise.all([
     supabase.from("tenants").select("name, branding, contact_email, contact_phone").eq("id", tenant.id).single(),
     supabase
       .from("domains")
@@ -36,10 +37,22 @@ export default async function BookingPageSettings({ params }: PageProps<"/app/[t
       .order("sort_order")
       .order("name")
       .limit(3),
+    // The default length for "next free day".
+    supabase
+      .from("services")
+      .select("duration_mins")
+      .eq("tenant_id", tenant.id)
+      .eq("active", true)
+      .order("duration_mins")
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("booking_settings").select("offers_mobile").eq("tenant_id", tenant.id).maybeSingle(),
   ]);
   if (business.error) throw business.error;
   if (domains.error) throw domains.error;
   if (services.error) throw services.error;
+  if (shortest.error) throw shortest.error;
+  if (booking.error) throw booking.error;
 
   // The free address always works and isn't a row; the rows are the
   // business's own domains (older slug.localhost rows are skipped).
@@ -92,6 +105,20 @@ export default async function BookingPageSettings({ params }: PageProps<"/app/[t
             imageUrl: serviceImageUrl(s.image_path),
           }))}
           action={saveBrandingAction.bind(null, slug)}
+          readOnly={readOnly}
+        />
+      </SettingsSection>
+
+      <SettingsSection
+        id="home"
+        title="Home page"
+        description="Sections made from your own diary and coverage, under the heading on your booking page's home."
+      >
+        <HomePageForm
+          home={branding.home}
+          shortestMins={shortest.data?.duration_mins ?? null}
+          travels={Boolean(booking.data?.offers_mobile)}
+          action={saveHomePageAction.bind(null, slug)}
           readOnly={readOnly}
         />
       </SettingsSection>

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Clock, Mail, MapPin, Phone } from "lucide-react";
 import { getBookingConfig } from "@leadgen/core/booking/engine";
@@ -8,7 +9,10 @@ import { requireRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
 import { cn } from "@/lib/cn";
 import { BookingSteps, SiteFrame, container } from "@/components/site";
-import { ServiceCard } from "@/components/service-card";
+import { Availability, AvailabilitySkeleton } from "@/components/home/availability";
+import { Coverage } from "@/components/home/coverage";
+import { Eyebrow } from "@/components/home/eyebrow";
+import { ServiceTile } from "@/components/home/service-tile";
 
 // The business's booking home: who they are, what they do and how to book.
 // Most customers arrive from the business's own website, so this is a tidy
@@ -40,7 +44,20 @@ export default async function Home() {
     }
   }
   const unitAddress = settings?.offers_unit ? [settings.unit_address, settings.unit_postcode].filter(Boolean).join(", ") : "";
-  const showWhere = Boolean(settings?.offers_mobile || unitAddress);
+
+  // The extra sections, as the owner set them (Settings → Booking page).
+  const home = tenant.branding.home;
+  const bookable = services.filter((s) => s.location_types.some((l) => (l === "mobile" ? settings?.offers_mobile : settings?.offers_unit)));
+  const availabilityMins =
+    home.show_availability && config && bookable.length > 0
+      ? (home.availability_mins ?? Math.min(...bookable.map((s) => s.duration_mins)))
+      : null;
+  // An area with no limit ({}) has nothing to show or check.
+  const showArea = Boolean(home.show_area && settings?.offers_mobile && Object.keys(settings.service_area).length > 0);
+  const contactHref = phone ? `tel:${phone}` : email ? `mailto:${email}` : null;
+
+  // With the coverage section showing, "Where we work" only needs the shop.
+  const showWhere = Boolean((settings?.offers_mobile && !showArea) || unitAddress);
   const showContact = Boolean(phone || email);
   const infoCards = [showWhere, hours.length > 0, showContact].filter(Boolean).length;
 
@@ -89,27 +106,46 @@ export default async function Home() {
           </div>
         </section>
 
+        {availabilityMins !== null && config && (
+          <Suspense fallback={<AvailabilitySkeleton />}>
+            <Availability tenantId={tenant.id} config={config} durationMins={availabilityMins} quoteUrl={quote} />
+          </Suspense>
+        )}
+
         {services.length > 0 && (
           <section id="services" aria-labelledby="services-title" className="scroll-mt-4 py-14 sm:py-20">
             <div className={container}>
-              <div className="mb-8 max-w-2xl">
-                <h2 id="services-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                  Our services
-                </h2>
-                <p className="mt-2 text-neutral-600">
-                  Prices start from the amount shown. Your exact price depends on your car&apos;s size and condition, and you&apos;ll
-                  see it before you book.
-                </p>
+              <div className="mb-10 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+                <div className="grid max-w-2xl gap-3">
+                  <Eyebrow>Services</Eyebrow>
+                  <h2 id="services-title" className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+                    Our services
+                  </h2>
+                  <p className="text-neutral-600">
+                    Prices start from the amount shown. Your exact price depends on your car&apos;s size and condition, and
+                    you&apos;ll see it before you book.
+                  </p>
+                </div>
+                <Link
+                  href={quote}
+                  className="inline-flex items-center gap-1.5 border-b border-current/30 pb-0.5 text-sm font-medium transition hover:border-current"
+                >
+                  Get your exact price <ArrowRight className="size-4" aria-hidden />
+                </Link>
               </div>
-              <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              <ul className={cn("grid gap-5 sm:grid-cols-2", services.length !== 2 && services.length !== 4 && "lg:grid-cols-3")}>
                 {services.map((s) => (
                   <li key={s.id}>
-                    <ServiceCard service={s} href={pageUrl(tenant, `/services/${s.slug}`)} />
+                    <ServiceTile service={s} href={pageUrl(tenant, `/services/${s.slug}`)} />
                   </li>
                 ))}
               </ul>
             </div>
           </section>
+        )}
+
+        {showArea && settings && (
+          <Coverage businessName={tenant.name} settings={settings} places={home.places} quoteUrl={quote} contactHref={contactHref} />
         )}
 
         <section aria-labelledby="how-title" className="border-y bg-surface py-14 sm:py-20">
@@ -137,12 +173,12 @@ export default async function Home() {
             <div className={cn(container, "grid gap-5", infoCards === 3 ? "md:grid-cols-3" : infoCards === 2 && "md:grid-cols-2")}>
               {showWhere && (
                 <InfoCard icon={<MapPin className="size-5" />} title="Where we work">
-                  {settings?.offers_mobile && (
+                  {settings?.offers_mobile && !showArea && (
                     <p>We come to your home or workplace. Enter your postcode when you book to check we cover your area.</p>
                   )}
                   {unitAddress && (
                     <p>
-                      {settings?.offers_mobile ? "Or drop your car off at " : "Drop your car off at "}
+                      {settings?.offers_mobile ? (showArea ? "We come to you, or you can drop your car off at " : "Or drop your car off at ") : "Drop your car off at "}
                       <span className="font-medium text-neutral-900">{unitAddress}</span>.
                     </p>
                   )}

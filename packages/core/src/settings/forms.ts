@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { normalizePhone } from "../customer-fields";
 import type { DepositRule } from "../booking/config";
+import { AVAILABILITY_LENGTHS, parsePlaces, type HomeSettings } from "../branding/home";
 import { ASSISTANT_MODES, ASSISTANT_TONES, type AssistantMode, type AssistantSettings, type AssistantTone } from "./assistant";
 import { CUSTOMER_MESSAGES, type CustomerMessage, type NotificationSettings, unknownFields } from "./notifications";
 import { DEFAULT_POLICY, switchedOff, type CancellationPolicy, type LateFee } from "./policy";
@@ -148,6 +149,26 @@ export const brandingFormSchema = z.object({
   cover_y: z.string().optional(),
 }).transform(({ cover_x, cover_y, ...rest }) => ({ ...rest, cover_position: coverPosition(cover_x, cover_y) }));
 export type BrandingForm = z.output<typeof brandingFormSchema>;
+
+// The home page's extra sections. A length that isn't on the list means the
+// shortest service.
+export const homeFormSchema = z
+  .object({
+    show_availability: checkbox,
+    availability_mins: z.string().optional(),
+    show_area: checkbox,
+    places: text(2000, "the places you cover"),
+  })
+  .transform(
+    (v): HomeSettings => ({
+      show_availability: v.show_availability,
+      availability_mins: (AVAILABILITY_LENGTHS as readonly number[]).includes(Number(v.availability_mins))
+        ? Number(v.availability_mins)
+        : null,
+      show_area: v.show_area,
+      places: parsePlaces(v.places),
+    }),
+  );
 
 function coverPosition(x: string | undefined, y: string | undefined) {
   const pct = (v: string | undefined) => {

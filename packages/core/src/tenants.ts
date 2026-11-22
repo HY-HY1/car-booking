@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { coverPositionSchema } from "./branding/cover";
+import { homeSchema } from "./branding/home";
 import { createAdminClient } from "./supabase/admin";
 import { hostnameOf, routingConfig } from "./urls";
 
@@ -41,6 +42,8 @@ export const brandingSchema = z.object({
   // The floating button the embed script adds to the owner's website.
   button_label: z.string().min(1).max(30).optional().catch(undefined),
   button_position: z.enum(["right", "left"]).catch("right"),
+  // The home page's extra sections (branding/home.ts).
+  home: homeSchema,
 });
 export type Branding = z.infer<typeof brandingSchema>;
 

@@ -15,7 +15,8 @@ import { depositDescription } from "../stripe/checkout";
 import { collectsDepositOnline, holdMinutesFor } from "../stripe/rules";
 import { loadAssessment } from "./assess";
 import { dayRange, type BusyPeriod } from "./availability";
-import { bookableDatesFor, openSlots } from "./capacity";
+import { bookableDatesFor, bookableDatesForAny, openSlots } from "./capacity";
+import { availabilityStrip, type NextAvailability } from "./next-available";
 import {
   addOnSchema,
   bookingSettingsSchema,
@@ -528,6 +529,59 @@ export async function findOpenDates(
       }).length > 0,
   );
   return { ok: true, dates };
+}
+
+// The booking page's "next available": which days a job of `durationMins` still
+// fits, at the address (travel measured from the base) or at the shop,
+// whichever the business offers. A guide to draw customers in, not a promise:
+// the booking form checks the real job and place.
+export async function nextAvailability(
+  tenantId: string,
+  config: BookingConfig,
+  durationMins: number,
+  now = new Date(),
+): Promise<NextAvailability | null> {
+  const { settings, resources } = config;
+  const kinds = (["mobile", "unit"] as const).filter((k) => (k === "mobile" ? settings.offers_mobile : settings.offers_unit));
+  if (kinds.length === 0 || durationMins <= 0) return null;
+
+  const workingDays = bookableDatesForAny(settings, resources, [...kinds], now);
+  const today = localDate(now, settings.timezone);
+  if (workingDays.length === 0) return availabilityStrip({ today, workingDays, openDays: [] });
+
+  const from = dayRange(workingDays[0], settings.timezone).from;
+  const to = dayRange(workingDays[workingDays.length - 1], settings.timezone).to;
+  const db = createAdminClient();
+  const open = new Set<string>();
+  await Promise.all(
+    kinds.map(async (locationType) => {
+      const postcode = (locationType === "unit" ? settings.unit_postcode : settings.base_postcode) ?? settings.unit_postcode ?? settings.base_postcode;
+      const busyByResource = await loadBusyByResource(db, tenantId, settings, resources, from, to, postcode ?? "", locationType);
+      for (const date of bookableDatesFor(settings, resources, locationType, now)) {
+        if (open.has(date)) continue;
+        const offers = openSlots({ date, durationMins, locationType, settings, resources, busyByResource, now });
+        if (offers.length > 0) open.add(date);
+      }
+    }),
+  );
+  return availabilityStrip({ today, workingDays, openDays: [...open] });
+}
+
+// The service area as circles for the booking page's map. Centres are rounded
+// to about a kilometre: a radius around a base postcode is often the owner's
+// home, which customers don't need pinpointed. Postcode districts have no
+// circles; the page lists them instead.
+export type CoverageCircle = { lat: number; lng: number; miles: number };
+
+export async function coverageCircles(settings: BookingSettings): Promise<CoverageCircle[]> {
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const area = settings.service_area;
+  if ("territories" in area) return area.territories.map((t) => ({ lat: round(t.lat), lng: round(t.lng), miles: t.radius_miles }));
+  if ("radius_miles" in area && settings.base_postcode) {
+    const base = coordsFor(await lookupPostcodes([settings.base_postcode]), settings.base_postcode);
+    return base ? [{ lat: round(base.lat), lng: round(base.lng), miles: area.radius_miles }] : [];
+  }
+  return [];
 }
 
 // ---------------------------------------------------------------- customers and leads

@@ -87,6 +87,7 @@ export async function lookupPostcodes(postcodes: string[]): Promise<Map<string, 
   const result = new Map<string, Coords | null>();
   const missing: string[] = [];
   for (const p of new Set(postcodes.map(key))) {
+    if (!p) continue;
     if (cache.has(p)) result.set(p, cache.get(p)!);
     else missing.push(p);
   }
