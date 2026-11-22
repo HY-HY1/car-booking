@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { addDomainAction, type AddDomainState } from "@/app/admin/[slug]/actions";
+import { addDomainAction, type AddDomainState } from "@/app/admin/businesses/[slug]/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";

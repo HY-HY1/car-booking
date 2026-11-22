@@ -1,8 +1,8 @@
 import "server-only";
 import { cache } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { isPlatformAdmin } from "@leadgen/core/platform/businesses";
-import { getCurrentUser, requireUser, secondFactorConfirmed } from "@/lib/auth";
+import { getCurrentUser, requireUser, twoFactorState } from "@/lib/auth";
 import { adminUrl } from "@/lib/urls";
 
 // Guard for the /platform pages and their actions. Anyone who isn't a
@@ -24,10 +24,16 @@ export const getIsPlatformAdmin = cache(async () => {
   }
 });
 
-export async function requirePlatformAdmin(next = adminUrl()) {
+// The panel reads and changes every business with the secret key, so it
+// insists on two-factor login: a platform admin without an authenticator set
+// up is sent to /two-factor to add one. `setup` is for that page alone.
+export async function requirePlatformAdmin(next = adminUrl(), { setup = false } = {}) {
   const user = await requireUser(next);
-  // Everything after this uses the secret key, so two-factor is checked with
-  // Supabase here rather than trusting the session cookie.
-  if (!(await getIsPlatformAdmin()) || !(await secondFactorConfirmed())) notFound();
+  if (!(await getIsPlatformAdmin())) notFound();
+  // Checked with Supabase here rather than trusting the session cookie.
+  const factor = await twoFactorState();
+  if (!factor) notFound();
+  if (factor.enrolled && !factor.confirmed) notFound();
+  if (!factor.enrolled && !setup) redirect(adminUrl("/two-factor"));
   return user;
 }

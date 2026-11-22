@@ -3,6 +3,7 @@ import { cache } from "react";
 import { weeklyHoursSchema, type WeeklyHours } from "@leadgen/core/booking/config";
 import { setupProgress, setupSteps, type SetupInput } from "@leadgen/core/onboarding/steps";
 import { isCustomHostname } from "@leadgen/core/tenants";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
 // Loads what the setup checklist needs for one business. Goes through the
@@ -14,8 +15,11 @@ function hoursOrEmpty(value: unknown): WeeklyHours {
 }
 
 // Cached per request: the Overview nudge and the setup page both call it.
-export const loadSetup = cache(async (tenantId: string) => {
-  const supabase = await createClient();
+export const loadSetup = cache(async (tenantId: string) => loadSetupWith(await createClient(), tenantId));
+
+// The same, read with whichever client the caller has: the platform admin
+// passes the secret-key client, having checked requirePlatformAdmin().
+export async function loadSetupWith(supabase: SupabaseClient, tenantId: string) {
   const [settings, services, tenant, domains, bookings, leads, sender] = await Promise.all([
     supabase
       .from("booking_settings")
@@ -61,4 +65,4 @@ export const loadSetup = cache(async (tenantId: string) => {
     customDomain: domains.data?.find((d) => d.verified && d.is_primary && isCustomHostname(d.hostname))?.hostname ?? null,
     offersMobile: input.offersMobile,
   };
-});
+}

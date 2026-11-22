@@ -48,11 +48,20 @@ export const needsSecondFactor = cache(async () => {
 // The same question asked of Supabase itself, for the few places that go on to
 // use the secret key without the database checking anything first.
 export const secondFactorConfirmed = cache(async () => {
+  const state = await twoFactorState();
+  return state !== null && (!state.enrolled || state.confirmed);
+});
+
+// Whether the signed-in login has an authenticator set up, and whether this
+// session has used it. Read fresh from Supabase. Null when not signed in.
+export const twoFactorState = cache(async () => {
   const supabase = await createClient();
   const [{ data: claims }, { data: fresh }] = await Promise.all([supabase.auth.getClaims(), supabase.auth.getUser()]);
-  if (!claims?.claims || !fresh.user) return false;
-  const hasFactor = fresh.user.factors?.some((f) => f.status === "verified") ?? false;
-  return !hasFactor || claims.claims.aal === "aal2";
+  if (!claims?.claims || !fresh.user) return null;
+  return {
+    enrolled: fresh.user.factors?.some((f) => f.status === "verified") ?? false,
+    confirmed: claims.claims.aal === "aal2",
+  };
 });
 
 // The tenants the signed-in user belongs to, oldest membership first.

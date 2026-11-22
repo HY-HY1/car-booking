@@ -178,7 +178,7 @@ function Created({ created }: { created: NonNullable<NewBusinessState["created"]
         </div>
 
         <div className="flex gap-2">
-          <Link href={adminUrl(`/${created.slug}`)} className={buttonVariants()}>
+          <Link href={adminUrl(`/businesses/${created.slug}`)} className={buttonVariants()}>
             Open business
           </Link>
           <Link href={adminUrl("/new")} className={buttonVariants({ variant: "outline" })} prefetch={false}>

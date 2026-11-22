@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { addMemberAction, type AddMemberState } from "@/app/admin/[slug]/actions";
+import { addMemberAction, type AddMemberState } from "@/app/admin/businesses/[slug]/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyText } from "./copy-text";

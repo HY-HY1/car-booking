@@ -1,4 +1,5 @@
 import "server-only";
+import { removeOrphanLogins } from "../platform/businesses";
 import { createAdminClient } from "../supabase/admin";
 import { ABANDONED_AFTER_DAYS, AWAITING_CHECKOUT, isAbandonedSignup } from "./rules";
 
@@ -38,16 +39,7 @@ export async function removeAbandonedSignups(now = new Date(), days = ABANDONED_
       if (removed.error) throw removed.error;
       businesses++;
 
-      for (const { user_id: userId } of members.data ?? []) {
-        const [elsewhere, admin] = await Promise.all([
-          db.from("tenant_members").select("tenant_id", { count: "exact", head: true }).eq("user_id", userId),
-          db.from("platform_admins").select("user_id", { count: "exact", head: true }).eq("user_id", userId),
-        ]);
-        if (elsewhere.error || admin.error || elsewhere.count || admin.count) continue;
-        const gone = await db.auth.admin.deleteUser(userId);
-        if (gone.error) console.error(`Couldn't remove the login for abandoned signup ${tenant.slug}`, gone.error);
-        else logins++;
-      }
+      logins += await removeOrphanLogins(db, (members.data ?? []).map((m) => m.user_id as string), `abandoned signup ${tenant.slug}`);
     } catch (failure) {
       // One stuck business mustn't stop the rest.
       console.error(`Couldn't remove abandoned signup ${tenant.slug}`, failure);

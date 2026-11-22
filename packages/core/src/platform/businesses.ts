@@ -7,6 +7,8 @@ import { createAdminClient } from "../supabase/admin";
 import { isCustomHostname } from "../tenants";
 import { bookingSettingsFor, brandingFor, STARTER_SERVICES, startingResources, type NewBusiness } from "./rules";
 import { TEMPORARY_PASSWORD } from "../account/password-change";
+import { PHOTO_BUCKET } from "../photos";
+import { getStripe } from "../stripe/client";
 
 // Onboarding and managing businesses (tenants) from the platform admin panel.
 // Everything here uses the secret key, so callers must have already checked
@@ -186,6 +188,9 @@ export type BusinessSummary = {
   domains: { id: string; hostname: string; verified: boolean; isPrimary: boolean }[];
   members: { userId: string; email: string; role: string }[];
   bookings: number;
+  // Confirmed or completed bookings made in the last 30 days.
+  bookings30: number;
+  lastBookingAt: string | null;
   // Earliest lead or confirmed booking: when the product first worked for them.
   firstEnquiryAt: string | null;
   // The owner asked to delete the account (Settings → Privacy); deleted by
@@ -193,49 +198,82 @@ export type BusinessSummary = {
   deletionRequestedAt: string | null;
 };
 
-export async function listBusinesses(): Promise<BusinessSummary[]> {
-  const db = createAdminClient();
-  const [tenants, domains, members, emails] = await Promise.all([
-    db
-      .from("tenants")
-      .select("id, name, slug, created_at, stripe_account_id, stripe_ready, subscription_status, trial_ends_at, deletion_requested_at")
-      .order("created_at", { ascending: false }),
-    db.from("domains").select("id, tenant_id, hostname, verified, is_primary").order("is_primary", { ascending: false }),
-    db.from("tenant_members").select("tenant_id, user_id, role").order("created_at"),
-    emailsById(db),
+const TENANT_COLUMNS =
+  "id, name, slug, created_at, stripe_account_id, stripe_ready, subscription_status, trial_ends_at, deletion_requested_at";
+
+type TenantRow = {
+  id: string;
+  name: string;
+  slug: string;
+  created_at: string;
+  stripe_account_id: string | null;
+  stripe_ready: boolean;
+  subscription_status: string | null;
+  trial_ends_at: string | null;
+  deletion_requested_at: string | null;
+};
+
+// The summary for each of `tenants`, given every one's domains and people.
+async function summarise(
+  db: SupabaseClient,
+  tenants: TenantRow[],
+  emailFor: (userId: string) => Promise<string | undefined> | string | undefined,
+  now = new Date(),
+): Promise<BusinessSummary[]> {
+  if (tenants.length === 0) return [];
+  const ids = tenants.map((t) => t.id);
+  const [domains, members] = await Promise.all([
+    db.from("domains").select("id, tenant_id, hostname, verified, is_primary").in("tenant_id", ids).order("is_primary", { ascending: false }),
+    db.from("tenant_members").select("tenant_id, user_id, role").in("tenant_id", ids).order("created_at"),
   ]);
-  if (tenants.error) throw tenants.error;
   if (domains.error) throw domains.error;
   if (members.error) throw members.error;
 
-  const activity = await Promise.all(
-    tenants.data.map(async (t) => {
-      const [booked, firstBooking, firstLead] = await Promise.all([
-        db
-          .from("bookings")
-          .select("id", { count: "exact", head: true })
-          .eq("tenant_id", t.id)
-          .in("status", ["confirmed", "completed"]),
-        db
-          .from("bookings")
-          .select("created_at")
-          .eq("tenant_id", t.id)
-          .in("status", ["confirmed", "completed"])
-          .order("created_at")
-          .limit(1)
-          .maybeSingle(),
-        db.from("leads").select("created_at").eq("tenant_id", t.id).order("created_at").limit(1).maybeSingle(),
-      ]);
-      for (const r of [booked, firstBooking, firstLead]) if (r.error) throw r.error;
-      return [
-        t.id,
-        { count: booked.count ?? 0, firstEnquiryAt: earliest(firstBooking.data?.created_at, firstLead.data?.created_at) },
-      ] as const;
-    }),
+  const day30 = new Date(now.getTime() - 30 * 86_400_000).toISOString();
+  const live = ["confirmed", "completed"];
+  const activity = new Map(
+    await Promise.all(
+      tenants.map(async (t) => {
+        const [booked, booked30, firstBooking, firstLead, lastBooking] = await Promise.all([
+          db.from("bookings").select("id", { count: "exact", head: true }).eq("tenant_id", t.id).in("status", live),
+          db
+            .from("bookings")
+            .select("id", { count: "exact", head: true })
+            .eq("tenant_id", t.id)
+            .in("status", live)
+            .gte("created_at", day30),
+          db.from("bookings").select("created_at").eq("tenant_id", t.id).in("status", live).order("created_at").limit(1).maybeSingle(),
+          db.from("leads").select("created_at").eq("tenant_id", t.id).order("created_at").limit(1).maybeSingle(),
+          db
+            .from("bookings")
+            .select("created_at")
+            .eq("tenant_id", t.id)
+            .in("status", live)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
+        for (const r of [booked, booked30, firstBooking, firstLead, lastBooking]) if (r.error) throw r.error;
+        return [
+          t.id,
+          {
+            count: booked.count ?? 0,
+            count30: booked30.count ?? 0,
+            firstEnquiryAt: earliest(firstBooking.data?.created_at, firstLead.data?.created_at),
+            lastBookingAt: lastBooking.data?.created_at ?? null,
+          },
+        ] as const;
+      }),
+    ),
   );
-  const activityById = new Map(activity);
 
-  return tenants.data.map((t) => ({
+  const emails = new Map(
+    await Promise.all(
+      [...new Set(members.data.map((m) => m.user_id as string))].map(async (id) => [id, (await emailFor(id)) ?? "(unknown)"] as const),
+    ),
+  );
+
+  return tenants.map((t) => ({
     id: t.id,
     name: t.name,
     slug: t.slug,
@@ -249,14 +287,35 @@ export async function listBusinesses(): Promise<BusinessSummary[]> {
     members: members.data
       .filter((m) => m.tenant_id === t.id)
       .map((m) => ({ userId: m.user_id, email: emails.get(m.user_id) ?? "(unknown)", role: m.role })),
-    bookings: activityById.get(t.id)?.count ?? 0,
-    firstEnquiryAt: activityById.get(t.id)?.firstEnquiryAt ?? null,
+    bookings: activity.get(t.id)?.count ?? 0,
+    bookings30: activity.get(t.id)?.count30 ?? 0,
+    lastBookingAt: activity.get(t.id)?.lastBookingAt ?? null,
+    firstEnquiryAt: activity.get(t.id)?.firstEnquiryAt ?? null,
     deletionRequestedAt: t.deletion_requested_at,
   }));
 }
 
-export async function getBusinessBySlug(slug: string) {
-  return (await listBusinesses()).find((b) => b.slug === slug) ?? null;
+export async function listBusinesses(): Promise<BusinessSummary[]> {
+  const db = createAdminClient();
+  const [tenants, emails] = await Promise.all([
+    db.from("tenants").select(TENANT_COLUMNS).order("created_at", { ascending: false }),
+    emailsById(db),
+  ]);
+  if (tenants.error) throw tenants.error;
+  return summarise(db, tenants.data, (id) => emails.get(id));
+}
+
+// One business, without reading every other business or every login.
+export async function getBusinessBySlug(slug: string): Promise<BusinessSummary | null> {
+  const db = createAdminClient();
+  const { data, error } = await db.from("tenants").select(TENANT_COLUMNS).eq("slug", slug).maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const [summary] = await summarise(db, [data], async (id) => {
+    const user = await db.auth.admin.getUserById(id);
+    return user.data.user?.email ?? undefined;
+  });
+  return summary;
 }
 
 // ---------------------------------------------------------------- managing
@@ -324,4 +383,135 @@ export async function setPrimaryDomain(tenantId: string, domainId: string) {
   if (cleared.error) throw cleared.error;
   const set = await db.from("domains").update({ is_primary: true }).eq("tenant_id", tenantId).eq("id", domainId);
   if (set.error) throw set.error;
+}
+
+// ---------------------------------------------------------------- people
+
+async function ownerCount(db: SupabaseClient, tenantId: string) {
+  const { count, error } = await db
+    .from("tenant_members")
+    .select("user_id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("role", "owner");
+  if (error) throw error;
+  return count ?? 0;
+}
+
+async function memberRole(db: SupabaseClient, tenantId: string, userId: string) {
+  const { data, error } = await db.from("tenant_members").select("role").eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle();
+  if (error) throw error;
+  return (data?.role as Role | undefined) ?? null;
+}
+
+const LAST_OWNER = "Every business needs at least one owner. Add another owner first.";
+
+// Changes what someone can do on a business. The last owner can't be moved
+// off owner, or nobody could manage billing or access.
+export async function setMemberRole(tenantId: string, userId: string, role: Role) {
+  const db = createAdminClient();
+  const current = await memberRole(db, tenantId, userId);
+  if (!current) return { ok: false as const, message: "They aren't on this business." };
+  if (current === role) return { ok: true as const };
+  if (current === "owner" && (await ownerCount(db, tenantId)) <= 1) return { ok: false as const, message: LAST_OWNER };
+  const { error } = await db.from("tenant_members").update({ role }).eq("tenant_id", tenantId).eq("user_id", userId);
+  if (error) throw error;
+  return { ok: true as const };
+}
+
+// Takes someone off a business. Their login stays: it may be on others.
+export async function removeMember(tenantId: string, userId: string) {
+  const db = createAdminClient();
+  const current = await memberRole(db, tenantId, userId);
+  if (!current) return { ok: true as const };
+  if (current === "owner" && (await ownerCount(db, tenantId)) <= 1) return { ok: false as const, message: LAST_OWNER };
+  const { error } = await db.from("tenant_members").delete().eq("tenant_id", tenantId).eq("user_id", userId);
+  if (error) throw error;
+  return { ok: true as const };
+}
+
+// Logins that were only on a business that's now gone: removed too, unless
+// they're on another business or are a platform admin. Returns how many went.
+export async function removeOrphanLogins(db: SupabaseClient, userIds: string[], context: string) {
+  let removed = 0;
+  for (const userId of userIds) {
+    const [elsewhere, admin] = await Promise.all([
+      db.from("tenant_members").select("tenant_id", { count: "exact", head: true }).eq("user_id", userId),
+      db.from("platform_admins").select("user_id", { count: "exact", head: true }).eq("user_id", userId),
+    ]);
+    if (elsewhere.error || admin.error || elsewhere.count || admin.count) continue;
+    const gone = await db.auth.admin.deleteUser(userId);
+    if (gone.error) console.error(`Couldn't remove a login for ${context}`, gone.error);
+    else removed++;
+  }
+  return removed;
+}
+
+// ---------------------------------------------------------------- deleting
+
+export type DeleteBusinessResult = { photos: number; logins: number; subscriptionCancelled: boolean };
+
+// The public bucket for service header images and logos (20261020120000).
+const SERVICE_IMAGE_BUCKET = "service-images";
+
+// Removes every file under `prefix`, folders inside it included. Storage
+// lists a folder as an entry with no id. Returns how many files went.
+async function emptyFolder(db: SupabaseClient, bucket: string, prefix: string, depth = 0): Promise<number> {
+  if (depth > 5) return 0;
+  let removed = 0;
+  for (;;) {
+    const listed = await db.storage.from(bucket).list(prefix, { limit: 1000 });
+    if (listed.error) throw listed.error;
+    const entries = listed.data ?? [];
+    const files = entries.filter((f) => f.id).map((f) => `${prefix}/${f.name}`);
+    for (const folder of entries.filter((f) => !f.id)) removed += await emptyFolder(db, bucket, `${prefix}/${folder.name}`, depth + 1);
+    if (files.length === 0) return removed;
+    const gone = await db.storage.from(bucket).remove(files);
+    if (gone.error) throw gone.error;
+    removed += files.length;
+    if (entries.length < 1000) return removed;
+  }
+}
+
+// Deletes a business and everything under it, for good: an account closed
+// from Settings → Privacy once its 30 days are up, or one set up by mistake.
+// Its subscription is cancelled now (no more charges), its photos are removed
+// from storage, and logins left on no other business are deleted. Their
+// connected Stripe account is theirs and is left alone.
+export async function deleteBusiness(tenantId: string): Promise<DeleteBusinessResult> {
+  const db = createAdminClient();
+  const [tenant, members] = await Promise.all([
+    db.from("tenants").select("slug, stripe_subscription_id, subscription_status").eq("id", tenantId).single(),
+    db.from("tenant_members").select("user_id").eq("tenant_id", tenantId),
+  ]);
+  if (tenant.error) throw tenant.error;
+  if (members.error) throw members.error;
+
+  // Billing first: if anything later fails, at least they've stopped paying.
+  let subscriptionCancelled = false;
+  const sub = tenant.data.stripe_subscription_id;
+  if (sub && tenant.data.subscription_status !== "canceled" && tenant.data.subscription_status !== "incomplete_expired") {
+    try {
+      await getStripe().subscriptions.cancel(sub);
+      subscriptionCancelled = true;
+    } catch (error) {
+      // Already cancelled in Stripe is fine; anything else stops the delete.
+      const code = (error as { code?: string }).code;
+      if (code !== "resource_missing") throw error;
+    }
+  }
+
+  // Files live in storage under <tenant_id>/, which deleting rows won't touch:
+  // customers' photos, and the service images and logo on the booking page.
+  let photos = 0;
+  for (const bucket of [PHOTO_BUCKET, SERVICE_IMAGE_BUCKET]) photos += await emptyFolder(db, bucket, tenantId);
+
+  // Bookings go before the tenant: they hold their customer with ON DELETE
+  // RESTRICT, which the tenant's cascade could otherwise trip over.
+  const bookings = await db.from("bookings").delete().eq("tenant_id", tenantId);
+  if (bookings.error) throw bookings.error;
+  const removed = await db.from("tenants").delete().eq("id", tenantId);
+  if (removed.error) throw removed.error;
+
+  const logins = await removeOrphanLogins(db, members.data.map((m) => m.user_id as string), `deleted business ${tenant.data.slug}`);
+  return { photos, logins, subscriptionCancelled };
 }
