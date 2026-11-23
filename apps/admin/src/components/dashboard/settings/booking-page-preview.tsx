@@ -17,6 +17,7 @@ export function BookingPagePreview({
   primary,
   accent,
   tagline,
+  fonts,
   logoUrl,
   coverUrl,
   coverPosition,
@@ -26,6 +27,8 @@ export function BookingPagePreview({
   primary: string;
   accent: string;
   tagline: string;
+  // font-family values for headings and body text (booking-fonts.ts).
+  fonts: { heading: string; body: string };
   logoUrl?: string;
   coverUrl?: string;
   coverPosition?: CoverPosition;
@@ -39,18 +42,25 @@ export function BookingPagePreview({
   const button = isColour(accent) ? accent : "#3b82f6";
   const onBrand = readableOn(brand);
   const onButton = readableOn(button);
+  // As globals.css draws headings on the booking page: never fake-bold.
+  const heading = { fontFamily: fonts.heading, fontSynthesisWeight: "none" } as const;
 
   return (
     <figure className="grid gap-2">
       <figcaption className="text-xs font-medium text-muted-foreground">Preview, updates as you type</figcaption>
-      <div className="mx-auto max-h-[38rem] w-full max-w-80 overflow-y-auto rounded-2xl border bg-[#fafafa] text-neutral-900 shadow-sm">
+      <div
+        className="mx-auto max-h-[38rem] w-full max-w-80 overflow-y-auto rounded-2xl border bg-[#fafafa] text-neutral-900 shadow-sm"
+        style={{ fontFamily: fonts.body }}
+      >
         <div style={{ background: brand, color: onBrand }}>
           <div className="flex h-12 items-center justify-between gap-3 px-4">
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={logoUrl} alt="" className="h-6 w-auto max-w-32 object-contain object-left" />
             ) : (
-              <span className="truncate text-sm font-semibold">{businessName}</span>
+              <span className="truncate text-sm font-semibold" style={heading}>
+                {businessName}
+              </span>
             )}
             <span className="shrink-0 rounded-full px-3 py-1.5 text-xs font-medium shadow-sm" style={{ background: button, color: onButton }}>
               Book now
@@ -66,7 +76,9 @@ export function BookingPagePreview({
                 style={{ objectPosition: coverObjectPosition(coverPosition) }}
               />
             )}
-            <p className="text-2xl font-semibold tracking-tight">{businessName}</p>
+            <p className="text-2xl font-semibold tracking-tight" style={heading}>
+              {businessName}
+            </p>
             {tagline.trim() && <p className="mt-2 text-sm opacity-85">{tagline}</p>}
             <span
               className="mt-5 inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-medium shadow-sm"
@@ -79,7 +91,9 @@ export function BookingPagePreview({
 
         {services.length > 0 && (
           <section className="px-4 py-8">
-            <p className="mb-4 text-xl font-semibold tracking-tight">Our services</p>
+            <p className="mb-4 text-xl font-semibold tracking-tight" style={heading}>
+              Our services
+            </p>
             <ul className="grid gap-3">
               {services.map((s) => (
                 <li key={s.id} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
@@ -95,7 +109,9 @@ export function BookingPagePreview({
                     </div>
                   )}
                   <div className="p-4">
-                    <p className="font-semibold tracking-tight">{s.name}</p>
+                    <p className="font-semibold tracking-tight" style={heading}>
+                      {s.name}
+                    </p>
                     {s.tagline && <p className="mt-1 text-sm text-neutral-600">{s.tagline}</p>}
                     <p className="mt-3 text-xs text-neutral-500">From</p>
                     <p className="text-lg leading-tight font-semibold">{formatPence(s.basePricePence)}</p>

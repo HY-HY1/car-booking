@@ -28,6 +28,7 @@ import {
 } from "@leadgen/core/booking/answers";
 import type { ConditionAssessment } from "@leadgen/core/booking/condition";
 import type { Questions } from "@leadgen/core/settings/questions";
+import { SITE_NEED_LABELS, siteNeedsText, unmetSiteNeed, type SiteNeed, type SiteNeeds } from "@leadgen/core/booking/site-needs";
 import { getQuote, type PricingSettings, type Quote } from "@leadgen/core/booking/pricing";
 import { applyPromo, type Promo } from "@leadgen/core/booking/promo-rules";
 import { collectsDepositOnline } from "@leadgen/core/stripe/rules";
@@ -101,7 +102,14 @@ type Props = {
   contact: { email: string | null; phone: string | null };
   // More than one car on the same visit (Settings → Hours & rules).
   multiCar: { enabled: boolean; maxCars: number; setupMins: number };
+  // An outside tap or power socket the business needs for mobile jobs.
+  siteNeeds: SiteNeeds;
 };
+
+type YesNo = "yes" | "no";
+const YES_NO: Record<YesNo, string> = { yes: "Yes", no: "No" };
+// "Not sure" was once an answer: a draft saved then reads as unanswered.
+const yesNoOf = (v: unknown): YesNo | undefined => (v === "yes" || v === "no" ? v : undefined);
 
 const OTHER = "Other (not listed)";
 
@@ -169,8 +177,8 @@ type Answers = {
   handover?: Handover;
   contactMethod?: ContactMethod;
   heardFrom?: HeardFrom;
-  water?: "yes" | "no" | "unsure";
-  power?: "yes" | "no" | "unsure";
+  water?: YesNo;
+  power?: YesNo;
   parking?: "driveway" | "street" | "car_park" | "other";
   carLocation: string;
   notes: string;
@@ -230,11 +238,17 @@ function usableDraft(raw: string | null, props: Props): Draft | null {
           addOnIds: c.addOnIds.filter(knownAddOn),
         }))
     : [];
-  return {
-    ...draft,
-    active: serviceId ? Math.min(draft.active, STEPS.length - 1) : 0,
-    answers: { ...draft.answers, addOnIds: addOnIds.filter(knownAddOn), extraCars },
+  const answers = {
+    ...draft.answers,
+    addOnIds: addOnIds.filter(knownAddOn),
+    extraCars,
+    water: yesNoOf(draft.answers.water),
+    power: yesNoOf(draft.answers.power),
   };
+  // A tap or socket needed since it was saved is asked before going on.
+  const unmet = answers.locationType === "mobile" && unmetSiteNeed(props.siteNeeds, answers) !== null;
+  const last = unmet ? stepIndex("where") : STEPS.length - 1;
+  return { ...draft, active: serviceId ? Math.min(draft.active, last) : 0, answers };
 }
 
 const noSubscribe = () => () => {};
@@ -264,6 +278,8 @@ function depositNote(rule: PricingSettings["deposit"]) {
 
 function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
   const { services, addOns, pricing, timezone, questions: ask } = props;
+  // "an outside tap and a power socket", when the business needs them.
+  const needsText = siteNeedsText(props.siteNeeds);
   const preselected = services.some((x) => x.id === props.initialServiceId);
   const startActive = preselected ? 1 : 0;
   const postcode = props.initialPostcode ?? "";
@@ -271,6 +287,8 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
   const [active, setActive] = useState<number>(draft?.active ?? startActive);
   const [phase, setPhase] = useState<Phase>("form");
   const [a, setA] = useState<Answers>(draft ? { ...draft.answers, postcode: draft.answers.postcode || postcode } : startAnswers);
+  // A tap or socket the business needs that hasn't been confirmed yet.
+  const unmetNeed = unmetSiteNeed(props.siteNeeds, a);
   const [error, setError] = useState<string | null>(null);
   const [slots, setSlots] = useState<Slot[] | null>(null);
   // Days with a start time free; null while that's being worked out.
@@ -877,7 +895,13 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                       selected={a.locationType === l}
                       onClick={() => set({ locationType: l, ...(l !== a.locationType && { handover: undefined }) })}
                       title={LOCATION_TYPES[l]}
-                      detail={l === "unit" ? props.unitAddress : "We come to you"}
+                      detail={
+                        l === "unit"
+                          ? props.unitAddress
+                          : needsText
+                            ? `We come to you. We'll need ${needsText}.`
+                            : "We come to you"
+                      }
                     />
                   ))}
                 </Section>
@@ -892,29 +916,37 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                         autoComplete="address-line1"
                       />
                     </div>
-                    {(ask.access || ask.car_location) && (
+                    {(ask.access || ask.car_location || needsText) && (
                       <Section title="About the spot">
+                        {(ask.access || props.siteNeeds.water) && (
+                          <AccessChoice
+                            need="water"
+                            label="Can we use an outside tap?"
+                            required={props.siteNeeds.water}
+                            value={a.water}
+                            onChange={(water) => set({ water })}
+                            tenantName={props.tenantName}
+                            offersUnit={Boolean(props.unitAddress)}
+                          />
+                        )}
+                        {(ask.access || props.siteNeeds.power) && (
+                          <AccessChoice
+                            need="power"
+                            label="Is there a power socket nearby?"
+                            required={props.siteNeeds.power}
+                            value={a.power}
+                            onChange={(power) => set({ power })}
+                            tenantName={props.tenantName}
+                            offersUnit={Boolean(props.unitAddress)}
+                          />
+                        )}
                         {ask.access && (
-                          <>
-                            <Choice
-                              label="Can we use an outside tap?"
-                              value={a.water}
-                              options={{ yes: "Yes", no: "No", unsure: "Not sure" }}
-                              onChange={(water) => set({ water })}
-                            />
-                            <Choice
-                              label="Is there a power socket nearby?"
-                              value={a.power}
-                              options={{ yes: "Yes", no: "No", unsure: "Not sure" }}
-                              onChange={(power) => set({ power })}
-                            />
-                            <Choice
-                              label="Where will the car be parked?"
-                              value={a.parking}
-                              options={{ driveway: "Driveway", street: "On the street", car_park: "Car park", other: "Other" }}
-                              onChange={(parking) => set({ parking })}
-                            />
-                          </>
+                          <Choice
+                            label="Where will the car be parked?"
+                            value={a.parking}
+                            options={{ driveway: "Driveway", street: "On the street", car_park: "Car park", other: "Other" }}
+                            onChange={(parking) => set({ parking })}
+                          />
                         )}
                         {ask.car_location && (
                           <TextField
@@ -948,7 +980,10 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                 )}
                 <Continue
                   pending={pending}
-                  disabled={!a.locationType || (a.locationType === "mobile" && (!a.postcode.trim() || !a.addressLine.trim()))}
+                  disabled={
+                    !a.locationType ||
+                    (a.locationType === "mobile" && (!a.postcode.trim() || !a.addressLine.trim() || unmetNeed !== null))
+                  }
                   onClick={() => {
                     const toTimes = () => {
                       next();
@@ -1660,20 +1695,64 @@ function Option({
   );
 }
 
+// The tap and socket questions: yes or no. When the business can't do the
+// job without it, that's said up front, and a "no" says what to do instead.
+function AccessChoice({
+  need,
+  label,
+  required,
+  value,
+  onChange,
+  tenantName,
+  offersUnit,
+}: {
+  need: SiteNeed;
+  label: string;
+  required: boolean;
+  value: YesNo | undefined;
+  onChange: (value: YesNo) => void;
+  tenantName: string;
+  offersUnit: boolean;
+}) {
+  const { thing } = SITE_NEED_LABELS[need];
+  return (
+    <div className="grid gap-2">
+      <Choice
+        label={label}
+        hint={required ? `Needed for this job: ${tenantName} can't do it without ${thing}.` : undefined}
+        value={value}
+        options={YES_NO}
+        onChange={onChange}
+      />
+      {required && value === "no" && (
+        <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+          Sorry, we need {thing} to do the job at your address, so it can&apos;t be booked there.
+          {offersUnit ? " You could bring the car to us instead: pick that above." : " Get in touch if you'd like to talk it through."}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function Choice<K extends string>({
   label,
+  hint,
   value,
   options,
   onChange,
 }: {
   label: string;
+  hint?: string;
   value: K | undefined;
   options: Record<K, string>;
   onChange: (value: K) => void;
 }) {
   return (
     <fieldset className="grid gap-2">
-      <legend className="mb-2 text-sm">{label}</legend>
+      <legend className="mb-2 text-sm">
+        {label}
+        {hint && <span className="mt-0.5 block text-neutral-500">{hint}</span>}
+      </legend>
       <div className="flex flex-wrap gap-2">
         {(Object.keys(options) as K[]).map((k) => (
           <button key={k} type="button" onClick={() => onChange(k)} className={chip(value === k)}>

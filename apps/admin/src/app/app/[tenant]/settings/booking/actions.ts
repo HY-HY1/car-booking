@@ -9,6 +9,7 @@ import {
   locationsFormSchema,
   multiCarFormSchema,
   resourceFormSchema,
+  siteNeedsFormSchema,
 } from "@leadgen/core/booking/settings-rules";
 import { askingFormSchema, parsePolicyForm } from "@leadgen/core/settings/forms";
 import { storedPolicyOf } from "@leadgen/core/settings/policy";
@@ -64,6 +65,11 @@ export async function saveBookingRules(slug: string, formData: FormData): Promis
 // Whether customers can book more than one car, and the time saved on each.
 export async function saveMultiCar(slug: string, formData: FormData): Promise<SaveState> {
   return updateSettings(slug, multiCarFormSchema, "the settings for more than one car", formData);
+}
+
+// Whether customers need an outside tap or a power socket for mobile jobs.
+export async function saveSiteNeeds(slug: string, formData: FormData): Promise<SaveState> {
+  return updateSettings(slug, siteNeedsFormSchema, "what you need at the customer's address", formData);
 }
 
 // Photos, which questions are asked, and whether bookings need approving.

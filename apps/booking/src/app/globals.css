@@ -82,7 +82,11 @@ body {
   --color-accent-fg: var(--accent-fg);
   /* Cards, inputs and panels: white on the light page. */
   --color-surface: var(--surface);
-  --font-sans: var(--font-sans);
+  /* Typefaces: the business's picks (lib/fonts.ts, set on <body> by
+     lib/theme.ts), else the standard face. Headings follow the body text
+     unless they have their own. */
+  --font-sans: var(--tenant-body, var(--font-geist)), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--tenant-heading, var(--tenant-body, var(--font-geist))), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Tailwind 4 draws a bare `border` in the text colour (black). Every card,
@@ -94,6 +98,21 @@ body {
   ::backdrop,
   ::file-selector-button {
     border-color: var(--color-neutral-200, currentColor);
+  }
+
+  /* Headings in the heading typeface; the business name in the header and
+     footer opts in with the font-heading class. Some display faces come in
+     one weight only, so they're never drawn fake-bold. */
+  h1,
+  h2,
+  h3 {
+    @apply font-heading;
+  }
+  h1,
+  h2,
+  h3,
+  .font-heading {
+    font-synthesis-weight: none;
   }
 }
 

@@ -48,6 +48,7 @@ import { conditionCheck } from "./condition";
 import { getQuote, QuoteError, type ExtraCarInput, type Quote } from "./pricing";
 import { findPromo } from "./promo";
 import { applyPromo } from "./promo-rules";
+import { SITE_NEED_LABELS, siteNeedsOf, unmetSiteNeed } from "./site-needs";
 import { isIsoDate, localDate, localTime } from "./time";
 import { detailsSchema } from "./answers";
 
@@ -186,8 +187,10 @@ export const contactSchema = z.object({
 });
 
 const accessSchema = z.object({
-  water: z.enum(["yes", "no", "unsure"]).optional(),
-  power: z.enum(["yes", "no", "unsure"]).optional(),
+  // Yes or no. "Not sure" was an answer once; a form still open from then
+  // sends it, and it's read as unanswered rather than refused.
+  water: z.enum(["yes", "no"]).optional().catch(undefined),
+  power: z.enum(["yes", "no"]).optional().catch(undefined),
   parking: z.enum(["driveway", "street", "car_park", "other"]).optional(),
   carLocation: optionalText(300),
 });
@@ -804,6 +807,14 @@ export async function holdSlot(
   if (req.locationType === "mobile") {
     const area = await areaCheck(settings, postcode);
     if (!area.ok) return area;
+    // A tap or socket the business can't work without (site-needs.ts).
+    const unmet = unmetSiteNeed(siteNeedsOf(settings.site_requirements), req.access);
+    if (unmet) {
+      return fail(
+        "site_requirement",
+        `We need ${SITE_NEED_LABELS[unmet].thing} to do the job at your address, so it can't be booked there.${settings.offers_unit ? " You could bring the car to us instead." : ""}`,
+      );
+    }
   }
   if (!req.details.acceptedTerms) return fail("terms_required", "Please accept the booking terms to continue.");
   const unnamed = req.extraCars.findIndex((c) => !c.make || !c.model);

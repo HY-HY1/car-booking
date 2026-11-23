@@ -153,6 +153,10 @@ export const bookingSettingsSchema = z.object({
   // More than one car per booking; read through multiCarOf. Missing until
   // migration 20261115120000_multi_car.sql is applied, which means the defaults.
   multi_car: z.unknown().default(null),
+  // What's needed at the customer's address (water, power); read through
+  // siteNeedsOf (site-needs.ts). Missing until migration
+  // 20261123120000_site_requirements.sql is applied, which means nothing.
+  site_requirements: z.unknown().default(null),
 });
 export type BookingSettings = z.infer<typeof bookingSettingsSchema>;
 

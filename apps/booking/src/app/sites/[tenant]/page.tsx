@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Clock, Mail, MapPin, Phone } from "lucide-react";
 import { getBookingConfig } from "@leadgen/core/booking/engine";
+import { siteNeedsOf } from "@leadgen/core/booking/site-needs";
 import { openingHoursLines, sameHours } from "@leadgen/core/booking/hours-text";
 import { formatPhone } from "@leadgen/core/customer-fields";
 import { coverObjectPosition } from "@leadgen/core/branding/cover";
@@ -13,6 +14,7 @@ import { Availability, AvailabilitySkeleton } from "@/components/home/availabili
 import { Coverage } from "@/components/home/coverage";
 import { Eyebrow } from "@/components/home/eyebrow";
 import { ServiceTile } from "@/components/home/service-tile";
+import { SiteNeedsNotice } from "@/components/home/site-needs";
 
 // The business's booking home: who they are, what they do and how to book.
 // Most customers arrive from the business's own website, so this is a tidy
@@ -106,10 +108,8 @@ export default async function Home() {
           </div>
         </section>
 
-        {availabilityMins !== null && config && (
-          <Suspense fallback={<AvailabilitySkeleton />}>
-            <Availability tenantId={tenant.id} config={config} durationMins={availabilityMins} quoteUrl={quote} />
-          </Suspense>
+        {settings?.offers_mobile && (
+          <SiteNeedsNotice needs={siteNeedsOf(settings.site_requirements)} unitAddress={unitAddress} />
         )}
 
         {services.length > 0 && (
@@ -142,6 +142,13 @@ export default async function Home() {
               </ul>
             </div>
           </section>
+        )}
+
+        
+        {availabilityMins !== null && config && (
+          <Suspense fallback={<AvailabilitySkeleton />}>
+            <Availability tenantId={tenant.id} config={config} durationMins={availabilityMins} quoteUrl={quote} />
+          </Suspense>
         )}
 
         {showArea && settings && (

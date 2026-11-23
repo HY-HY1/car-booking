@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { coverPositionSchema } from "./branding/cover";
+import { bodyFontSchema, headingFontSchema } from "./branding/fonts";
 import { homeSchema } from "./branding/home";
 import { createAdminClient } from "./supabase/admin";
 import { hostnameOf, routingConfig } from "./urls";
@@ -44,6 +45,10 @@ export const brandingSchema = z.object({
   button_position: z.enum(["right", "left"]).catch("right"),
   // The home page's extra sections (branding/home.ts).
   home: homeSchema,
+  // Typefaces (branding/fonts.ts). Unset body is the standard one; unset
+  // headings follow the body text.
+  heading_font: headingFontSchema,
+  body_font: bodyFontSchema,
 });
 export type Branding = z.infer<typeof brandingSchema>;
 

@@ -5,6 +5,7 @@ import { RefreshCw, Star, Trash2 } from "lucide-react";
 import { BUTTON_POSITIONS, TIMEZONES, TRADES } from "@leadgen/core/settings/forms";
 import type { Branding } from "@leadgen/core/tenants";
 import { readableOn as textOn } from "@leadgen/core/branding/colors";
+import { BODY_FONT_KEYS, DEFAULT_FONT, FONTS, fontGroups, type FontKey } from "@leadgen/core/branding/fonts";
 import {
   checkDomainAction,
   makePrimaryDomainAction,
@@ -19,9 +20,11 @@ import { Label } from "@/components/ui/label";
 import { ACCEPTED_IMAGE_TYPES, MAX_UPLOAD_BYTES, shrinkImage } from "@/lib/shrink-image";
 import { cn } from "@/lib/utils";
 import { Field, SaveForm, type Action } from "../form-kit";
+import { FONT_FACES, bookingFontFamilies } from "./booking-fonts";
 import { BookingPagePreview, type PreviewService } from "./booking-page-preview";
 import { CENTRE, CoverPositioner } from "./cover-position";
 import { Select } from "@/components/ui/select";
+import { SelectMenu, SelectMenuGroup, SelectMenuItem } from "@/components/ui/select-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
@@ -137,6 +140,9 @@ export function BrandingForm({
   const [label, setLabel] = useState(branding.button_label ?? "");
   const [position, setPosition] = useState(branding.button_position);
   const [tagline, setTagline] = useState(branding.tagline ?? "");
+  const [headingFont, setHeadingFont] = useState<FontKey | null>(branding.heading_font ?? null);
+  const [bodyFont, setBodyFont] = useState<FontKey>(branding.body_font ?? DEFAULT_FONT);
+  const fonts = bookingFontFamilies(headingFont ?? "", bodyFont);
   // A newly picked image, and whether the saved one is being taken off.
   const [logo, setLogo] = useState<PickedImage>(UNPICKED);
   const [cover, setCover] = useState<PickedImage>(UNPICKED);
@@ -189,6 +195,40 @@ export function BrandingForm({
                   placeholder="Optional"
                   hint="Blank uses the main colour."
                 />
+              </div>
+            </Group>
+
+            <Group title="Typefaces" note="Served from your booking page itself, so they load quickly and nothing is sent to Google.">
+              <div className="grid gap-4 @lg:grid-cols-2">
+                <Field label="Headings" name="heading_font" error={errors.heading_font} hint="Your name, and the titles on each page.">
+                  <SelectMenu<FontKey | null>
+                    name="heading_font"
+                    value={headingFont}
+                    onValueChange={setHeadingFont}
+                    disabled={readOnly}
+                    renderValue={(key) => (key ? <FontName font={key} /> : "Same as body text")}
+                  >
+                    <SelectMenuItem value={null}>Same as body text</SelectMenuItem>
+                    <FontOptions />
+                  </SelectMenu>
+                </Field>
+                <Field label="Body text" name="body_font" error={errors.body_font} hint="Everything else: descriptions, prices and the booking form.">
+                  <SelectMenu<FontKey>
+                    name="body_font"
+                    value={bodyFont}
+                    onValueChange={setBodyFont}
+                    disabled={readOnly}
+                    renderValue={(key) => <FontName font={key} />}
+                  >
+                    <FontOptions keys={BODY_FONT_KEYS} />
+                  </SelectMenu>
+                </Field>
+              </div>
+              <div className="grid gap-1 rounded-lg border bg-muted/40 p-4" style={{ fontFamily: fonts.body }} aria-hidden>
+                <p className="truncate text-2xl font-semibold tracking-tight" style={{ fontFamily: fonts.heading, fontSynthesisWeight: "none" }}>
+                  {businessName}
+                </p>
+                <p className="text-sm text-muted-foreground">Get an instant quote and book online. Prices from £45.</p>
               </div>
             </Group>
 
@@ -323,6 +363,7 @@ export function BrandingForm({
               primary={primary}
               accent={accent}
               tagline={tagline}
+              fonts={fonts}
               logoUrl={shown(logo, branding.logo_url)}
               coverUrl={coverSrc}
               coverPosition={coverPosition}
@@ -333,6 +374,29 @@ export function BrandingForm({
         </div>
       )}
     </SaveForm>
+  );
+}
+
+// The typefaces as a dropdown's options, grouped by style, each drawn in itself.
+function FontOptions({ keys }: { keys?: readonly FontKey[] }) {
+  return fontGroups(keys).map((group) => (
+    <SelectMenuGroup key={group.style} label={group.label}>
+      {group.fonts.map((f) => (
+        <SelectMenuItem key={f.key} value={f.key} className="text-base">
+          <FontName font={f.key} />
+        </SelectMenuItem>
+      ))}
+    </SelectMenuGroup>
+  ));
+}
+
+// A typeface's name in that typeface.
+function FontName({ font }: { font: FontKey }) {
+  return (
+    <span style={{ fontFamily: FONT_FACES[font].style.fontFamily, fontSynthesisWeight: "none" }}>
+      {FONTS[font].label}
+      {font === DEFAULT_FONT && <span className="font-sans text-muted-foreground"> (standard)</span>}
+    </span>
   );
 }
 

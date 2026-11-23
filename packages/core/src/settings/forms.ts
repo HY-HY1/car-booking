@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { normalizePhone } from "../customer-fields";
 import type { DepositRule } from "../booking/config";
+import { BODY_FONT_KEYS, DEFAULT_FONT, FONT_KEYS } from "../branding/fonts";
 import { AVAILABILITY_LENGTHS, parsePlaces, type HomeSettings } from "../branding/home";
 import { ASSISTANT_MODES, ASSISTANT_TONES, type AssistantMode, type AssistantSettings, type AssistantTone } from "./assistant";
 import { CUSTOMER_MESSAGES, type CustomerMessage, type NotificationSettings, unknownFields } from "./notifications";
@@ -143,6 +144,15 @@ export const brandingFormSchema = z.object({
   terms_url: optionalUrl.transform((v) => v ?? undefined),
   button_label: text(30, "the button text").transform((v) => v || undefined),
   button_position: z.enum(["right", "left"]).default("right"),
+  // Blank headings follow the body text; blank body text is the standard face.
+  heading_font: z
+    .union([z.literal(""), z.enum(FONT_KEYS)], { error: "Pick a typeface from the list." })
+    .optional()
+    .transform((v) => v || undefined),
+  body_font: z
+    .union([z.literal(""), z.enum(BODY_FONT_KEYS)], { error: "Pick a typeface from the list." })
+    .optional()
+    .transform((v) => (v && v !== DEFAULT_FONT ? v : undefined)),
   // Where the cover image sits in its banner (hidden fields the positioner
   // fills). Anything that isn't a percentage is left as it was.
   cover_x: z.string().optional(),

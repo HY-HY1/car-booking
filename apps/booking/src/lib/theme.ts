@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { bestTextOn, contrast, readableOn, visibleOn } from "@leadgen/core/branding/colors";
 import type { Branding } from "@leadgen/core/tenants";
+import { fontVariables } from "./fonts";
 
 // The dark-mode card colour (--surface in globals.css): the brand is
 // lightened until it stands out against it.
@@ -16,8 +17,9 @@ function darkBrandOf(hex: string) {
   return grey ? "#ededed" : visibleOn(hex, DARK_SURFACE);
 }
 
-// CSS variables the booking pages are styled from (see globals.css). The same
-// brand colours style the business's dashboard (core/branding/colors.ts).
+// CSS variables the booking pages are styled from (see globals.css): the
+// colours and typefaces. The same brand colours style the business's
+// dashboard (core/branding/colors.ts).
 export function themeStyle(branding: Branding): CSSProperties {
   const darkBrand = darkBrandOf(branding.primary_color);
   return {
@@ -32,5 +34,6 @@ export function themeStyle(branding: Branding): CSSProperties {
       "--secondary": branding.secondary_color,
       "--secondary-fg": readableOn(branding.secondary_color),
     }),
+    ...fontVariables(branding.heading_font, branding.body_font),
   } as CSSProperties;
 }

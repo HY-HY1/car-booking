@@ -53,7 +53,7 @@ export function SiteHeader({ tenant, bookButton = true }: { tenant: Tenant; book
             // eslint-disable-next-line @next/next/no-img-element
             <img src={tenant.branding.logo_url} alt={tenant.name} className="h-8 w-auto max-w-44 object-contain object-left" />
           ) : (
-            <span className="truncate text-lg">{tenant.name}</span>
+            <span className="truncate font-heading text-lg">{tenant.name}</span>
           )}
         </Link>
         <nav aria-label="Main" className="flex shrink-0 items-center gap-1 text-sm sm:gap-2">
@@ -92,7 +92,7 @@ export function SiteFooter({ tenant, bottomBar = false }: { tenant: Tenant; bott
     <footer className={cn("border-t bg-surface", bottomBar && "pb-20 sm:pb-0")}>
       <div className={cn(container, "grid gap-8 py-10 sm:grid-cols-[1fr_auto] sm:gap-12")}>
         <div className="grid content-start gap-2">
-          <p className="font-semibold tracking-tight">{tenant.name}</p>
+          <p className="font-heading font-semibold tracking-tight">{tenant.name}</p>
           {tenant.branding.tagline && <p className="max-w-sm text-sm text-neutral-600">{tenant.branding.tagline}</p>}
           {(phone || email) && (
             <ul className="mt-2 grid gap-1.5 text-sm">

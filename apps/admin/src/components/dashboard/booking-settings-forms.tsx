@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { extraCarMins, formatDuration, type BookingSettings, type MultiCar, type Resource } from "@leadgen/core/booking/config";
+import type { SiteNeeds } from "@leadgen/core/booking/site-needs";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
@@ -386,6 +387,58 @@ export function MultiCarForm({ settings, action, readOnly }: { settings: MultiCa
             </p>
           </div>
         </SwitchPanel>
+      )}
+    </SaveForm>
+  );
+}
+
+// ------------------------------------------------------ at the customer's address
+
+// An outside tap or a power socket the business can't do a mobile job without.
+// Customers see it on the booking page's home, are asked for each in the
+// booking form, and can't book a job at their address without it.
+export function SiteNeedsForm({
+  needs,
+  offersUnit,
+  action,
+  readOnly,
+}: {
+  needs: SiteNeeds;
+  offersUnit: boolean;
+  action: Action;
+  readOnly: boolean;
+}) {
+  const [water, setWater] = useState(needs.water);
+  const [power, setPower] = useState(needs.power);
+  return (
+    <SaveForm action={action} readOnly={readOnly}>
+      {() => (
+        <>
+          <div className="grid gap-4 rounded-lg border p-4">
+            <Switch
+              name="requires_water"
+              checked={water}
+              onChange={(e) => setWater(e.target.checked)}
+              description="For a pressure washer or hose. Customers are asked if they have one, and can't book a job at their address without it."
+            >
+              Customers must have an outside tap
+            </Switch>
+            <Switch
+              name="requires_power"
+              checked={power}
+              onChange={(e) => setPower(e.target.checked)}
+              description="For a vacuum, extractor or polisher. Customers are asked if they have one, and can't book a job at their address without it."
+            >
+              Customers must have a power socket
+            </Switch>
+          </div>
+          {(water || power) && (
+            <p className="rounded-lg bg-muted/60 p-4 text-muted-foreground">
+              Your booking page&apos;s home shows this under your heading, so customers know before they start.
+              {offersUnit && " Customers without them can still book a drop-off at your shop."}
+            </p>
+          )}
+        </>
       )}
     </SaveForm>
   );

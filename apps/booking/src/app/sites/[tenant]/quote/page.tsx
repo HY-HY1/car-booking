@@ -8,6 +8,7 @@ import { normalizePostcode } from "@leadgen/core/customer-fields";
 import { DEFAULT_MARKETING_CONSENT } from "@leadgen/core/settings/forms";
 import { policyLines, policyOf } from "@leadgen/core/settings/policy";
 import { questionsOf } from "@leadgen/core/settings/questions";
+import { NO_SITE_NEEDS, siteNeedsOf } from "@leadgen/core/booking/site-needs";
 import { getTenantPayments } from "@leadgen/core/stripe/accounts";
 import { requireRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
@@ -102,6 +103,7 @@ export default async function QuotePage({ searchParams }: PageProps<"/sites/[ten
           initialPostcode={settings.offers_mobile ? postcodeParam : undefined}
           embedded={embedded}
           questions={questionsOf(settings.questions)}
+          siteNeeds={settings.offers_mobile ? siteNeedsOf(settings.site_requirements) : NO_SITE_NEEDS}
           minPhotos={settings.photos_required ? settings.min_photos : 0}
           needsApproval={settings.approval_mode === "manual"}
           policy={policy ? policyLines(policy, settings.deposit.type !== "none") : null}

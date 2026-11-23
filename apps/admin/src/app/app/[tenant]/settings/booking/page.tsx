@@ -4,7 +4,8 @@ import { summariseCapacity } from "@leadgen/core/booking/capacity";
 import { bookingSettingsSchema, multiCarOf, resourceSchema } from "@leadgen/core/booking/config";
 import { policyOf, storedPolicyOf } from "@leadgen/core/settings/policy";
 import { questionsOf } from "@leadgen/core/settings/questions";
-import { BookingRulesForm, HoursForm, LocationsForm, MultiCarForm, NewResource, ResourceEditor } from "@/components/dashboard/booking-settings-forms";
+import { siteNeedsOf } from "@leadgen/core/booking/site-needs";
+import { BookingRulesForm, HoursForm, LocationsForm, MultiCarForm, NewResource, ResourceEditor, SiteNeedsForm } from "@/components/dashboard/booking-settings-forms";
 import { AskingForm, PolicyForm } from "@/components/dashboard/settings/booking-forms";
 import { ReadOnlyNotice, SettingsSection, SettingsStack } from "@/components/dashboard/settings/section";
 import { SortableRows } from "@/components/dashboard/sortable";
@@ -12,7 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
-import { deleteResource, reorderResources, saveAsking, saveBookingRules, saveHours, saveLocations, saveMultiCar, savePolicy, saveResource } from "./actions";
+import { deleteResource, reorderResources, saveAsking, saveBookingRules, saveHours, saveLocations, saveMultiCar, savePolicy, saveResource, saveSiteNeeds } from "./actions";
 
 export const metadata: Metadata = { title: "Hours & rules" };
 
@@ -84,6 +85,21 @@ export default async function BookingSettingsPage({ params }: PageProps<"/app/[t
       <SettingsSection id="locations" title="Where you work" description="Mobile jobs at the customer's address, jobs at your own shop or unit, or both.">
         <LocationsForm settings={settings} action={saveLocations.bind(null, slug)} readOnly={readOnly} />
       </SettingsSection>
+
+      {settings.offers_mobile && (
+        <SettingsSection
+          id="site-needs"
+          title="At the customer's address"
+          description="Anything you can't do a mobile job without. Leave both off if you bring your own water and power."
+        >
+          <SiteNeedsForm
+            needs={siteNeedsOf(settings.site_requirements)}
+            offersUnit={settings.offers_unit}
+            action={saveSiteNeeds.bind(null, slug)}
+            readOnly={readOnly}
+          />
+        </SettingsSection>
+      )}
 
       <SettingsSection
         id="resources"

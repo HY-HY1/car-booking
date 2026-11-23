@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BODY_FONT_KEYS, FONT_KEYS, bodyFontSchema, fontGroups, headingFontSchema } from "../branding/fonts";
 import { assistantOf } from "./assistant";
 import { dnsRecords, hasSubdomain, customHostnameSchema } from "./domains";
 import {
@@ -172,6 +173,31 @@ describe("booking page form", () => {
       const parsed = brandingFormSchema.safeParse({ ...base, cover_x: x, cover_y: y });
       expect(parsed.success && parsed.data.cover_position).toBeUndefined();
     }
+  });
+
+  it("keeps typeface picks, storing the defaults as unset", () => {
+    const picked = brandingFormSchema.parse({ ...base, heading_font: "playfair", body_font: "inter" });
+    expect([picked.heading_font, picked.body_font]).toEqual(["playfair", "inter"]);
+    const standard = brandingFormSchema.parse({ ...base, heading_font: "", body_font: "geist" });
+    expect([standard.heading_font, standard.body_font]).toEqual([undefined, undefined]);
+  });
+
+  it("refuses a typeface that isn't on the list, or a display face for body text", () => {
+    expect(brandingFormSchema.safeParse({ ...base, heading_font: "comic_sans" }).success).toBe(false);
+    expect(brandingFormSchema.safeParse({ ...base, body_font: "bebas_neue" }).success).toBe(false);
+  });
+});
+
+describe("stored typefaces", () => {
+  it("reads an unknown or misplaced pick as unset", () => {
+    expect(headingFontSchema.parse("retired_font")).toBeUndefined();
+    expect(bodyFontSchema.parse("bebas_neue")).toBeUndefined();
+    expect(bodyFontSchema.parse("lora")).toBe("lora");
+  });
+
+  it("groups every typeface once, keeping display faces out of body text", () => {
+    expect(fontGroups().flatMap((g) => g.fonts.map((f) => f.key)).sort()).toEqual([...FONT_KEYS].sort());
+    expect(fontGroups(BODY_FONT_KEYS).flatMap((g) => g.fonts).some((f) => f.key === "bebas_neue")).toBe(false);
   });
 });
 

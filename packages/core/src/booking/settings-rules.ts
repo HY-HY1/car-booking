@@ -2,6 +2,7 @@ import { z } from "zod";
 import { normalizePostcode } from "../customer-fields";
 import { DAY_KEYS, DEFAULT_MULTI_CAR, weeklyHoursSchema, type ServiceArea, type WeeklyHours } from "./config";
 import { isUkPostcode } from "./geo";
+import type { SiteNeeds } from "./site-needs";
 
 // Parsing the booking-settings editor's form posts (Settings → Hours & rules) into
 // the rows they update. No database access, so it can be tested. Values come
@@ -203,6 +204,15 @@ export const multiCarFormSchema = z
     }
     return { multi_car: { enabled: v.multi_car_enabled, max_cars: out.max_cars, setup_mins: out.setup_mins } };
   });
+
+// ------------------------------------------------------ at the customer's address
+
+// What the business needs where it does mobile jobs (site-needs.ts).
+export const siteNeedsFormSchema = z
+  .object({ requires_water: checkbox, requires_power: checkbox })
+  .transform((v): { site_requirements: SiteNeeds } => ({
+    site_requirements: { water: v.requires_water, power: v.requires_power },
+  }));
 
 // ---------------------------------------------------------------------- rules
 
