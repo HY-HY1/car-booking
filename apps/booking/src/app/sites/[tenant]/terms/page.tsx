@@ -5,9 +5,13 @@ import { loadBookingConfig } from "@/lib/booking-config";
 import { policyLines, policyOf } from "@leadgen/core/settings/policy";
 import { ContactLinks } from "@/components/contact-links";
 import { LegalPage } from "@/components/legal-page";
+import { pageMetadata } from "@/lib/seo";
 import { getRequestTenant } from "@/lib/tenant";
 
-export const metadata: Metadata = { title: "Booking terms" };
+export async function generateMetadata(): Promise<Metadata> {
+  const tenant = await getRequestTenant();
+  return tenant ? pageMetadata(tenant, "/terms", { title: "Booking terms" }) : { title: "Booking terms" };
+}
 
 // The terms a booking is made on, built from what the business has set up,
 // for those without their own (Settings → Booking page). A template, to be

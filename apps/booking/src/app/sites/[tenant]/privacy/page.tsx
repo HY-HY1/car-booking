@@ -3,10 +3,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PLATFORM, SUBPROCESSORS, TERMS_VERSION } from "@leadgen/core/privacy/platform";
 import { LegalPage } from "@/components/legal-page";
+import { pageMetadata } from "@/lib/seo";
 import { getRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
 
-export const metadata: Metadata = { title: "Privacy notice" };
+export async function generateMetadata(): Promise<Metadata> {
+  const tenant = await getRequestTenant();
+  return tenant ? pageMetadata(tenant, "/privacy", { title: "Privacy notice" }) : { title: "Privacy notice" };
+}
 
 // The business's privacy notice, shown on its own booking address. The
 // business is the controller; ASCND is its processor. Wording is a template

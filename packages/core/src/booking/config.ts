@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { beforeAfterSchema } from "./before-after";
 
 // Shapes of the booking config rows, including the json columns the database
 // can't check. Parsing every row through these means a typo in one tenant's
@@ -226,6 +227,8 @@ export const serviceSchema = z.object({
   gallery: z.array(z.string()).optional(),
   steps: z.array(z.object({ title: z.string(), text: z.string() })).optional(),
   faqs: z.array(z.object({ q: z.string(), a: z.string() })).optional(),
+  // Before and after photo pairs (before-after.ts).
+  before_after: beforeAfterSchema.optional(),
   seo_title: z.string().nullable().optional(),
   seo_description: z.string().nullable().optional(),
 });

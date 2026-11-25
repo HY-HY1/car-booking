@@ -66,7 +66,7 @@ export function GeneralForm({ values, action, readOnly }: { values: GeneralValue
               label="Contact email"
               name="contact_email"
               error={errors.contact_email}
-              hint="On your emails and invoices. Your booking pages use the details under Booking page."
+              hint="On your emails and invoices. Your booking pages use the contact details on the Booking page, in the sidebar."
             >
               <Input
                 name="contact_email"
@@ -81,7 +81,7 @@ export function GeneralForm({ values, action, readOnly }: { values: GeneralValue
               label="Contact phone"
               name="contact_phone"
               error={errors.contact_phone}
-              hint="On your emails and invoices. Your booking pages use the details under Booking page."
+              hint="On your emails and invoices. Your booking pages use the contact details on the Booking page, in the sidebar."
             >
               <Input
                 name="contact_phone"

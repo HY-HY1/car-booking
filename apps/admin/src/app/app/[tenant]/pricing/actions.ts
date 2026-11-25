@@ -8,6 +8,7 @@ import { requireTenant } from "@/lib/auth";
 import { addOnFormSchema, formObject, rulesFormSchema, serviceFormSchema } from "@/lib/pricing";
 import { GALLERY_MAX, SERVICE_IMAGE_MAX_BYTES, SERVICE_IMAGE_TYPES } from "@/lib/pricing-fields";
 import { nextOrder, writeOrder } from "@/lib/reorder";
+import { beforeAfterSchema, pairPaths, parseBeforeAfterForm, type BeforeAfterPair, type PhotoRef } from "@leadgen/core/booking/before-after";
 import { createClient } from "@/lib/supabase/server";
 import { appUrl } from "@/lib/urls";
 
@@ -223,4 +224,80 @@ export async function reorderServices(slug: string, ids: string[]) {
 
 export async function reorderAddOns(slug: string, ids: string[]) {
   return saveOrder(slug, "add_ons", ids);
+}
+
+// Before and after photos for a service's page: the pairs in the order the
+// form sends them, new photos uploaded to the service's folder, and photos
+// taken out deleted. Saved apart from the rest of the service, as photos are
+// big and the host limits how much one save can send.
+export async function saveBeforeAfter(slug: string, serviceId: string, formData: FormData): Promise<SaveState> {
+  const { tenant, denied } = await requireOwner(slug);
+  if (denied) return denied;
+  if (!z.uuid().safeParse(serviceId).success) return { message: "That service isn't there any more." };
+
+  const supabase = await createClient();
+  const current = await supabase.from("services").select("before_after").eq("tenant_id", tenant.id).eq("id", serviceId).maybeSingle();
+  if (current.error) {
+    // 42703: the column's migration (20261125120000) isn't applied yet.
+    if (current.error.code === "42703") return { message: "Before and after photos need a database update first. Ask your developer to apply the latest migration." };
+    return failed("photos", current.error);
+  }
+  if (!current.data) return { message: "That service isn't there any more." };
+  const before = beforeAfterSchema.parse(current.data.before_after);
+  const known = new Set(pairPaths(before));
+
+  const field = (name: string) => {
+    const v = formData.get(name);
+    return typeof v === "string" ? v : "";
+  };
+  const rows = formData.getAll("pair").filter((v): v is string => typeof v === "string");
+  const parsed = parseBeforeAfterForm(rows, field, known);
+  if (parsed.errors) return { errors: parsed.errors, message: parsed.errors.pairs ?? "Check the highlighted pairs." };
+
+  // Every new file checked before anything is uploaded.
+  const newFiles = new Map<string, File>();
+  for (const pair of parsed.pairs) {
+    for (const ref of [pair.before, pair.after]) {
+      if (ref.kind !== "new") continue;
+      const file = formData.get(`file_${ref.key}`);
+      if (!(file instanceof File) || !file.size) return { message: "A photo didn't arrive. Pick it again and save." };
+      const problem = imageProblem(file);
+      if (problem) return { message: problem };
+      newFiles.set(ref.key, file);
+    }
+  }
+
+  const uploaded: string[] = [];
+  const pathFor = async (ref: PhotoRef) => {
+    if (ref.kind === "saved") return ref.path;
+    const file = newFiles.get(ref.key)!;
+    const path = `${tenant.id}/${serviceId}/${crypto.randomUUID()}.${SERVICE_IMAGE_TYPES[file.type]}`;
+    const { error } = await supabase.storage.from(IMAGE_BUCKET).upload(path, file, { contentType: file.type });
+    if (error) throw error;
+    uploaded.push(path);
+    return path;
+  };
+  const pairs: BeforeAfterPair[] = [];
+  try {
+    for (const p of parsed.pairs) {
+      const pair: BeforeAfterPair = { before: await pathFor(p.before), after: await pathFor(p.after) };
+      if (p.caption) pair.caption = p.caption;
+      pairs.push(pair);
+    }
+  } catch (error) {
+    if (uploaded.length) await supabase.storage.from(IMAGE_BUCKET).remove(uploaded);
+    return failed("photos", error);
+  }
+
+  const { error } = await supabase.from("services").update({ before_after: pairs }).eq("tenant_id", tenant.id).eq("id", serviceId);
+  if (error) {
+    if (uploaded.length) await supabase.storage.from(IMAGE_BUCKET).remove(uploaded);
+    return failed("photos", error);
+  }
+  const kept = new Set(pairPaths(pairs));
+  const stale = [...known].filter((p) => !kept.has(p));
+  if (stale.length) await supabase.storage.from(IMAGE_BUCKET).remove(stale);
+  await logActivity(tenant.id, "pricing.service_edited", "Changed the before and after photos of a service");
+  refresh();
+  return { saved: true };
 }

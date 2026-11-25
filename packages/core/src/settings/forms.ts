@@ -4,6 +4,7 @@ import type { DepositRule } from "../booking/config";
 import { BODY_FONT_KEYS, DEFAULT_FONT, FONT_KEYS } from "../branding/fonts";
 import { MAX_ABOUT_HEADING, MAX_ABOUT_TEXT, MAX_FACT_LENGTH, MAX_OWNER_NAME, cleanFacts } from "../branding/about";
 import { DEFAULT_LOGO_SIZE, LOGO_SIZE_KEYS } from "../branding/logo-size";
+import { MAX_SEO_DESCRIPTION, MAX_SEO_TITLE, parseVerification } from "../branding/seo";
 import { DEFAULT_JOBS_LABEL, MAX_ENQUIRY_INTRO, MAX_JOBS_BEFORE, MAX_JOBS_LABEL, MAX_POLICY_LINE, type PageExtras } from "../branding/extras";
 import { AVAILABILITY_LENGTHS, parsePlaces, type HomeSettings } from "../branding/home";
 import { ASSISTANT_MODES, ASSISTANT_TONES, type AssistantMode, type AssistantSettings, type AssistantTone } from "./assistant";
@@ -247,6 +248,34 @@ export const extrasFormSchema = z
       enquiries: { show: v.enquiries_show, ...(v.enquiries_intro && { intro: v.enquiries_intro }) },
     }),
   );
+
+// Search and sharing: the home page's title and description, the Search
+// Console code, and whether to stay out of search engines. The images are
+// files, so the action handles them. Blanks are left out (the defaults show).
+export const seoFormSchema = z
+  .object({
+    seo_title: text(MAX_SEO_TITLE, "the title"),
+    seo_description: text(MAX_SEO_DESCRIPTION, "the description"),
+    google_verification: text(500, "the code"),
+    hidden: checkbox,
+  })
+  .transform((v, ctx) => {
+    const code = v.google_verification ? parseVerification(v.google_verification) : null;
+    if (v.google_verification && !code) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["google_verification"],
+        message: "That isn't a Google verification code. Paste the whole HTML tag from Search Console.",
+      });
+      return z.NEVER;
+    }
+    return {
+      title: v.seo_title || undefined,
+      description: v.seo_description || undefined,
+      google_verification: code ?? undefined,
+      hidden: v.hidden,
+    };
+  });
 
 function coverPosition(x: string | undefined, y: string | undefined) {
   const pct = (v: string | undefined) => {

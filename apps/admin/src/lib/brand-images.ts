@@ -41,3 +41,11 @@ export async function removeBrandImages(supabase: Db, urls: readonly string[]) {
   const { error } = await supabase.storage.from(IMAGE_BUCKET).remove(paths);
   if (error) console.error("Couldn't remove old images", error);
 }
+
+// Bytes made on the server (a PNG from sharp) into the brand folder; the URL.
+export async function uploadBrandBytes(supabase: Db, tenantId: string, bytes: Buffer, ext: string, contentType: string) {
+  const path = `${tenantId}/brand/${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from(IMAGE_BUCKET).upload(path, bytes, { contentType });
+  if (error) throw error;
+  return serviceImageUrl(path)!;
+}

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { calendarBusyByResource } from "../calendar/sync";
 import { bookingChanged } from "./changed";
 import { sendLeadWebhook } from "../webhooks/deliver";
+import { beforeAfterOf } from "./before-after-load";
 import { ADDRESS_HAS_LINK, addressHasLink, formatPhone, looksLikeLink, NAME_HAS_LINK, normalizePhone, normalizePostcode } from "../customer-fields";
 import { notifyBookingSecured, notifyMarketingConsent } from "../email/notify";
 import { attachPhotos, MAX_PHOTOS } from "../photos";
@@ -84,7 +85,7 @@ export type BookingConfig = {
 // has booking settings.
 export async function getBookingConfig(tenantId: string): Promise<BookingConfig | null> {
   const db = createAdminClient();
-  const [settings, services, addOns, resources] = await Promise.all([
+  const [settings, services, addOns, resources, beforeAfter] = await Promise.all([
     db.from("booking_settings").select("*").eq("tenant_id", tenantId).maybeSingle(),
     db
       .from("services")
@@ -107,6 +108,7 @@ export async function getBookingConfig(tenantId: string): Promise<BookingConfig 
       .eq("active", true)
       .order("sort_order")
       .order("created_at"),
+    beforeAfterOf(db, tenantId),
   ]);
   if (settings.error) throw settings.error;
   if (services.error) throw services.error;
@@ -122,7 +124,7 @@ export async function getBookingConfig(tenantId: string): Promise<BookingConfig 
       offers_mobile: parsed.offers_mobile && resourcesFor(active, "mobile").length > 0,
       offers_unit: parsed.offers_unit && resourcesFor(active, "unit").length > 0,
     },
-    services: z.array(serviceSchema).parse(services.data),
+    services: z.array(serviceSchema).parse(services.data.map((s) => ({ ...s, before_after: beforeAfter.get(s.id) ?? [] }))),
     addOns: z.array(addOnSchema).parse(addOns.data),
     resources: active,
   };

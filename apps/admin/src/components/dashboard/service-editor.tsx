@@ -38,12 +38,16 @@ const SECTIONS = [
   { id: "search", label: "Search listing" },
 ] as const;
 
+// Saved on its own, below the form, once the service exists.
+const BEFORE_AFTER = { id: "before-after", label: "Before & after" };
+
 export function ServiceForm({
   service,
   action,
   deleteAction,
   readOnly,
   pageUrl,
+  beforeAfter,
 }: {
   service?: EditableService;
   action: Action;
@@ -51,12 +55,15 @@ export function ServiceForm({
   readOnly: boolean;
   // The service's address on the live booking site, when there is one.
   pageUrl: string | null;
+  // The before and after photos' own form, for a service that's been saved.
+  beforeAfter?: React.ReactNode;
 }) {
+  const sections = beforeAfter ? [...SECTIONS, BEFORE_AFTER] : SECTIONS;
   return (
     <div className="grid gap-6 lg:grid-cols-[11rem_minmax(0,1fr)] lg:items-start">
       <nav aria-label="Sections" className="-mx-4 overflow-x-auto px-4 lg:sticky lg:top-4 lg:mx-0 lg:px-0">
         <ul className="flex gap-1 lg:flex-col">
-          {SECTIONS.map((s) => (
+          {sections.map((s) => (
             <li key={s.id} className="shrink-0">
               <a
                 href={`#sec-${s.id}`}
@@ -69,6 +76,7 @@ export function ServiceForm({
         </ul>
       </nav>
 
+      <div className="grid min-w-0 gap-6">
       <SaveForm
         action={action}
         readOnly={readOnly}
@@ -87,6 +95,21 @@ export function ServiceForm({
       >
         {(errors) => <Fields service={service} errors={errors} />}
       </SaveForm>
+      {beforeAfter && (
+        <section id={`sec-${BEFORE_AFTER.id}`} aria-labelledby="h-before-after" className="scroll-mt-4 rounded-xl border bg-card">
+          <header className="border-b px-4 py-3 sm:px-5">
+            <h2 id="h-before-after" className="font-medium">
+              Before and after
+            </h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Photos of the same car before and after the visit, shown on this service&apos;s page so customers see the
+              starting point and the finish to expect. Saved separately from the rest.
+            </p>
+          </header>
+          <div className="p-4 sm:p-5">{beforeAfter}</div>
+        </section>
+      )}
+      </div>
     </div>
   );
 }

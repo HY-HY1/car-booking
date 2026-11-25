@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { bookableDatesForAny } from "@leadgen/core/booking/capacity";
+import { longestJobMins } from "@leadgen/core/booking/day-length";
 import { multiCarOf, type LocationType } from "@leadgen/core/booking/config";
 import { localDate } from "@leadgen/core/booking/time";
 import { loadBookingConfig } from "@/lib/booking-config";
@@ -10,14 +11,18 @@ import { policyLines, policyOf } from "@leadgen/core/settings/policy";
 import { questionsOf } from "@leadgen/core/settings/questions";
 import { NO_SITE_NEEDS, siteNeedsOf } from "@leadgen/core/booking/site-needs";
 import { getTenantPayments } from "@leadgen/core/stripe/accounts";
-import { requireRequestTenant } from "@/lib/tenant";
+import { pageMetadata } from "@/lib/seo";
+import { getRequestTenant, requireRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
 import { ContactLinks } from "@/components/contact-links";
 import { SiteFrame, container } from "@/components/site";
 import { cn } from "@/lib/cn";
 import { BookingFlow } from "./booking-flow";
 
-export const metadata: Metadata = { title: "Check prices and book" };
+export async function generateMetadata(): Promise<Metadata> {
+  const tenant = await getRequestTenant();
+  return tenant ? pageMetadata(tenant, "/quote", { title: "Check prices and book" }) : { title: "Check prices and book" };
+}
 
 export default async function QuotePage({ searchParams }: PageProps<"/sites/[tenant]/quote">) {
   const tenant = await requireRequestTenant();
@@ -111,6 +116,11 @@ export default async function QuotePage({ searchParams }: PageProps<"/sites/[ten
           privacyUrl={tenant.privacy.policyUrl ?? pageUrl(tenant, "/privacy")}
           termsUrl={tenant.branding.terms_url ?? pageUrl(tenant, "/terms")}
           contact={tenant.contact}
+          // The longest job one visit can be, for the multi-car warning.
+          longestJobMins={{
+            mobile: longestJobMins(settings, config.resources, "mobile"),
+            unit: longestJobMins(settings, config.resources, "unit"),
+          }}
           multiCar={(() => {
             const m = multiCarOf(settings.multi_car);
             return { enabled: m.enabled, maxCars: m.max_cars, setupMins: m.setup_mins };

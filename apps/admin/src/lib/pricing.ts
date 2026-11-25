@@ -7,6 +7,7 @@ import {
   SIZES,
   slugify,
 } from "@/lib/pricing-fields";
+import { beforeAfterOf } from "@leadgen/core/booking/before-after-load";
 import { createClient } from "@/lib/supabase/server";
 
 // Pricing editor: loading the tenant's services, extras and pricing rules,
@@ -16,7 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function loadPricing(tenantId: string) {
   const supabase = await createClient();
-  const [settings, services, addOns] = await Promise.all([
+  const [settings, services, addOns, beforeAfter] = await Promise.all([
     supabase
       .from("booking_settings")
       .select("deposit, min_price_pence, mobile_surcharge_pence, travel_fee, condition_tiers, offers_mobile, offers_unit")
@@ -34,6 +35,8 @@ export async function loadPricing(tenantId: string) {
       .eq("tenant_id", tenantId)
       .order("sort_order")
       .order("name"),
+    // Apart, so the editor still loads before the column's migration is applied.
+    beforeAfterOf(supabase, tenantId),
   ]);
   if (settings.error) throw settings.error;
   if (services.error) throw services.error;
@@ -41,7 +44,7 @@ export async function loadPricing(tenantId: string) {
 
   return {
     rules: settings.data ? pricingRulesSchema.parse(settings.data) : null,
-    services: z.array(editableServiceSchema).parse(services.data),
+    services: z.array(editableServiceSchema).parse(services.data.map((s) => ({ ...s, before_after: beforeAfter.get(s.id) ?? [] }))),
     addOns: z.array(editableAddOnSchema).parse(addOns.data),
   };
 }

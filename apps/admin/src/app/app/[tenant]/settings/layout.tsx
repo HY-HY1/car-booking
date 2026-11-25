@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { SaveFormDefaults } from "@/components/dashboard/form-kit";
 import { SettingsHeading, SettingsNav } from "@/components/dashboard/settings-nav";
 import { requireTenant } from "@/lib/auth";
@@ -11,6 +12,9 @@ export default async function SettingsLayout({
   children,
   params,
 }: LayoutProps<"/app/[tenant]/settings">) {
+  // Every tab is per signed-in user, and the sign-in check reads the clock
+  // (session expiry), so render at request time, never ahead.
+  await connection();
   const { tenant: slug } = await params;
   const { role, can } = await requireTenant(slug);
   // Technicians only have their own account here, so nothing to choose between.

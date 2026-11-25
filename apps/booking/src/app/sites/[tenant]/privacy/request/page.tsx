@@ -6,7 +6,7 @@ import { getRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
 import { RequestForm } from "./request-form";
 
-export const metadata: Metadata = { title: "Privacy request" };
+export const metadata: Metadata = { title: "Privacy request", robots: { index: false } };
 
 export default async function PrivacyRequestPage() {
   const tenant = await getRequestTenant();

@@ -6,6 +6,7 @@ import {
   CalendarDays,
   ClipboardList,
   CreditCard,
+  Globe,
   Inbox,
   LayoutDashboard,
   MapPin,
@@ -40,6 +41,7 @@ const sections: { title?: string; items: NavItem[] }[] = [
     title: "Your business",
     items: [
       { href: "/pricing", label: "Pricing", icon: Package, permission: "pricing.view" },
+      { href: "/booking-page", label: "Booking page", icon: Globe, permission: "settings.view" },
       { href: "/coverage", label: "Coverage area", icon: MapPin, permission: "settings.view" },
       { href: "/team", label: "Team", icon: UsersRound, permission: "settings.view" },
       { href: "/payments", label: "Payments", icon: CreditCard, permission: "money" },

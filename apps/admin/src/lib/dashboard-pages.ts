@@ -31,7 +31,7 @@ export const DASHBOARD_PAGES: DashboardPage[] = [
   { label: "Payment links", href: "/payments/links", keywords: "pay link invoice", permission: "money" },
   { label: "Your account", href: "/settings/account", keywords: "profile name email password sign out devices two factor 2fa authenticator security" },
   { label: "Business details", href: "/settings", keywords: "settings general business name contact phone vat time zone trade", permission: "settings.view" },
-  { label: "Booking page", href: "/settings/booking-page", keywords: "branding logo colour cover domain embed website button", permission: "settings.view" },
+  { label: "Booking page", href: "/booking-page", keywords: "branding logo colour cover domain embed website button about photos gallery videos faq questions seo search sharing favicon icon testimonials", permission: "settings.view" },
   { label: "Hours & rules", href: "/settings/booking", keywords: "booking settings hours availability van unit approval photos questions cancellation policy", permission: "settings.view" },
   { label: "AI assistant (coming soon)", href: "/settings/assistant", keywords: "ai agent follow up hand off tone", permission: "settings.view" },
   { label: "Payment settings", href: "/settings/payments", keywords: "stripe deposit refund payouts", permission: "settings.view" },

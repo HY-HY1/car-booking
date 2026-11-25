@@ -6,6 +6,8 @@ import { aboutSchema, gallerySchema } from "./branding/about";
 import { extrasSchema } from "./branding/extras";
 import { faqsSchema } from "./branding/faq";
 import { reviewSettingsSchema } from "./branding/reviews";
+import { seoSchema } from "./branding/seo";
+import { videoIntroSchema, videosSchema } from "./branding/videos";
 import { homeSchema } from "./branding/home";
 import { logoSizeSchema } from "./branding/logo-size";
 import { createAdminClient } from "./supabase/admin";
@@ -64,12 +66,18 @@ export const brandingSchema = z.object({
   // Who's behind the business, their trust facts, and photos of their work (branding/about.ts).
   about: aboutSchema,
   gallery: gallerySchema,
+  // Videos of their work on the home page (branding/videos.ts).
+  videos: videosSchema,
+  // The video section's heading, text and social link.
+  video_intro: videoIntroSchema,
   // Questions and answers on the home page, in order (branding/faq.ts).
   faqs: faqsSchema,
   // The reviews section: picked Google reviews and testimonials (branding/reviews.ts).
   reviews: reviewSettingsSchema,
   // The deposit line, jobs count and enquiry page (branding/extras.ts).
   extras: extrasSchema,
+  // Search results and link previews (branding/seo.ts).
+  seo: seoSchema,
   // Typefaces (branding/fonts.ts). Unset body is the standard one; unset
   // headings follow the body text.
   heading_font: headingFontSchema,
@@ -81,6 +89,8 @@ export type PublicTenant = {
   id: string;
   name: string;
   slug: string;
+  // What it does (Settings → Business details): detailing, valeting or both.
+  trade: string | null;
   // Its verified primary custom domain (booking.theirsite.com), if it has
   // one: where its booking pages live in subdomain mode.
   customDomain: string | null;
@@ -126,7 +136,7 @@ export async function getTenantBySlug(slug: string): Promise<PublicTenant | null
   const { data, error } = await createAdminClient()
     .from("tenants")
     .select(
-      "id, name, slug, branding, tracking_ids, contact_email, contact_phone, legal_name, privacy_email, ico_registration, retention_months, privacy_policy_url, marketing_consent_text, domains(hostname, verified, is_primary)",
+      "id, name, slug, trade, branding, tracking_ids, contact_email, contact_phone, legal_name, privacy_email, ico_registration, retention_months, privacy_policy_url, marketing_consent_text, domains(hostname, verified, is_primary)",
     )
     .eq("slug", slug)
     .maybeSingle();
@@ -136,6 +146,7 @@ export async function getTenantBySlug(slug: string): Promise<PublicTenant | null
     id: string;
     name: string;
     slug: string;
+    trade: string | null;
     branding: unknown;
     tracking_ids: Record<string, string> | null;
     contact_email: string | null;
@@ -155,6 +166,7 @@ export async function getTenantBySlug(slug: string): Promise<PublicTenant | null
     id: tenant.id,
     name: tenant.name,
     slug: tenant.slug,
+    trade: tenant.trade,
     customDomain: primaryCustom(tenant.domains),
     branding,
     trackingIds: tenant.tracking_ids ?? {},

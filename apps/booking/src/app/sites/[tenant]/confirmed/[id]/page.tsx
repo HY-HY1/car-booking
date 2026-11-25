@@ -14,7 +14,7 @@ import { Booked } from "./booked";
 import { RefreshWhileWaiting } from "./refresh-while-waiting";
 import { formatFullDateTime } from "@leadgen/core/dates";
 
-export const metadata: Metadata = { title: "Your booking" };
+export const metadata: Metadata = { title: "Your booking", robots: { index: false, follow: false } };
 
 // Where Stripe sends the customer after the deposit page. The webhook
 // confirms the payment, so it still happens if the customer closed the tab
@@ -46,20 +46,23 @@ export default async function ConfirmedPage({ params, searchParams }: PageProps<
   return (
     <SiteFrame tenant={tenant} embedded={embedded}>
     <main className="flex flex-1 flex-col">
+      {/* A booking that's in has the whole width; everything else is a
+          short message in the middle. */}
+      {live && booking ? (
+        <Booked
+          id={id}
+          booking={booking}
+          businessName={tenant.name}
+          contact={tenant.contact}
+          manageUrl={manage}
+          icsUrl={pageUrl(tenant, `/confirmed/${id}/calendar`)}
+        />
+      ) : (
       <div className="mx-auto grid w-full max-w-lg flex-1 content-start justify-items-center gap-3 px-4 py-12 text-center sm:py-16">
         {!booking ? (
           <Message title="We couldn't find that booking">
             <Again href={pageUrl(tenant, "/quote")} />
           </Message>
-        ) : booking.status === "confirmed" || booking.status === "requested" ? (
-          <Booked
-            id={id}
-            booking={booking}
-            businessName={tenant.name}
-            contact={tenant.contact}
-            manageUrl={manage}
-            icsUrl={pageUrl(tenant, `/confirmed/${id}/calendar`)}
-          />
         ) : booking.status === "held" && !cancelled ? (
           <>
             <RefreshWhileWaiting />
@@ -105,12 +108,11 @@ export default async function ConfirmedPage({ params, searchParams }: PageProps<
             <Again href={pageUrl(tenant, "/quote")} />
           </Message>
         )}
-        {!(booking?.status === "confirmed" || booking?.status === "requested") && (
-          <div className="mt-2">
-            <ContactLinks phone={tenant.contact.phone} email={tenant.contact.email} />
-          </div>
-        )}
+        <div className="mt-2">
+          <ContactLinks phone={tenant.contact.phone} email={tenant.contact.email} />
+        </div>
       </div>
+      )}
     </main>
     </SiteFrame>
   );

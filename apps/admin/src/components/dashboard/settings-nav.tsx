@@ -45,12 +45,6 @@ const GROUPS: { title: string; items: Item[] }[] = [
         permission: view,
       },
       {
-        path: "/booking-page",
-        label: "Booking page",
-        description: "How your booking page looks, its web address, and adding it to your own website.",
-        permission: view,
-      },
-      {
         path: "/payments",
         label: "Payments",
         description: "Taking deposits through Stripe, and what's refunded when customers cancel.",

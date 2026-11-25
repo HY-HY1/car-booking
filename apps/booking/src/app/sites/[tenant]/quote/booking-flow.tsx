@@ -102,6 +102,9 @@ type Props = {
   contact: { email: string | null; phone: string | null };
   // More than one car on the same visit (Settings → Hours & rules).
   multiCar: { enabled: boolean; maxCars: number; setupMins: number };
+  // The longest job one visit can be, by where it's done (core booking/
+  // day-length.ts): the longest single opening window. Null = nothing does it.
+  longestJobMins: Record<LocationType, number | null>;
   // An outside tap or power socket the business needs for mobile jobs.
   siteNeeds: SiteNeeds;
 };
@@ -382,6 +385,30 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
   })();
 
   const payOnline = !!quote && collectsDepositOnline(quote.deposit_pence, props.stripeReady);
+
+  // A job has to fit in one opening window, so several long jobs (two 8-hour
+  // details, say) can be too much for one visit, and no day would ever show
+  // as free. Said straight away instead, with the way out. The limit is for
+  // where it's done, or before that's picked, the most anywhere allows.
+  const limitMins = (() => {
+    const limits = (a.locationType ? [a.locationType] : locations)
+      .map((l) => props.longestJobMins[l])
+      .filter((n): n is number => n !== null && n > 0);
+    return limits.length ? Math.max(...limits) : null;
+  })();
+  const tooLong = !!quote && limitMins !== null && quote.duration_mins > limitMins;
+  const tooLongNotice =
+    tooLong && quote && limitMins !== null ? (
+      <div role="alert" className="grid gap-3 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+        <p className="font-medium">Too long for one visit</p>
+        <p>
+          {extras.length
+            ? `Together, these ${extras.length + 1} cars take about ${formatDuration(quote.duration_mins)}. ${props.tenantName} can do up to about ${formatDuration(limitMins)} in one visit, so they can't be booked together. Remove a car or some extras, or book the cars as separate visits.`
+            : `This job takes about ${formatDuration(quote.duration_mins)}, longer than ${props.tenantName} can do in one visit (about ${formatDuration(limitMins)}). Remove some extras, or get in touch to arrange it.`}
+        </p>
+        <ContactLinks phone={props.contact.phone} email={props.contact.email} />
+      </div>
+    ) : null;
 
   // Remembered from the first change on, so a refresh picks up here.
   const slug = props.tenant.slug;
@@ -819,9 +846,12 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                       )}
                     </Section>
                   )}
+                  {tooLongNotice}
                   <Continue
                     label={
-                      uploading
+                      tooLong
+                        ? "Too long for one visit"
+                        : uploading
                         ? "Uploading photos…"
                         : checking
                           ? "Checking your photos…"
@@ -832,7 +862,14 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                               : "Continue"
                     }
                     disabled={
-                      uploading || checking || !carMake || !carModel || !a.sizeClass || photoIds.length < props.minPhotos || !extrasReady
+                      tooLong ||
+                      uploading ||
+                      checking ||
+                      !carMake ||
+                      !carModel ||
+                      !a.sizeClass ||
+                      photoIds.length < props.minPhotos ||
+                      !extrasReady
                     }
                     onClick={continueFromCar}
                   />
@@ -882,7 +919,12 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                     </div>
                   </Section>
                 )}
-                <Continue label={a.addOnIds.length || a.concerns.length ? "Continue" : "Nothing extra, continue"} onClick={next} />
+                {tooLongNotice}
+                <Continue
+                  label={tooLong ? "Too long for one visit" : a.addOnIds.length || a.concerns.length ? "Continue" : "Nothing extra, continue"}
+                  disabled={tooLong}
+                  onClick={next}
+                />
               </div>
             </StepCard>
 
@@ -1030,7 +1072,9 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                         : `The job takes about ${formatDuration(quote.duration_mins)}.`
                     }
                   >
-                    {openDates === null ? (
+                    {tooLongNotice ? (
+                      tooLongNotice
+                    ) : openDates === null ? (
                       <p className="flex items-center gap-2 text-sm text-neutral-500">
                         <Loader2 className="size-4 animate-spin" /> Checking the diary…
                       </p>

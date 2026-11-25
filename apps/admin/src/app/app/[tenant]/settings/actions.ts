@@ -10,10 +10,13 @@ import { customHostnameSchema } from "@leadgen/core/settings/domains";
 import { addCustomDomain, checkCustomDomain, makePrimaryDomain, removeCustomDomain } from "@leadgen/core/settings/domains-server";
 import { aboutSchema, galleryRows, gallerySchema, type GalleryPhoto } from "@leadgen/core/branding/about";
 import { parseFaqForm } from "@leadgen/core/branding/faq";
-import { aboutFormSchema, brandingFormSchema, extrasFormSchema, generalFormSchema, homeFormSchema } from "@leadgen/core/settings/forms";
+import { aboutFormSchema, brandingFormSchema, extrasFormSchema, generalFormSchema, homeFormSchema, seoFormSchema } from "@leadgen/core/settings/forms";
+import { seoSchema } from "@leadgen/core/branding/seo";
+import { MAX_VIDEO_BYTES, VIDEO_BUCKET, VIDEO_TYPES, parseVideoIntro, parseVideosForm, uploadedPaths, videosSchema } from "@leadgen/core/branding/videos";
+import { makeTabIcon } from "@leadgen/core/branding/tab-icon";
 import type { SaveState } from "@/app/app/[tenant]/pricing/actions";
 import { SERVICE_IMAGE_MAX_BYTES, SERVICE_IMAGE_TYPES, serviceImageUrl } from "@/lib/pricing-fields";
-import { IMAGE_BUCKET, PUBLIC_PREFIX, imageFile, imageProblem, uploadBrandImage } from "@/lib/brand-images";
+import { IMAGE_BUCKET, PUBLIC_PREFIX, imageFile, imageProblem, removeBrandImages, uploadBrandBytes, uploadBrandImage } from "@/lib/brand-images";
 import { stripeOnboardingUrl } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
 import { failed, fieldErrors, plain, requireOwner } from "./shared";
@@ -297,6 +300,120 @@ export async function saveExtrasAction(slug: string, formData: FormData): Promis
     .eq("id", tenant.id);
   if (error) return failed("these settings", error);
   await logActivity(tenant.id, "settings.booking_page", "Changed the trust and enquiry settings on the booking page");
+  refresh();
+  return { saved: true };
+}
+
+// Search and sharing: the home page's title and description in search
+// results, the sharing picture, the tab icon (made into a square PNG), the
+// Search Console code and whether to stay out of search engines. Stored as
+// branding.seo.
+export async function saveSeoAction(slug: string, formData: FormData): Promise<SaveState> {
+  const { tenant, denied } = await requireOwner(slug);
+  if (denied) return denied;
+  const parsed = seoFormSchema.safeParse(plain(formData));
+  if (!parsed.success) return fieldErrors(parsed.error);
+  const share = imageFile(formData, "share_image");
+  const icon = imageFile(formData, "tab_icon");
+  for (const [name, file] of [["share_image", share], ["tab_icon", icon]] as const) {
+    const problem = file && imageProblem(file);
+    if (problem) return { errors: { [name]: problem } };
+  }
+
+  const supabase = await createClient();
+  const current = await supabase.from("tenants").select("branding").eq("id", tenant.id).single();
+  if (current.error) return failed("these settings", current.error);
+  const branding = (current.data.branding ?? {}) as Record<string, unknown>;
+  const before = seoSchema.parse(branding.seo);
+
+  const uploaded: string[] = [];
+  let shareUrl = formData.get("remove_share_image") === "on" ? undefined : before.share_image_url;
+  let iconUrl = formData.get("remove_tab_icon") === "on" ? undefined : before.icon_url;
+  try {
+    if (share) uploaded.push((shareUrl = await uploadBrandImage(supabase, tenant.id, share)));
+    if (icon) {
+      const png = await makeTabIcon(await icon.arrayBuffer());
+      uploaded.push((iconUrl = await uploadBrandBytes(supabase, tenant.id, png, "png", "image/png")));
+    }
+  } catch (error) {
+    await removeBrandImages(supabase, uploaded);
+    return failed("the images", error);
+  }
+
+  const seo: Record<string, unknown> = { ...parsed.data, share_image_url: shareUrl, icon_url: iconUrl };
+  for (const key of Object.keys(seo)) if (seo[key] === undefined) delete seo[key];
+  const { error } = await supabase
+    .from("tenants")
+    .update({ branding: { ...branding, seo } })
+    .eq("id", tenant.id);
+  if (error) {
+    await removeBrandImages(supabase, uploaded);
+    return failed("these settings", error);
+  }
+  await removeBrandImages(
+    supabase,
+    [before.share_image_url, before.icon_url].filter((u): u is string => Boolean(u) && u !== shareUrl && u !== iconUrl),
+  );
+  await logActivity(tenant.id, "settings.booking_page", "Changed how the booking page shows in search results");
+  refresh();
+  return { saved: true };
+}
+
+// A one-time link to upload a video straight from the browser to the
+// business's folder in the site-videos bucket: videos are too big to send
+// through a save. The path is ours, never the browser's. Nothing is shown on
+// the booking page until the video list is saved with it.
+export async function createVideoUploadAction(
+  slug: string,
+  file: { type: string; size: number },
+): Promise<{ path: string; token: string } | { message: string }> {
+  const { tenant, denied } = await requireOwner(slug);
+  if (denied) return { message: denied.message ?? "Your access level doesn't include changing settings." };
+  const ext = VIDEO_TYPES[file.type];
+  if (!ext) return { message: "Use an MP4, WebM or MOV video." };
+  if (!(file.size > 0) || file.size > MAX_VIDEO_BYTES) {
+    return { message: `Videos can be up to ${MAX_VIDEO_BYTES / 1024 / 1024} MB. For a longer one, put it on YouTube and add the link.` };
+  }
+  const path = `${tenant.id}/videos/${crypto.randomUUID()}.${ext}`;
+  const supabase = await createClient();
+  const { data, error } = await supabase.storage.from(VIDEO_BUCKET).createSignedUploadUrl(path);
+  if (error || !data) {
+    console.error("Couldn't make a video upload link", error);
+    return { message: "Couldn't start the upload. If this is the first video, the site-videos storage may need setting up (migration 20261125140000)." };
+  }
+  return { path, token: data.token };
+}
+
+// Videos of your work: the list in the form's order, uploads and links, each
+// with a caption, and the section's heading, text and social link. Uploads
+// taken out are deleted. Stored as branding.videos and branding.video_intro.
+export async function saveVideosAction(slug: string, formData: FormData): Promise<SaveState> {
+  const { tenant, denied } = await requireOwner(slug);
+  if (denied) return denied;
+  const strings = (name: string) => formData.getAll(name).map((v) => (typeof v === "string" ? v : ""));
+  const parsed = parseVideosForm(strings("video"), strings("video_caption"), tenant.id);
+  if (parsed.errors) return { errors: parsed.errors, message: parsed.errors.videos ?? "Check the highlighted videos." };
+  const one = (name: string) => strings(name)[0] ?? "";
+  const intro = parseVideoIntro({ heading: one("video_heading"), text: one("video_text"), social: one("social_url") });
+  if (intro.errors) return { errors: intro.errors };
+
+  const supabase = await createClient();
+  const current = await supabase.from("tenants").select("branding").eq("id", tenant.id).single();
+  if (current.error) return failed("your videos", current.error);
+  const branding = (current.data.branding ?? {}) as Record<string, unknown>;
+  const before = uploadedPaths(videosSchema.parse(branding.videos));
+  const { error } = await supabase
+    .from("tenants")
+    .update({ branding: { ...branding, videos: parsed.videos, video_intro: intro.intro } })
+    .eq("id", tenant.id);
+  if (error) return failed("your videos", error);
+  const kept = new Set(uploadedPaths(parsed.videos));
+  const stale = before.filter((p) => !kept.has(p));
+  if (stale.length) {
+    const removed = await supabase.storage.from(VIDEO_BUCKET).remove(stale);
+    if (removed.error) console.error("Couldn't remove old videos", removed.error);
+  }
+  await logActivity(tenant.id, "settings.booking_page", "Changed the videos on the booking page");
   refresh();
   return { saved: true };
 }

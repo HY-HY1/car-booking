@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, Mail, MapPin, Phone } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Check, Mail, MapPin, Phone } from "lucide-react";
 import { formatPence, type Service } from "@leadgen/core/booking/config";
 import { siteNeedsOf } from "@leadgen/core/booking/site-needs";
 import { formatPhone } from "@leadgen/core/customer-fields";
@@ -12,6 +12,7 @@ import { jsonLdText, localBusinessJsonLd } from "@leadgen/core/seo/local-busines
 import { coverObjectPosition } from "@leadgen/core/branding/cover";
 import { loadPublicReviews } from "@leadgen/core/reviews/sync";
 import { loadBookingConfig } from "@/lib/booking-config";
+import { pageMetadata } from "@/lib/seo";
 import { requireRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
 import { cn } from "@/lib/cn";
@@ -22,6 +23,8 @@ import { Availability, AvailabilitySkeleton } from "@/components/home/availabili
 import { Coverage } from "@/components/home/coverage";
 import { FaqSection } from "@/components/home/faqs";
 import { GalleryGrid } from "@/components/home/gallery";
+import { VideoShowcase, type ShowcaseVideo } from "@/components/home/videos";
+import { DEFAULT_VIDEO_HEADING, DEFAULT_VIDEO_TEXT, VIDEO_PROVIDERS, embedUrl, socialButtonLabel, videoFileUrl, videoThumbnail } from "@leadgen/core/branding/videos";
 import { RatingLine, Reviews } from "@/components/home/reviews";
 import { ServiceRow } from "@/components/home/service-row";
 import { SiteNeedsNotice } from "@/components/home/site-needs";
@@ -32,6 +35,10 @@ import { SiteNeedsNotice } from "@/components/home/site-needs";
 // system's; the booking itself is one button away throughout. The
 // dashboard's BookingPagePreview (admin settings/booking-page-preview.tsx)
 // mirrors the top of it: keep in step.
+export async function generateMetadata() {
+  return pageMetadata(await requireRequestTenant(), "/");
+}
+
 export default async function Home() {
   const tenant = await requireRequestTenant();
   // Reviews, if the owner shows them (Settings → Booking page → Reviews on
@@ -92,6 +99,23 @@ export default async function Home() {
     website: tenant.branding.website_url,
   });
 
+  // Videos of their work (Settings → Booking page → Videos of your work),
+  // ready for the player: an upload's file, or a link's player and still.
+  const videoIntro = tenant.branding.video_intro;
+  const videos: ShowcaseVideo[] = tenant.branding.videos.map((v, i) =>
+    v.kind === "upload"
+      ? { key: `${i}-${v.path}`, kind: "upload", src: videoFileUrl(process.env.NEXT_PUBLIC_SUPABASE_URL!, v.path), vertical: v.vertical, caption: v.caption }
+      : {
+          key: `${i}-${v.provider}-${v.id}`,
+          kind: "link",
+          embed: embedUrl(v),
+          thumbnail: videoThumbnail(v),
+          provider: VIDEO_PROVIDERS[v.provider],
+          vertical: v.vertical,
+          caption: v.caption,
+        },
+  );
+
   const unitAddress = settings?.offers_unit ? [settings.unit_address, settings.unit_postcode].filter(Boolean).join(", ") : "";
 
   // The extra sections, as the owner set them (Settings → Booking page).
@@ -139,9 +163,9 @@ export default async function Home() {
   const bookButton = (label: string) => (
     <Link
       href={quote}
-      className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-medium text-accent-fg shadow-sm ring-1 ring-black/5 transition hover:opacity-90"
+      className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-medium whitespace-nowrap text-accent-fg shadow-sm ring-1 ring-black/5 transition hover:opacity-90"
     >
-      {label} <ArrowRight className="size-4" aria-hidden />
+      {label} <ArrowRight className="size-4 shrink-0" aria-hidden />
     </Link>
   );
   const callButton = callPhone ? (
@@ -278,6 +302,33 @@ export default async function Home() {
           <section id="work" aria-labelledby="work-title" className="scroll-mt-4 border-t py-14 sm:py-20">
             <div className={cn(container, "grid gap-8")}>
               <GalleryGrid photos={gallery} businessName={tenant.name} titleId="work-title" />
+            </div>
+          </section>
+        )}
+
+        {/* Only once there's a video: the words and a link to their social
+            media on the left, the videos on the right (stacked on a phone). */}
+        {videos.length > 0 && (
+          <section id="videos" aria-labelledby="videos-title" className="scroll-mt-4 border-t py-14 sm:py-20">
+            <div className={cn(container, "grid gap-10 md:grid-cols-[minmax(0,26rem)_auto] md:items-center md:justify-center md:gap-10 lg:gap-12")}>
+              <div className="grid content-center gap-4">
+                <h2 id="videos-title" className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+                  {videoIntro.heading ?? DEFAULT_VIDEO_HEADING}
+                </h2>
+                <p className="max-w-md text-lg text-pretty text-neutral-700">{videoIntro.text ?? DEFAULT_VIDEO_TEXT}</p>
+                {videos.length > 1 && <p className="text-sm text-neutral-500">Use the arrows to watch the next one.</p>}
+                {videoIntro.social_url && (
+                  <a
+                    href={videoIntro.social_url}
+                    target="_blank"
+                    rel="noopener"
+                    className="mt-2 inline-flex h-12 w-fit items-center gap-2 rounded-full border border-neutral-300 bg-surface px-6 font-medium text-neutral-900 transition hover:border-neutral-500"
+                  >
+                    {socialButtonLabel(videoIntro.social_url)} <ArrowUpRight className="size-4" aria-hidden />
+                  </a>
+                )}
+              </div>
+              <VideoShowcase videos={videos} businessName={tenant.name} />
             </div>
           </section>
         )}
@@ -441,9 +492,9 @@ function BookCard({
       <div className={cn("grid gap-2", wide && divided)}>
         <Link
           href={quoteUrl}
-          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-accent px-6 font-medium text-accent-fg shadow-sm ring-1 ring-black/5 transition hover:opacity-90"
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-accent px-6 font-medium whitespace-nowrap text-accent-fg shadow-sm ring-1 ring-black/5 transition hover:opacity-90"
         >
-          Check prices and book <ArrowRight className="size-4" aria-hidden />
+          Check prices and book <ArrowRight className="size-4 shrink-0" aria-hidden />
         </Link>
         <p className="text-center text-xs text-pretty text-neutral-500">{terms ?? "Nothing to pay for a quote."}</p>
       </div>

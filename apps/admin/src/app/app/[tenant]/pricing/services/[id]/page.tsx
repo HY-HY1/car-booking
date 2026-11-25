@@ -5,7 +5,8 @@ import { ServiceForm } from "@/components/dashboard/service-editor";
 import { requireAccess } from "@/lib/auth";
 import { loadPricing } from "@/lib/pricing";
 import { loadSetup } from "@/lib/setup";
-import { deleteService, saveService } from "../../actions";
+import { deleteService, saveBeforeAfter, saveService } from "../../actions";
+import { BeforeAfterForm } from "@/components/dashboard/before-after-form";
 import { appUrl, tenantUrl } from "@/lib/urls";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -55,6 +56,16 @@ export default async function ServicePage({ params }: PageProps<"/app/[tenant]/p
           deleteAction={service ? deleteService.bind(null, slug, service.id) : undefined}
           readOnly={readOnly}
           pageUrl={pageUrl}
+          beforeAfter={
+            service ? (
+              <BeforeAfterForm
+                key={JSON.stringify(service.before_after ?? [])}
+                pairs={service.before_after ?? []}
+                action={saveBeforeAfter.bind(null, slug, service.id)}
+                readOnly={readOnly}
+              />
+            ) : undefined
+          }
         />
       </div>
     </>

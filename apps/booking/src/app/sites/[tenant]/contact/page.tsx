@@ -1,15 +1,18 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, Clock, MessageSquareText } from "lucide-react";
 import { loadBookingConfig } from "@/lib/booking-config";
+import { pageMetadata } from "@/lib/seo";
 import { requireRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
 import { cn } from "@/lib/cn";
 import { SiteFrame, container } from "@/components/site";
 import { EnquiryForm } from "./enquiry-form";
 
-export const metadata: Metadata = { title: "Ask about a job" };
+export async function generateMetadata() {
+  const tenant = await requireRequestTenant();
+  return pageMetadata(tenant, "/contact", { title: "Ask about a job", description: tenant.branding.extras.enquiries.intro });
+}
 
 // The enquiry page: for jobs the instant quote doesn't fit. Each enquiry
 // arrives under Leads in the dashboard and emails the owner. Switched on and
