@@ -132,3 +132,28 @@ Add the new URLs to Supabase auth redirect allow-list and to Stripe settings
 Anything you weren't sure about or chose not to change.
 
 Work in small commits, run the type-checker and tests after each step, and ask me before deleting or renaming anything large.
+---
+
+Added 2026-11-25: subdomain mode with the site on app.<root>
+
+Set NEXT_PUBLIC_SITE_URL to https://app.<root> in subdomain mode and the landing page and dashboard share that host path-style, while the super-admin keeps admin.<root> and businesses their subdomains:
+
+Surface	Address
+Marketing / landing / docs	https://app.domain.co.uk/, /docs, /legal …
+Business dashboard	https://app.domain.co.uk/app/...
+Internal super-admin	https://admin.domain.co.uk/... (its own sign-in at /login)
+Customer booking UI	https://<slug>.domain.co.uk/... or a verified custom domain
+domain.co.uk, www.	308 to the same page on app. (the API, /api/…, is never redirected)
+
+How: packages/core/src/urls.ts platformOnSite(cfg) is true in path mode and when the site's host is app.<root>; appUrl/apiUrl then build on the site URL with /app and /api, adminUrl stays admin.<root>, and surfaceForHost reports the site host as "site". apps/admin/src/proxy.ts treats "site" like path mode (no rewrite), rewrites admin.<root> onto /admin as before, and redirects domain.co.uk and www. to app.; /admin on app. redirects to admin.<root>. The dashboard signs in at app./app/login, the super-admin at admin./login (apps/admin/src/lib/urls.ts). The routing table (routing/rules.mjs, vercel.json) needs no change: app.<root> already goes to the admin app and every other host to the booking app.
+
+Steps to go live on app.domain.co.uk:
+1. Vercel → Project → Settings → Domains: add app.domain.co.uk, admin.domain.co.uk and *.domain.co.uk (the wildcard needs the domain's nameservers on Vercel: ns1.vercel-dns.com / ns2.vercel-dns.com). Add domain.co.uk and www. too if they should redirect to app.
+2. Vercel env vars (Production): ROUTING_MODE=subdomain, NEXT_PUBLIC_ROUTING_MODE=subdomain, NEXT_PUBLIC_ROOT_DOMAIN=domain.co.uk, NEXT_PUBLIC_SITE_URL=https://app.domain.co.uk.
+3. Locally with the same values: npm run routing:vercel, then commit vercel.json (the build stops if it doesn't match ROUTING_MODE).
+4. Supabase → Authentication → URL configuration: Site URL https://app.domain.co.uk, redirect URLs https://app.domain.co.uk/**.
+5. Stripe: webhook endpoints https://app.domain.co.uk/api/webhooks/stripe and /api/webhooks/stripe-accounts; Connect redirect on the same host.
+6. Google Cloud OAuth redirect URIs and the Meta and Resend webhooks: the same paths on https://app.domain.co.uk.
+7. Redeploy, then check: app. shows the landing page, app./app the dashboard, admin. the super-admin, <slug>. a booking page, and domain.co.uk redirects to app. (if it points at Vercel).
+
+Done for ascnddetailing.co.uk on 2026-11-25: vercel.json generated with ROOT_DOMAIN=ascnddetailing.co.uk, SITE_URL=https://app.ascnddetailing.co.uk. When the domain changes, rerun step 3 with the new name and update steps 2 and 4–6.

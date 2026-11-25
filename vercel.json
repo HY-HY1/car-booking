@@ -46,7 +46,7 @@
       "has": [
         {
           "type": "host",
-          "value": "car-booking-azure.vercel.app"
+          "value": "ascnddetailing.co.uk"
         }
       ],
       "destination": {
@@ -58,7 +58,7 @@
       "has": [
         {
           "type": "host",
-          "value": "localhost"
+          "value": "www.ascnddetailing.co.uk"
         }
       ],
       "destination": {
@@ -70,7 +70,7 @@
       "has": [
         {
           "type": "host",
-          "value": "127.0.0.1"
+          "value": "app.ascnddetailing.co.uk"
         }
       ],
       "destination": {
@@ -82,9 +82,7 @@
       "has": [
         {
           "type": "host",
-          "value": {
-            "suf": ".vercel.app"
-          }
+          "value": "admin.ascnddetailing.co.uk"
         }
       ],
       "destination": {

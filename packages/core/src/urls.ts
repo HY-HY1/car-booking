@@ -9,9 +9,20 @@
 //   /booking/<slug>/...        https://<slug>.domain.com/...  a business's booking pages,
 //                              or its verified custom domain
 //
+// Subdomain mode has a second layout, chosen by setting the site's address
+// to app.<root> (NEXT_PUBLIC_SITE_URL=https://app.domain.com): the landing
+// page and the dashboard then share that host, path-style as in path mode,
+// while the super-admin keeps its own host and businesses their subdomains:
+//
+//   site on app.<root>         https://app.domain.com           marketing, docs
+//                              https://app.domain.com/app/...   business dashboard
+//                              https://admin.domain.com/...     super-admin
+//                              https://<slug>.domain.com/...    booking pages (or a custom domain)
+//   domain.com and www. redirect to app. (the bare domain may be another site).
+//
 // Path mode keeps every surface on one origin and returns site-relative
 // paths unless `absolute` is asked for. Subdomain mode always returns full
-// URLs, because each surface lives on its own host. Reads only NEXT_PUBLIC_
+// URLs, because the booking pages are on other hosts. Reads only NEXT_PUBLIC_
 // variables, so the browser and the server build the same URLs. Pure.
 
 export type RoutingMode = "path" | "subdomain";
@@ -38,6 +49,19 @@ export function routingConfig(): RoutingConfig {
 }
 
 export type UrlOptions = { absolute?: boolean };
+
+// The site's own host, without a port: app.domain.com, localhost.
+function siteHostOf(cfg: RoutingConfig) {
+  return hostnameOf(new URL(cfg.siteUrl).host);
+}
+
+// Whether the landing page and dashboard share the site's host path-style
+// (/ and /app): always in path mode, and in subdomain mode when the site
+// lives on app.<root>. (In path mode the super-admin is /admin there too; in
+// subdomain mode it always has admin.<root>.)
+export function platformOnSite(cfg: RoutingConfig = routingConfig()) {
+  return cfg.mode === "path" || siteHostOf(cfg) === `app.${hostnameOf(cfg.rootDomain)}`;
+}
 
 // Splits "quote/?embed=1" into "/quote" and "?embed=1", tidying slashes:
 // "quote/" → "/quote", "//evil.com" → "/evil.com" (never a protocol-relative
@@ -91,7 +115,7 @@ export function marketingUrl(path = "/", opts?: UrlOptions) {
 
 export function appUrl(path = "/", opts?: UrlOptions) {
   const cfg = routingConfig();
-  if (cfg.mode === "subdomain") return join(subdomainOrigin(cfg, "app"), "", path);
+  if (cfg.mode === "subdomain") return platformOnSite(cfg) ? join(cfg.siteUrl, "/app", path) : join(subdomainOrigin(cfg, "app"), "", path);
   return onSite(cfg, "/app", path, opts);
 }
 
@@ -151,7 +175,7 @@ export function docsUrl(path = "/", opts?: UrlOptions) {
 // session (the Stripe onboarding link) get its cookie; any host serves it.
 export function apiUrl(path: string, opts?: UrlOptions) {
   const cfg = routingConfig();
-  if (cfg.mode === "subdomain") return join(subdomainOrigin(cfg, "app"), "/api", path);
+  if (cfg.mode === "subdomain") return join(platformOnSite(cfg) ? cfg.siteUrl : subdomainOrigin(cfg, "app"), "/api", path);
   return onSite(cfg, "/api", path, opts);
 }
 
@@ -167,15 +191,18 @@ export function appPathOf(pathname: string) {
 // Which surface a request is for, from its Host header, in subdomain mode:
 // domain.com and www → marketing, app. and admin. → those surfaces, one
 // more label → that business's booking pages, anything else → a custom
-// domain to look up. Ports are ignored, so *.localhost:3000 works locally.
+// domain to look up. With the site on app.<root>, that host is "site" (the
+// landing page and /app by path); domain.com and www. redirect to it.
+// Ports are ignored, so *.localhost:3000 works locally.
 export type HostSurface =
-  | { surface: "marketing" | "app" | "admin" }
+  | { surface: "site" | "marketing" | "app" | "admin" }
   | { surface: "tenant"; slug: string }
   | { surface: "custom"; hostname: string };
 
 export function surfaceForHost(host: string | null | undefined, cfg = routingConfig()): HostSurface {
   const hostname = hostnameOf(host ?? "");
   const root = hostnameOf(cfg.rootDomain);
+  if (platformOnSite(cfg) && hostname === siteHostOf(cfg)) return { surface: "site" };
   if (hostname === root || hostname === `www.${root}`) return { surface: "marketing" };
   if (hostname === `app.${root}`) return { surface: "app" };
   if (hostname === `admin.${root}`) return { surface: "admin" };

@@ -9,6 +9,7 @@ import {
   isPlatformHost,
   marketingUrl,
   parseBookingPath,
+  platformOnSite,
   routingConfig,
   surfaceForHost,
   tenantUrl,
@@ -218,5 +219,42 @@ describe("reserved slugs", () => {
       expect(isReservedSlug(slug)).toBe(true);
     }
     expect(isReservedSlug("ascnd")).toBe(false);
+  });
+});
+
+describe("subdomain mode with the site on app.<root>", () => {
+  const site = { mode: "subdomain", root: "domain.co.uk", site: "https://app.domain.co.uk" };
+
+  it("puts the landing page, dashboard and API on app., the super-admin on admin., businesses on their subdomains", () => {
+    mode(site);
+    expect(platformOnSite()).toBe(true);
+    expect(marketingUrl("/pricing")).toBe("https://app.domain.co.uk/pricing");
+    expect(appUrl()).toBe("https://app.domain.co.uk/app");
+    expect(appUrl("/ascnd/bookings?show=all")).toBe("https://app.domain.co.uk/app/ascnd/bookings?show=all");
+    expect(adminUrl("/businesses")).toBe("https://admin.domain.co.uk/businesses");
+    expect(apiUrl("/v1/catalog")).toBe("https://app.domain.co.uk/api/v1/catalog");
+    expect(docsUrl("/api/keys")).toBe("https://app.domain.co.uk/docs/api/keys");
+    expect(tenantUrl("ascnd", "/quote")).toBe("https://ascnd.domain.co.uk/quote");
+    expect(tenantUrl("ascnd", "/", { customDomain: "book.ascnd.co.uk" })).toBe("https://book.ascnd.co.uk");
+  });
+
+  it("reads app. as the site, and the other hosts as before", () => {
+    const cfg = { mode: "subdomain" as const, rootDomain: "domain.co.uk", siteUrl: "https://app.domain.co.uk" };
+    expect(surfaceForHost("app.domain.co.uk", cfg)).toEqual({ surface: "site" });
+    expect(surfaceForHost("domain.co.uk", cfg)).toEqual({ surface: "marketing" });
+    expect(surfaceForHost("www.domain.co.uk", cfg)).toEqual({ surface: "marketing" });
+    expect(surfaceForHost("admin.domain.co.uk", cfg)).toEqual({ surface: "admin" });
+    expect(surfaceForHost("ascnd.domain.co.uk", cfg)).toEqual({ surface: "tenant", slug: "ascnd" });
+    expect(surfaceForHost("book.ascnd.co.uk", cfg)).toEqual({ surface: "custom", hostname: "book.ascnd.co.uk" });
+  });
+
+  it("leaves the other layouts as they were", () => {
+    mode({ mode: "subdomain", root: "domain.com", site: "https://domain.com" });
+    expect(platformOnSite()).toBe(false);
+    expect(appUrl("/ascnd")).toBe("https://app.domain.com/ascnd");
+    expect(adminUrl()).toBe("https://admin.domain.com");
+    mode({ mode: "path", site: "https://app.domain.co.uk" });
+    expect(platformOnSite()).toBe(true);
+    expect(appUrl("/ascnd")).toBe("/app/ascnd");
   });
 });

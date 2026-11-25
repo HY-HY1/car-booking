@@ -19,7 +19,11 @@ export function secondFactorUrl(next?: string) {
 
 function signInPage(path: string, next?: string) {
   const admin = adminUrl();
-  const forAdmin = URL.canParse(admin) && !!next && URL.canParse(next) && new URL(next).origin === new URL(admin).origin;
+  const app = appUrl();
+  // Only when the super-admin has a host of its own (not path mode, nor the
+  // site on app.<root>, where both share one host and one sign-in page).
+  const ownHost = URL.canParse(admin) && URL.canParse(app) && new URL(admin).origin !== new URL(app).origin;
+  const forAdmin = ownHost && !!next && URL.canParse(next) && new URL(next).origin === new URL(admin).origin;
   const page = forAdmin ? adminUrl(path) : appUrl(path);
   return next ? `${page}?next=${encodeURIComponent(next)}` : page;
 }
