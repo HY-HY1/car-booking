@@ -2,7 +2,7 @@
 
 import { useEffect, useEffectEvent, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, Pencil, Plus } from "lucide-react";
+import { Check, Info, Loader2, Pencil, Plus } from "lucide-react";
 import {
   addOnFitsService,
   formatDuration,
@@ -947,6 +947,21 @@ function Flow({ draft, ...props }: Props & { draft: Draft | null }) {
                             options={{ driveway: "Driveway", street: "On the street", car_park: "Car park", other: "Other" }}
                             onChange={(parking) => set({ parking })}
                           />
+                        )}
+                        {/* Not every business can work at the roadside (parking rules,
+                            traffic, running a hose across the pavement), so the
+                            customer is pointed to them before booking, not after. */}
+                        {ask.access && a.parking === "street" && (
+                          <div role="status" className="grid gap-3 rounded-xl bg-neutral-50 p-4 text-sm ring-1 ring-neutral-200">
+                            <p className="flex gap-2.5 text-neutral-700">
+                              <Info className="mt-0.5 size-4 shrink-0 text-neutral-500" aria-hidden />
+                              <span>
+                                Not every job can be done on the street, so please check with {props.tenantName} before
+                                you book. They may not be able to take the job if the car is parked on the road.
+                              </span>
+                            </p>
+                            <ContactLinks phone={props.contact.phone} email={props.contact.email} />
+                          </div>
                         )}
                         {ask.car_location && (
                           <TextField

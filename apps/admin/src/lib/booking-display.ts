@@ -41,6 +41,7 @@ export const BOOKING_SOURCE: Record<string, string> = {
   manual: "Added by you",
   facebook_lead_form: "Facebook lead form",
   instagram_lead_form: "Instagram lead form",
+  enquiry_form: "Enquiry form",
   website: "Your website",
 };
 

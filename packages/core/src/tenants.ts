@@ -2,7 +2,12 @@ import "server-only";
 import { z } from "zod";
 import { coverPositionSchema } from "./branding/cover";
 import { bodyFontSchema, headingFontSchema } from "./branding/fonts";
+import { aboutSchema, gallerySchema } from "./branding/about";
+import { extrasSchema } from "./branding/extras";
+import { faqsSchema } from "./branding/faq";
+import { reviewSettingsSchema } from "./branding/reviews";
 import { homeSchema } from "./branding/home";
+import { logoSizeSchema } from "./branding/logo-size";
 import { createAdminClient } from "./supabase/admin";
 import { hostnameOf, routingConfig } from "./urls";
 
@@ -35,16 +40,36 @@ export const brandingSchema = z.object({
   // Optional: the dashboard's active nav highlight. Unset keeps it neutral.
   secondary_color: hexColor.optional().catch(undefined),
   logo_url: z.url().optional().catch(undefined),
+  // Shown instead in dark mode (booking page and dashboard). Unset uses logo_url.
+  logo_dark_url: z.url().optional().catch(undefined),
+  // How big the logo shows in the header (branding/logo-size.ts). Unset is medium.
+  logo_size: logoSizeSchema,
   // Behind the heading on the booking page's home.
   cover_url: z.url().optional().catch(undefined),
   // Which part of the cover stays in view (branding/cover.ts). Unset is the middle.
   cover_position: coverPositionSchema.optional().catch(undefined),
+  // The big heading at the top of the booking page's home. Unset shows the business name.
+  hero_heading: z.string().optional().catch(undefined),
   tagline: z.string().optional().catch(undefined),
+  // How customers reach the business, shown in the booking pages' footer.
+  // Entered on the booking page settings on purpose, never copied from the
+  // sign-up or business details, so nothing private shows by accident.
+  page_email: z.email().optional().catch(undefined),
+  page_phone: z.string().regex(/^\+[1-9]\d{6,14}$/).optional().catch(undefined),
   // The floating button the embed script adds to the owner's website.
   button_label: z.string().min(1).max(30).optional().catch(undefined),
   button_position: z.enum(["right", "left"]).catch("right"),
   // The home page's extra sections (branding/home.ts).
   home: homeSchema,
+  // Who's behind the business, their trust facts, and photos of their work (branding/about.ts).
+  about: aboutSchema,
+  gallery: gallerySchema,
+  // Questions and answers on the home page, in order (branding/faq.ts).
+  faqs: faqsSchema,
+  // The reviews section: picked Google reviews and testimonials (branding/reviews.ts).
+  reviews: reviewSettingsSchema,
+  // The deposit line, jobs count and enquiry page (branding/extras.ts).
+  extras: extrasSchema,
   // Typefaces (branding/fonts.ts). Unset body is the standard one; unset
   // headings follow the body text.
   heading_font: headingFontSchema,
@@ -61,7 +86,10 @@ export type PublicTenant = {
   customDomain: string | null;
   branding: Branding;
   trackingIds: Record<string, string>;
-  // How customers reach the business (Settings → Business details).
+  // How customers reach the business, everywhere on its booking pages: the
+  // details entered under Settings → Booking page, and nothing else. Never
+  // the sign-up or business details (those go on emails and invoices), so
+  // nothing private shows by accident.
   contact: { email: string | null; phone: string | null };
   // Who's responsible for customers' data, for the privacy notice.
   privacy: {
@@ -121,15 +149,16 @@ export async function getTenantBySlug(slug: string): Promise<PublicTenant | null
     domains: DomainRow[] | null;
   } | null;
   if (!tenant) return null;
+  const branding = brandingSchema.parse(tenant.branding ?? {});
 
   return {
     id: tenant.id,
     name: tenant.name,
     slug: tenant.slug,
     customDomain: primaryCustom(tenant.domains),
-    branding: brandingSchema.parse(tenant.branding ?? {}),
+    branding,
     trackingIds: tenant.tracking_ids ?? {},
-    contact: { email: tenant.contact_email, phone: tenant.contact_phone },
+    contact: { email: branding.page_email ?? null, phone: branding.page_phone ?? null },
     privacy: {
       legalName: tenant.legal_name,
       contactEmail: tenant.privacy_email,

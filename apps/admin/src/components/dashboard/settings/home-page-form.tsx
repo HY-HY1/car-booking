@@ -15,6 +15,7 @@ export function HomePageForm({
   home,
   shortestMins,
   travels,
+  hasPhone,
   action,
   readOnly,
 }: {
@@ -23,11 +24,14 @@ export function HomePageForm({
   shortestMins: number | null;
   // The business goes to customers, so the coverage section can show.
   travels: boolean;
+  // A phone number is set for the booking page (Look and feel), so there is one to show.
+  hasPhone: boolean;
   action: Action;
   readOnly: boolean;
 }) {
   const [availability, setAvailability] = useState(home.show_availability);
   const [area, setArea] = useState(home.show_area);
+  const [phone, setPhone] = useState(home.show_phone);
 
   return (
     <SaveForm action={action} readOnly={readOnly}>
@@ -91,6 +95,21 @@ export function HomePageForm({
                 />
               </Field>
             </div>
+          </div>
+
+          <div className="grid gap-4 rounded-lg border p-4">
+            <Switch
+              name="show_phone"
+              checked={phone}
+              onChange={(e) => setPhone(e.target.checked)}
+              description={
+                hasPhone
+                  ? "Your number in the header of every page, and as a Call button beside the booking button. Switch it off if you can't take calls while you work."
+                  : "Add a contact phone under Look and feel, above, first."
+              }
+            >
+              Show your phone number at the top
+            </Switch>
           </div>
         </>
       )}

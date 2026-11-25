@@ -182,6 +182,27 @@ describe("booking page form", () => {
     expect([standard.heading_font, standard.body_font]).toEqual([undefined, undefined]);
   });
 
+  it("keeps a hero heading, trimmed, and stores a blank one as unset", () => {
+    expect(brandingFormSchema.parse({ ...base, hero_heading: "  Showroom shine, on your drive " }).hero_heading).toBe("Showroom shine, on your drive");
+    expect(brandingFormSchema.parse({ ...base, hero_heading: "   " }).hero_heading).toBeUndefined();
+    expect(brandingFormSchema.safeParse({ ...base, hero_heading: "x".repeat(81) }).success).toBe(false);
+  });
+
+  it("keeps the footer's own contact details, blank as unset, never borrowing others", () => {
+    const parsed = brandingFormSchema.parse({ ...base, page_email: " Hello@Shine.co.uk ", page_phone: "07700 900123" });
+    expect([parsed.page_email, parsed.page_phone]).toEqual(["hello@shine.co.uk", "+447700900123"]);
+    const blank = brandingFormSchema.parse({ ...base, page_email: "", page_phone: "" });
+    expect([blank.page_email, blank.page_phone]).toEqual([undefined, undefined]);
+    expect(brandingFormSchema.safeParse({ ...base, page_phone: "call me" }).success).toBe(false);
+    expect(brandingFormSchema.safeParse({ ...base, page_email: "nope" }).success).toBe(false);
+  });
+
+  it("keeps a logo size from the list, medium when none is sent", () => {
+    expect(brandingFormSchema.parse({ ...base, logo_size: "large" }).logo_size).toBe("large");
+    expect(brandingFormSchema.parse(base).logo_size).toBe("medium");
+    expect(brandingFormSchema.safeParse({ ...base, logo_size: "huge" }).success).toBe(false);
+  });
+
   it("refuses a typeface that isn't on the list, or a display face for body text", () => {
     expect(brandingFormSchema.safeParse({ ...base, heading_font: "comic_sans" }).success).toBe(false);
     expect(brandingFormSchema.safeParse({ ...base, body_font: "bebas_neue" }).success).toBe(false);

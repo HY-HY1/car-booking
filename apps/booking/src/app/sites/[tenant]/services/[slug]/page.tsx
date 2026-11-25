@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Check, ChevronDown, Clock, X } from "lucide-react";
 import { formatDuration, formatPence, type Service } from "@leadgen/core/booking/config";
-import { getBookingConfig } from "@leadgen/core/booking/engine";
+import { loadBookingConfig } from "@/lib/booking-config";
 import { requireRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
 import { cn } from "@/lib/cn";
@@ -14,7 +14,7 @@ import { ServiceCard, serviceImageUrl as imageUrl } from "@/components/service-c
 
 async function loadService(slug: string) {
   const tenant = await requireRequestTenant();
-  const config = await getBookingConfig(tenant.id);
+  const config = await loadBookingConfig(tenant.id);
   const service = config?.services.find((s) => s.slug === slug);
   if (!config || !service) notFound();
   return { tenant, service, others: config.services.filter((s) => s.id !== service.id && s.slug) };
@@ -272,7 +272,7 @@ function PriceCard({ service, href }: { service: Service; href: string }) {
         <Clock className="size-4" aria-hidden /> Takes about {formatDuration(service.duration_mins)}
       </p>
       <Link href={href} className="inline-flex h-12 items-center justify-center rounded-full bg-accent font-medium text-accent-fg transition hover:opacity-90">
-        Get an instant quote
+        Check prices and book
       </Link>
       <p className="text-center text-xs text-neutral-500">Takes about a minute. No payment to get a price.</p>
     </div>

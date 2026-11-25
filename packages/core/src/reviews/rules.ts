@@ -72,3 +72,37 @@ export function reviewSummary(reviews: { rating: number | null; reply: string | 
   const average = rated.length ? Math.round((rated.reduce((n, r) => n + (r.rating ?? 0), 0) / rated.length) * 10) / 10 : null;
   return { byStars, average, unanswered: reviews.filter((r) => !r.reply).length };
 }
+
+// ------------------------------------------------------- on the booking page
+
+// How a reviewer is named on the business's booking page: first name and
+// initial ("Sam P."), as Google shows them but no fuller.
+export function publicReviewerName(name: string | null) {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "Google user";
+  const [first, ...rest] = parts;
+  const initial = rest.length ? ` ${rest[rest.length - 1][0].toUpperCase()}.` : "";
+  return `${first}${initial}`;
+}
+
+export type FeaturedReview = { id: string; name: string; rating: number; text: string; date: string };
+
+// The reviews quoted on the booking page: four and five stars with something
+// to say, newest first. Very short ones ("Great") say little; very long ones
+// are cut on the page.
+export function featuredReviews(
+  rows: { review_name: string; reviewer_name: string | null; rating: number | null; comment: string | null; created_at_google: string }[],
+  limit = 3,
+): FeaturedReview[] {
+  return rows
+    .filter((r) => (r.rating ?? 0) >= 4 && (r.comment?.trim().length ?? 0) >= 20)
+    .sort((a, b) => b.created_at_google.localeCompare(a.created_at_google))
+    .slice(0, limit)
+    .map((r) => ({
+      id: r.review_name,
+      name: publicReviewerName(r.reviewer_name),
+      rating: r.rating ?? 5,
+      text: r.comment!.trim(),
+      date: r.created_at_google,
+    }));
+}

@@ -75,6 +75,8 @@ export type Business = {
   contact: { email: string | null; phone: string | null };
   branding: {
     logoUrl: string | null;
+    /** A version for dark backgrounds, if the business added one. */
+    logoDarkUrl: string | null;
     coverUrl: string | null;
     /** "#rrggbb" */
     primaryColor: string;

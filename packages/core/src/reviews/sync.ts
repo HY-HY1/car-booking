@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { seal, unseal } from "../calendar/crypto";
 import { GoogleError, googleRequest, refreshAccessToken, revokeToken, type Tokens } from "../calendar/google";
 import { createAdminClient } from "../supabase/admin";
-import { REVIEW_SCOPES, reviewRow, reviewUrlFor, replyProblem, type GoogleReview } from "./rules";
+import { featuredReviews, publicReviewerName, REVIEW_SCOPES, reviewRow, reviewUrlFor, replyProblem, type FeaturedReview, type GoogleReview } from "./rules";
 
 // Google Business Profile reviews (supabase/migrations/20261112120000_integrations.sql).
 //
@@ -397,4 +397,67 @@ export async function runReviewJobs() {
     else synced++;
   }
   return { synced, failed };
+}
+
+// ------------------------------------------------------- on the booking page
+
+export type PublicReviews = { average: number; total: number; link: string | null; featured: FeaturedReview[] };
+
+// The Google rating and a few reviews for the business's booking page: the
+// ones the owner picked on the Reviews page (`pinned`, in their order), or
+// with none picked, the newest good ones. Nothing until a location is chosen
+// and has a rating; a broken connection still shows the last copy, as it's
+// what Google showed.
+export async function loadPublicReviews(tenantId: string, pinned: readonly string[] = []): Promise<PublicReviews | null> {
+  const db = createAdminClient();
+  const { data: conn, error } = await db
+    .from("google_business_connections")
+    .select("location_name, place_id, average_rating, total_reviews")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) throw error;
+  const average = conn?.average_rating === null || conn?.average_rating === undefined ? null : Number(conn.average_rating);
+  const total = (conn?.total_reviews as number | null) ?? 0;
+  if (!conn?.location_name || average === null || total <= 0) return null;
+
+  let featured: FeaturedReview[];
+  const picked = pinned.length
+    ? await db
+        .from("google_reviews")
+        .select("id, review_name, reviewer_name, rating, comment, created_at_google")
+        .eq("tenant_id", tenantId)
+        .in("id", [...pinned])
+        .not("comment", "is", null)
+    : null;
+  if (picked?.error) throw picked.error;
+  if (picked?.data?.length) {
+    // In the owner's order; any since deleted on Google just drop out.
+    const byId = new Map(picked.data.map((r) => [r.id as string, r]));
+    featured = pinned.flatMap((id) => {
+      const r = byId.get(id);
+      return r?.comment?.trim()
+        ? [{ id: r.review_name, name: publicReviewerName(r.reviewer_name), rating: r.rating ?? 5, text: r.comment.trim(), date: r.created_at_google }]
+        : [];
+    });
+  } else {
+    const { data: rows, error: rowsError } = await db
+      .from("google_reviews")
+      .select("review_name, reviewer_name, rating, comment, created_at_google")
+      .eq("tenant_id", tenantId)
+      .gte("rating", 4)
+      .not("comment", "is", null)
+      .order("created_at_google", { ascending: false })
+      .limit(20);
+    if (rowsError) throw rowsError;
+    featured = featuredReviews(rows ?? []);
+  }
+
+  const placeId = conn.place_id as string | null;
+  return {
+    average,
+    total,
+    // Where "Read all reviews" goes: the business on Google Maps.
+    link: placeId ? `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(placeId)}` : null,
+    featured,
+  };
 }

@@ -19,6 +19,9 @@ export type HomeSettings = {
   show_area: boolean;
   // Towns and villages listed beside the map, as the owner wrote them.
   places: string[];
+  // The phone number in the header and as the hero's second button (when
+  // the business has one under Business details).
+  show_phone: boolean;
 };
 
 export const HOME_DEFAULTS: HomeSettings = {
@@ -26,6 +29,7 @@ export const HOME_DEFAULTS: HomeSettings = {
   availability_mins: null,
   show_area: true,
   places: [],
+  show_phone: true,
 };
 
 export const homeSchema = z
@@ -38,6 +42,7 @@ export const homeSchema = z
       .catch(null),
     show_area: z.boolean().catch(true),
     places: z.array(z.string().trim().min(1).max(MAX_PLACE_LENGTH)).max(MAX_PLACES).catch([]),
+    show_phone: z.boolean().catch(true),
   })
   .catch(HOME_DEFAULTS);
 

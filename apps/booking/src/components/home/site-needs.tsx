@@ -2,23 +2,21 @@ import { Droplet, Plug } from "lucide-react";
 import { requiredSiteNeeds, SITE_NEED_LABELS, siteNeedsText, type SiteNeeds } from "@leadgen/core/booking/site-needs";
 import { cn } from "@/lib/cn";
 import { container } from "@/components/site";
-import { Eyebrow } from "./eyebrow";
 
 const ICONS = { water: Droplet, power: Plug } as const;
 
-// Straight under the heading on the home page: what the business can't do a
+// Under the services on the home page: what the business can't do a
 // job at the customer's address without (Settings → Hours & rules → At the
 // customer's address), so nobody finds out halfway through booking. The
 // booking form asks for each and won't book a mobile job without them.
-export function SiteNeedsNotice({ needs, unitAddress }: { needs: SiteNeeds; unitAddress: string }) {
+export function SiteNeedsNotice({ needs, unitAddress, className }: { needs: SiteNeeds; unitAddress: string; className?: string }) {
   const required = requiredSiteNeeds(needs);
   if (!required.length) return null;
   return (
-    <section aria-labelledby="needs-title" className="pt-10 sm:pt-14">
+    <section aria-labelledby="needs-title" className={className}>
       <div className={container}>
-        <div className="grid gap-8 rounded-3xl border bg-surface p-6 shadow-sm sm:p-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center lg:gap-14">
+        <div className="grid gap-8 rounded-2xl border bg-surface p-6 sm:p-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center lg:gap-14">
           <div className="grid gap-3">
-            <Eyebrow>Before you book</Eyebrow>
             <h2 id="needs-title" className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
               What we need at your address
             </h2>
@@ -37,8 +35,8 @@ export function SiteNeedsNotice({ needs, unitAddress }: { needs: SiteNeeds; unit
             {required.map((k) => {
               const Icon = ICONS[k];
               return (
-                <li key={k} className="flex items-center gap-4 rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200/70 sm:p-5">
-                  <span aria-hidden className="grid size-12 shrink-0 place-items-center rounded-2xl bg-brand/10 text-brand">
+                <li key={k} className="flex items-center gap-4 rounded-xl bg-neutral-50 p-4 ring-1 ring-neutral-200/70 sm:p-5">
+                  <span aria-hidden className="grid size-12 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
                     <Icon className="size-6" strokeWidth={1.75} />
                   </span>
                   <span className="grid min-w-0 gap-0.5">

@@ -105,7 +105,7 @@ export default async function LeadPage({ params }: PageProps<"/app/[tenant]/lead
                   {(lead.form_answers.answers ?? []).map((a, i) => (
                     <div key={i} className="contents">
                       <dt className="text-muted-foreground">{a.question}</dt>
-                      <dd className="break-words">{a.answer}</dd>
+                      <dd className="break-words whitespace-pre-wrap">{a.answer}</dd>
                     </div>
                   ))}
                 </dl>

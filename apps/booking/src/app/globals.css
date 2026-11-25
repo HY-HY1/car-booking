@@ -7,16 +7,25 @@
 
 /* Tenant colours are set per request on <body> in layout.tsx from the
    tenant's branding (lib/theme.ts); these are the fallbacks for pages with
-   no tenant. Each brand colour comes as a light-page and a dark-page
-   version: on a dark page a dark brand colour is lightened until buttons
-   and highlights stand out again. */
+   no tenant. Every brand colour comes as a light-page and a dark-page
+   version (core branding/colors.ts, bookingColors): on a dark page a dark
+   brand or accent is lightened until it stands out, and a light brand's
+   panels are deepened so they don't glare. */
 :root {
   --brand-light: #18181b;
   --brand-light-fg: #ffffff;
   --brand-dark: #ededed;
   --brand-dark-fg: #0a0a0a;
-  --accent: #3b82f6;
-  --accent-fg: #ffffff;
+  --panel-light: #18181b;
+  --panel-light-fg: #ffffff;
+  --panel-dark: #18181b;
+  --panel-dark-fg: #ffffff;
+  --accent-light: #3b82f6;
+  --accent-light-fg: #ffffff;
+  --accent-dark: #3b82f6;
+  --accent-dark-fg: #ffffff;
+  --wash-light: #f0f0f0;
+  --wash-dark: #1a1a1a;
 
   --page: #fafafa;
   --surface: #ffffff;
@@ -26,6 +35,11 @@
 body {
   --brand: var(--brand-light);
   --brand-fg: var(--brand-light-fg);
+  --panel: var(--panel-light);
+  --panel-fg: var(--panel-light-fg);
+  --accent: var(--accent-light);
+  --accent-fg: var(--accent-light-fg);
+  --wash: var(--wash-light);
   background: var(--page);
   color: var(--ink);
 }
@@ -69,17 +83,27 @@ body {
 .dark body {
   --brand: var(--brand-dark);
   --brand-fg: var(--brand-dark-fg);
+  --panel: var(--panel-dark);
+  --panel-fg: var(--panel-dark-fg);
+  --accent: var(--accent-dark);
+  --accent-fg: var(--accent-dark-fg);
+  --wash: var(--wash-dark);
+  /* Only set when the dark panel isn't the brand colour (lib/theme.ts). */
+  --logo-backing: var(--logo-backing-dark);
 }
 
 @theme inline {
   --color-brand: var(--brand);
   --color-brand-fg: var(--brand-fg);
-  /* The brand exactly as the business chose it, in both modes: the header
-     and the hero panels, where their logo sits on it. */
-  --color-brand-base: var(--brand-light);
-  --color-brand-base-fg: var(--brand-light-fg);
+  /* The brand-coloured panels: the header, the hero and the bands, where
+     the logo sits. As chosen in light mode; a light brand is deepened in dark. */
+  --color-brand-base: var(--panel);
+  --color-brand-base-fg: var(--panel-fg);
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
+  /* A pale wash of the brand behind the home page's hero and closing band,
+     under the page's own text colour (core branding/colors.ts, washOf). */
+  --color-wash: var(--wash);
   /* Cards, inputs and panels: white on the light page. */
   --color-surface: var(--surface);
   /* Typefaces: the business's picks (lib/fonts.ts, set on <body> by
@@ -147,4 +171,18 @@ body {
 }
 .dark .coverage-map .leaflet-control-attribution a {
   color: var(--color-neutral-700);
+}
+
+/* The logo in the header. When dark mode deepens a light brand's panels,
+   a logo made for that brand could vanish, so it keeps a patch of the brand
+   colour behind it. Otherwise nothing is drawn behind it. */
+.brand-logo {
+  border-radius: 0.5rem;
+}
+.dark .brand-logo {
+  background: var(--logo-backing, transparent);
+}
+.dark body[data-logo-backing] .brand-logo {
+  padding: 0.25rem 0.5rem;
+  box-sizing: content-box;
 }

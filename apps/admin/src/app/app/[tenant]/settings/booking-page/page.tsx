@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { dnsRecords } from "@leadgen/core/settings/domains";
 import { brandingSchema, isCustomHostname } from "@leadgen/core/tenants";
 import { AddDomainForm, BrandingForm, DomainRow, type DomainView } from "@/components/dashboard/settings/general-forms";
@@ -9,18 +10,27 @@ import { serviceImageUrl } from "@/lib/pricing-fields";
 import { createClient } from "@/lib/supabase/server";
 import { tenantUrl } from "@/lib/urls";
 import { HomePageForm } from "@/components/dashboard/settings/home-page-form";
-import { addDomainAction, saveBrandingAction, saveHomePageAction } from "../actions";
+import { AboutForm, GalleryForm } from "@/components/dashboard/settings/about-forms";
+import { FaqForm } from "@/components/dashboard/settings/faq-form";
+import { ExtrasForm } from "@/components/dashboard/settings/extras-form";
+import { policySummary } from "@leadgen/core/branding/extras";
+import { depositSchema } from "@leadgen/core/booking/config";
+import { policyOf } from "@leadgen/core/settings/policy";
+import { addDomainAction, saveAboutAction, saveBrandingAction, saveExtrasAction, saveFaqsAction, saveGalleryAction, saveHomePageAction } from "../actions";
 
 export const metadata: Metadata = { title: "Booking page" };
 
 export default async function BookingPageSettings({ params }: PageProps<"/app/[tenant]/settings/booking-page">) {
+  // Per signed-in user, and the question and testimonial editors make row
+  // ids as they first draw, so render at request time.
+  await connection();
   const { tenant: slug } = await params;
   const { tenant, can } = await requireAccess(slug, "settings.view");
   const readOnly = !can("settings.edit");
 
   const supabase = await createClient();
-  const [business, domains, services, shortest, booking] = await Promise.all([
-    supabase.from("tenants").select("name, branding, contact_email, contact_phone").eq("id", tenant.id).single(),
+  const [business, domains, services, shortest, booking, completed] = await Promise.all([
+    supabase.from("tenants").select("name, branding").eq("id", tenant.id).single(),
     supabase
       .from("domains")
       .select("id, hostname, verified, is_primary, verification_token, check_error, created_at")
@@ -46,13 +56,19 @@ export default async function BookingPageSettings({ params }: PageProps<"/app/[t
       .order("duration_mins")
       .limit(1)
       .maybeSingle(),
-    supabase.from("booking_settings").select("offers_mobile").eq("tenant_id", tenant.id).maybeSingle(),
+    supabase.from("booking_settings").select("offers_mobile, deposit, cancellation_policy").eq("tenant_id", tenant.id).maybeSingle(),
+    // For the jobs completed count.
+    supabase.from("bookings").select("id", { count: "exact", head: true }).eq("tenant_id", tenant.id).eq("status", "completed"),
   ]);
   if (business.error) throw business.error;
   if (domains.error) throw domains.error;
   if (services.error) throw services.error;
   if (shortest.error) throw shortest.error;
   if (booking.error) throw booking.error;
+  if (completed.error) throw completed.error;
+  // The deposit and cancellation line as the booking page makes it.
+  const deposit = depositSchema.safeParse(booking.data?.deposit);
+  const automaticLine = deposit.success ? policySummary(deposit.data, policyOf(booking.data?.cancellation_policy)) : null;
 
   // The free address always works and isn't a row; the rows are the
   // business's own domains (older slug.localhost rows are skipped).
@@ -96,7 +112,7 @@ export default async function BookingPageSettings({ params }: PageProps<"/app/[t
         <BrandingForm
           branding={branding}
           businessName={business.data.name}
-          contact={{ email: business.data.contact_email, phone: business.data.contact_phone }}
+          contact={{ email: branding.page_email ?? null, phone: branding.page_phone ?? null }}
           services={services.data.map((s) => ({
             id: s.id,
             name: s.name,
@@ -104,21 +120,74 @@ export default async function BookingPageSettings({ params }: PageProps<"/app/[t
             tagline: s.tagline,
             imageUrl: serviceImageUrl(s.image_path),
           }))}
+          facts={branding.about.facts}
+          showPhone={branding.home.show_phone}
           action={saveBrandingAction.bind(null, slug)}
           readOnly={readOnly}
         />
       </SettingsSection>
 
       <SettingsSection
+        id="about"
+        title="About you"
+        description="What makes the page yours: why customers choose you, and who they'll be dealing with."
+      >
+        <AboutForm
+          about={branding.about}
+          businessName={business.data.name}
+          action={saveAboutAction.bind(null, slug)}
+          readOnly={readOnly}
+        />
+      </SettingsSection>
+
+      <SettingsSection
+        id="photos"
+        title="Photos of your work"
+        description="Your first three show on your home page; customers see the rest, in this order, with See all. Tapping one shows it bigger."
+      >
+        <GalleryForm
+          key={branding.gallery.map((p) => p.url).join("|")}
+          photos={branding.gallery}
+          action={saveGalleryAction.bind(null, slug)}
+          readOnly={readOnly}
+        />
+      </SettingsSection>
+
+      <SettingsSection
+        id="faqs"
+        title="Questions and answers"
+        description="Answers to what customers often ask, shown on your home page in this order. Fewer calls asking the same things."
+      >
+        {/* Remounted after a save, so blank rows go and the text shows as saved. */}
+        <FaqForm key={JSON.stringify(branding.faqs)} faqs={branding.faqs} action={saveFaqsAction.bind(null, slug)} readOnly={readOnly} />
+      </SettingsSection>
+
+      <SettingsSection
         id="home"
         title="Home page"
-        description="Sections made from your own diary and coverage, under the heading on your booking page's home."
+        description="What your booking page's home shows: sections made from your diary and coverage, and your phone number."
       >
         <HomePageForm
           home={branding.home}
           shortestMins={shortest.data?.duration_mins ?? null}
           travels={Boolean(booking.data?.offers_mobile)}
+          hasPhone={Boolean(branding.page_phone)}
           action={saveHomePageAction.bind(null, slug)}
+          readOnly={readOnly}
+        />
+      </SettingsSection>
+
+      <SettingsSection
+        id="trust"
+        title="Trust and enquiries"
+        description="Small things that help customers decide: your terms by the booking buttons, how many jobs you've done, and a way to ask about anything else."
+      >
+        <ExtrasForm
+          extras={branding.extras}
+          automaticLine={automaticLine}
+          completed={completed.count ?? 0}
+          enquiryUrl={tenantUrl(slug, "/contact", { absolute: true, customDomain })}
+          action={saveExtrasAction.bind(null, slug)}
           readOnly={readOnly}
         />
       </SettingsSection>

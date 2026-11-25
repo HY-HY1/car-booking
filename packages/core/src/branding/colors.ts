@@ -140,3 +140,107 @@ export function dashboardBrandCss(branding: Pick<Branding, "primary_color" | "ac
   };
   return `[data-brand] { ${mode(LIGHT)} }\n.dark [data-brand] { ${mode(DARK)} }`;
 }
+
+// ------------------------------------------------------- the booking pages
+
+// The booking pages' dark-mode page and card colours (booking globals.css).
+const BOOKING_DARK = { page: "#0a0a0a", surface: "#171717" };
+
+export type BookingColors = {
+  // Buttons, links and highlights on the page.
+  brand: string;
+  brandFg: string;
+  // The brand-coloured panels: header, hero and bands, where the logo sits.
+  panel: string;
+  panelFg: string;
+  // The call-to-action colour: Book now, Get a quote, badges.
+  accent: string;
+  accentFg: string;
+  // A pale wash of the brand behind the home page's hero and closing band,
+  // under the page's own text colour, so they stand apart from the header.
+  wash: string;
+};
+
+// The light and dark booking pages (booking globals.css --page).
+const BOOKING_LIGHT_PAGE = "#fafafa";
+
+// The wash behind the hero: the brand's hue, or the accent's when the brand
+// has none to give (white, black, grey), kept faint: very light on a light
+// page, very deep on a dark one, so the page's text reads on it either way.
+// With no hue in either, a plain grey a step off the page.
+function washOf(primary: string, accent: string, dark: boolean) {
+  const [ph, ps] = toHsl(primary);
+  const [ah, as] = toHsl(accent);
+  const hued = ps >= 0.15 ? [ph, ps] : as >= 0.15 ? [ah, as] : null;
+  if (!hued) return dark ? "#1a1a1a" : "#f0f0f0";
+  const [h, s] = hued;
+  return dark ? fromHsl(h, Math.min(s, 0.3), 0.12) : fromHsl(h, Math.min(Math.max(s, 0.3), 0.6), 0.94);
+}
+
+// The brand on a dark page. A black or grey brand would only lighten to a
+// flat mid-grey, so it turns near-white instead, the usual dark-mode button;
+// a coloured brand is lightened just enough to show.
+function darkBrandOf(hex: string) {
+  if (contrast(hex, BOOKING_DARK.surface) >= 3) return hex.toLowerCase();
+  const [r, g, b] = channels(hex);
+  const grey = Math.max(r, g, b) - Math.min(r, g, b) < 24;
+  return grey ? "#ededed" : visibleOn(hex, BOOKING_DARK.surface);
+}
+
+// A brand panel on a dark page. A deep colour stays as chosen. A light one
+// (the kind that takes black text) would be a glaring block at night, so it
+// is deepened, keeping its hue, until white text reads well on it; a white
+// or pale grey brand becomes a dark panel a step up from the page.
+function darkPanelOf(hex: string) {
+  if (luminance(hex) <= 0.4) return hex.toLowerCase();
+  const [h, s, l] = toHsl(hex);
+  if (s < 0.15) return "#1f1f1f";
+  for (let step = 1; step <= 40; step++) {
+    const deeper = fromHsl(h, s, l * (1 - step / 40));
+    if (contrast(deeper, "#ffffff") >= 7) return deeper;
+  }
+  return "#1f1f1f";
+}
+
+// Every colour the booking pages draw from the business's branding, for a
+// light page and a dark one. In light mode they're as the business chose
+// them, except a brand too pale to show as a button or link on the light
+// page (white, a pale yellow), which is darkened, keeping its hue; the
+// header still takes it as chosen. In dark mode each is shifted only as far
+// as it needs to stand out (or, for panels, to stop glaring), keeping its
+// hue. `logoBacking` is set when the dark panel isn't the brand colour: the
+// logo was made for the brand, so it keeps a patch of it behind it.
+export function bookingColors(branding: Pick<Branding, "primary_color" | "accent_color">): {
+  light: BookingColors;
+  dark: BookingColors & { logoBacking: string | null };
+} {
+  const primary = branding.primary_color.toLowerCase();
+  const accent = branding.accent_color.toLowerCase();
+  const brandDark = darkBrandOf(primary);
+  const panelDark = darkPanelOf(primary);
+  const accentDark = brandOn(accent, BOOKING_DARK.surface, 3);
+  const brandLight = brandOn(primary, BOOKING_LIGHT_PAGE, 3);
+  return {
+    light: {
+      brand: brandLight,
+      // Unchanged colours keep their text rule, so they look the same.
+      brandFg: brandLight === primary ? readableOn(primary) : bestTextOn(brandLight),
+      panel: primary,
+      panelFg: readableOn(primary),
+      accent,
+      accentFg: readableOn(accent),
+      wash: washOf(primary, accent, false),
+    },
+    dark: {
+      brand: brandDark,
+      brandFg: bestTextOn(brandDark),
+      panel: panelDark,
+      panelFg: readableOn(panelDark),
+      accent: accentDark,
+      // Unchanged colours keep the light-mode text rule, so they look the same.
+      accentFg: accentDark === accent ? readableOn(accent) : bestTextOn(accentDark),
+      wash: washOf(primary, accent, true),
+      logoBacking: panelDark === primary ? null : primary,
+    },
+  };
+}

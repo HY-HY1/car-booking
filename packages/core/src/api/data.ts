@@ -93,6 +93,7 @@ export async function getBusiness(tenantId: string): Promise<Business> {
     contact: { email: t.contact_email, phone: t.contact_phone },
     branding: {
       logoUrl: t.branding.logo_url ?? null,
+      logoDarkUrl: t.branding.logo_dark_url ?? null,
       coverUrl: t.branding.cover_url ?? null,
       primaryColor: t.branding.primary_color,
       accentColor: t.branding.accent_color,

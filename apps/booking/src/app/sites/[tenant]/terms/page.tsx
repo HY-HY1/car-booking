@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { formatPence } from "@leadgen/core/booking/config";
-import { getBookingConfig } from "@leadgen/core/booking/engine";
+import { loadBookingConfig } from "@/lib/booking-config";
 import { policyLines, policyOf } from "@leadgen/core/settings/policy";
 import { ContactLinks } from "@/components/contact-links";
 import { LegalPage } from "@/components/legal-page";
@@ -17,7 +17,7 @@ export default async function TermsPage() {
   if (!tenant) notFound();
   if (tenant.branding.terms_url) redirect(tenant.branding.terms_url);
 
-  const config = await getBookingConfig(tenant.id);
+  const config = await loadBookingConfig(tenant.id);
   const who = tenant.privacy.legalName || tenant.name;
   const deposit = config?.settings.deposit;
   const policy = policyOf(config?.settings.cancellation_policy);

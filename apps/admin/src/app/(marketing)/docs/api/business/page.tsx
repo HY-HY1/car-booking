@@ -49,6 +49,7 @@ export default function BusinessReference() {
           { name: "contact.email", type: "string | null", text: "Email address for customers." },
           { name: "contact.phone", type: "string | null", text: "Phone number for customers, in E.164 (+44…)." },
           { name: "branding.logoUrl", type: "string | null", text: "Full URL of its logo." },
+          { name: "branding.logoDarkUrl", type: "string | null", text: "Full URL of its logo for dark backgrounds, if it added one." },
           { name: "branding.coverUrl", type: "string | null", text: "Full URL of the photo behind its booking page's heading." },
           { name: "branding.primaryColor", type: "string", text: "Main brand colour, \"#rrggbb\"." },
           { name: "branding.accentColor", type: "string", text: "Button colour, \"#rrggbb\"." },

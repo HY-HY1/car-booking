@@ -58,12 +58,20 @@ async function BrandStyle({ params }: { params: Promise<{ tenant: string }> }) {
   return <style dangerouslySetInnerHTML={{ __html: dashboardBrandCss(branding) }} />;
 }
 
-// Their logo stands in for the name once they've uploaded one.
-function BrandName({ name, logoUrl }: { name: string; logoUrl: string | null | undefined }) {
+// Their logo stands in for the name once they've uploaded one, with the
+// dark-mode version in dark mode if they've added one.
+function BrandName({ name, logoUrl, darkLogoUrl }: { name: string; logoUrl: string | null | undefined; darkLogoUrl?: string | null }) {
+  // The owner's own upload: any shape, so it's fitted to the space.
+  const fit = "h-7 w-auto max-w-full object-contain object-left md:max-w-36";
   return logoUrl ? (
-    // The owner's own upload: any shape, so it's fitted to the space.
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={logoUrl} alt={name} className="h-7 w-auto max-w-full object-contain object-left md:max-w-36" />
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={logoUrl} alt={name} className={cn(fit, darkLogoUrl && "dark:hidden")} />
+      {darkLogoUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={darkLogoUrl} alt={name} className={cn(fit, "hidden dark:block")} />
+      )}
+    </>
   ) : (
     <p className="truncate font-semibold">{name}</p>
   );
@@ -86,7 +94,7 @@ async function TopBar({ params }: { params: Promise<{ tenant: string }> }) {
       )}
     >
       <div className={cn("min-w-0 md:hidden", canSearch && "max-w-[35%] shrink-0")}>
-        <BrandName name={tenant.name} logoUrl={branding.logo_url} />
+        <BrandName name={tenant.name} logoUrl={branding.logo_url} darkLogoUrl={branding.logo_dark_url} />
       </div>
       {canSearch && <HeaderSearch slug={slug} role={role} />}
     </header>
@@ -151,7 +159,7 @@ async function Navigation({ params }: { params: Promise<{ tenant: string }> }) {
       <aside className="hidden border-r bg-sidebar text-sidebar-foreground md:sticky md:top-0 md:block md:h-dvh md:w-60 md:shrink-0">
         <div className="flex h-full flex-col gap-4 overflow-y-auto p-4">
           <div className="min-w-0">
-            <BrandName name={tenant.name} logoUrl={branding.logo_url} />
+            <BrandName name={tenant.name} logoUrl={branding.logo_url} darkLogoUrl={branding.logo_dark_url} />
             {switchBusiness}
           </div>
           <DashboardNav slug={slug} role={role} setupDone={setupDone} />

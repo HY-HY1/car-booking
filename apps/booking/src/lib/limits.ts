@@ -18,6 +18,8 @@ export const LIMITS = {
   // Each one emails the customer and alerts the owner.
   book: { perVisitor: 5, perBusiness: 60, windowSeconds: HOUR },
   lead: { perVisitor: 10, perBusiness: 100, windowSeconds: HOUR },
+  // Each one alerts the owner and lands under Leads.
+  enquiry: { perVisitor: 5, perBusiness: 50, windowSeconds: HOUR },
   // Every photo check is a paid call to Claude, so the business cap is daily.
   assess: { perVisitor: 10, perBusiness: 60, windowSeconds: DAY },
   photo: { perVisitor: 40, perBusiness: 400, windowSeconds: DAY },

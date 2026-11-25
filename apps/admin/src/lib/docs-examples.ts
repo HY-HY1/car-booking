@@ -187,6 +187,7 @@ export const exampleBusiness: Business = {
   contact: { email: "hello@shinedetailing.co.uk", phone: "+441179000123" },
   branding: {
     logoUrl: "https://example.supabase.co/storage/v1/object/public/service-images/example/brand/logo.webp",
+    logoDarkUrl: null,
     coverUrl: null,
     primaryColor: "#0f172a",
     accentColor: "#22c55e",

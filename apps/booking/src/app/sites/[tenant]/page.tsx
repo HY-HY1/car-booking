@@ -1,50 +1,97 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, Clock, Mail, MapPin, Phone } from "lucide-react";
-import { getBookingConfig } from "@leadgen/core/booking/engine";
+import { ArrowRight, Check, Mail, MapPin, Phone } from "lucide-react";
+import { formatPence, type Service } from "@leadgen/core/booking/config";
 import { siteNeedsOf } from "@leadgen/core/booking/site-needs";
-import { openingHoursLines, sameHours } from "@leadgen/core/booking/hours-text";
 import { formatPhone } from "@leadgen/core/customer-fields";
+import { aboutParagraphs } from "@leadgen/core/branding/about";
+import { jobsCountText, policyLineText } from "@leadgen/core/branding/extras";
+import { countCompletedJobs } from "@leadgen/core/booking/completed";
+import { policyOf } from "@leadgen/core/settings/policy";
+import { jsonLdText, localBusinessJsonLd } from "@leadgen/core/seo/local-business";
 import { coverObjectPosition } from "@leadgen/core/branding/cover";
+import { loadPublicReviews } from "@leadgen/core/reviews/sync";
+import { loadBookingConfig } from "@/lib/booking-config";
 import { requireRequestTenant } from "@/lib/tenant";
 import { pageUrl } from "@/lib/urls";
 import { cn } from "@/lib/cn";
-import { BookingSteps, SiteFrame, container } from "@/components/site";
+import { SiteFrame, container, shownPhone } from "@/components/site";
+import { AboutSection } from "@/components/home/about";
+import { BookBar } from "@/components/home/book-bar";
 import { Availability, AvailabilitySkeleton } from "@/components/home/availability";
 import { Coverage } from "@/components/home/coverage";
-import { Eyebrow } from "@/components/home/eyebrow";
-import { ServiceTile } from "@/components/home/service-tile";
+import { FaqSection } from "@/components/home/faqs";
+import { GalleryGrid } from "@/components/home/gallery";
+import { RatingLine, Reviews } from "@/components/home/reviews";
+import { ServiceRow } from "@/components/home/service-row";
 import { SiteNeedsNotice } from "@/components/home/site-needs";
 
 // The business's booking home: who they are, what they do and how to book.
-// Most customers arrive from the business's own website, so this is a tidy
-// landing page, not a full website. The dashboard's BookingPagePreview
-// (admin settings/booking-page-preview.tsx) mirrors the top of it: keep in step.
+// For many businesses this is their only web page, so it should read as
+// theirs (their facts, their photos, their story) rather than as a booking
+// system's; the booking itself is one button away throughout. The
+// dashboard's BookingPagePreview (admin settings/booking-page-preview.tsx)
+// mirrors the top of it: keep in step.
 export default async function Home() {
   const tenant = await requireRequestTenant();
-  const config = await getBookingConfig(tenant.id);
+  // Reviews, if the owner shows them (Settings → Booking page → Reviews on
+  // your page): the Google ones they picked, or the newest good ones.
+  const reviewSettings = tenant.branding.reviews;
+  const extras = tenant.branding.extras;
+  const [config, reviews, completed] = await Promise.all([
+    // Shared with the footer, which shows the opening hours.
+    loadBookingConfig(tenant.id),
+    // The page never waits on, or fails for, the reviews.
+    reviewSettings.show
+      ? loadPublicReviews(tenant.id, reviewSettings.pinned).catch((error) => {
+          console.error("Couldn't load the Google reviews", error);
+          return null;
+        })
+      : null,
+    // Only counted when it's shown; never fails the page.
+    extras.jobs_count.show
+      ? countCompletedJobs(tenant.id).catch((error) => {
+          console.error("Couldn't count the completed jobs", error);
+          return null;
+        })
+      : null,
+  ]);
   const services = (config?.services ?? []).filter((s) => s.slug);
   const settings = config?.settings;
   const quote = pageUrl(tenant, "/quote");
   const { phone, email } = tenant.contact;
+  const callPhone = shownPhone(tenant);
+  const { about, gallery } = tenant.branding;
+  const ownerName = about.name?.trim();
 
-  const highlights = [
-    "Instant online price",
-    "Choose a time that suits you",
-    settings?.offers_mobile ? "We come to you" : settings?.offers_unit ? "Drop-off service" : null,
-  ].filter((h): h is string => Boolean(h));
+  // Under the buttons: what the business says about itself (About you), or
+  // with nothing written there, how it works.
+  const facts = about.facts.length
+    ? about.facts
+    : [settings?.offers_mobile ? "We come to you" : null, settings?.offers_unit ? (settings.offers_mobile ? "Or drop your car off" : "Drop-off service") : null].filter(
+        (f): f is string => Boolean(f),
+      );
 
-  // Hours for each way the business works, once if they're the same.
-  const hours: { label: string | null; lines: ReturnType<typeof openingHoursLines> }[] = [];
-  if (settings) {
-    const unitHours = settings.unit_weekly_hours ?? settings.weekly_hours;
-    if (settings.offers_mobile && settings.offers_unit && !sameHours(settings.weekly_hours, unitHours)) {
-      hours.push({ label: "At your address", lines: openingHoursLines(settings.weekly_hours) });
-      hours.push({ label: "At our premises", lines: openingHoursLines(unitHours) });
-    } else if (settings.offers_mobile || settings.offers_unit) {
-      hours.push({ label: null, lines: openingHoursLines(settings.offers_mobile ? settings.weekly_hours : unitHours) });
-    }
-  }
+  // Settings → Booking page → Trust and enquiries.
+  const jobsText = completed === null ? null : jobsCountText(extras, completed);
+  const policyLine = policyLineText(extras, settings?.deposit, policyOf(settings?.cancellation_policy));
+  const enquiryUrl = extras.enquiries.show ? pageUrl(tenant, "/contact") : null;
+
+  const jsonLd = localBusinessJsonLd({
+    name: tenant.name,
+    url: pageUrl(tenant, "/", { absolute: true }),
+    description: tenant.branding.tagline,
+    telephone: phone,
+    email,
+    logo: tenant.branding.logo_url,
+    image: tenant.branding.cover_url,
+    address: settings?.offers_unit ? { street: settings.unit_address, postcode: settings.unit_postcode } : null,
+    areaServed: settings?.offers_mobile ? tenant.branding.home.places : [],
+    hours: settings ? (settings.offers_mobile ? settings.weekly_hours : (settings.unit_weekly_hours ?? settings.weekly_hours)) : null,
+    prices: services.map((s) => s.base_price_pence),
+    website: tenant.branding.website_url,
+  });
+
   const unitAddress = settings?.offers_unit ? [settings.unit_address, settings.unit_postcode].filter(Boolean).join(", ") : "";
 
   // The extra sections, as the owner set them (Settings → Booking page).
@@ -61,82 +108,155 @@ export default async function Home() {
   // With the coverage section showing, "Where we work" only needs the shop.
   const showWhere = Boolean((settings?.offers_mobile && !showArea) || unitAddress);
   const showContact = Boolean(phone || email);
-  const infoCards = [showWhere, hours.length > 0, showContact].filter(Boolean).length;
+  // The opening hours are in the footer, on every page.
+  const infoColumns = [showWhere, showContact].filter(Boolean).length;
+  // The sections above it end in their own space, apart from the shaded
+  // reviews band, which it needs room below.
+  const testimonials = reviewSettings.show ? reviewSettings.testimonials : [];
+  const afterReviews = Boolean(reviews?.featured.length || testimonials.length) && !showArea && !aboutParagraphs(about.text).length;
+  const showCard = services.length > 0 || availabilityMins !== null;
+  const withPhotos = services.some((s) => s.image_path);
+  const cover = tenant.branding.cover_url;
+  // Beside the words, or as a bar across the bottom of the hero when the
+  // cover photo takes the right-hand side.
+  const bookCard = (wide: boolean) =>
+    showCard && config ? (
+      <BookCard
+        wide={wide}
+        services={services}
+        quoteUrl={quote}
+        terms={policyLine}
+        availability={
+          availabilityMins !== null ? (
+            <Suspense fallback={<AvailabilitySkeleton />}>
+              <Availability tenantId={tenant.id} config={config} durationMins={availabilityMins} />
+            </Suspense>
+          ) : null
+        }
+      />
+    ) : null;
+
+  const bookButton = (label: string) => (
+    <Link
+      href={quote}
+      className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-medium text-accent-fg shadow-sm ring-1 ring-black/5 transition hover:opacity-90"
+    >
+      {label} <ArrowRight className="size-4" aria-hidden />
+    </Link>
+  );
+  const callButton = callPhone ? (
+    <a
+      href={`tel:${callPhone}`}
+      className="inline-flex h-12 items-center gap-2 rounded-full border border-current/30 px-6 font-medium transition hover:bg-current/10"
+    >
+      <Phone className="size-4" aria-hidden /> Call {formatPhone(callPhone)}
+    </a>
+  ) : null;
 
   return (
-    <SiteFrame tenant={tenant}>
+    <SiteFrame tenant={tenant} bottomBar={showCard}>
       <main className="flex flex-1 flex-col">
-        <section className="relative isolate overflow-hidden bg-brand-base text-brand-base-fg">
-          {tenant.branding.cover_url && (
-            // The brand colour shows through, so the text stays readable on any photo.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={tenant.branding.cover_url}
-              alt=""
-              className="absolute inset-0 -z-10 size-full object-cover opacity-30"
-              style={{ objectPosition: coverObjectPosition(tenant.branding.cover_position) }}
-            />
-          )}
-          <div className={cn(container, "py-16 sm:py-24")}>
-            <div className="max-w-2xl">
-              <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">{tenant.name}</h1>
-              {tenant.branding.tagline && <p className="mt-4 text-lg text-pretty opacity-85 sm:text-xl">{tenant.branding.tagline}</p>}
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link
-                  href={quote}
-                  className="inline-flex h-12 items-center gap-2 rounded-full bg-accent px-6 font-medium text-accent-fg shadow-sm ring-1 ring-black/5 transition hover:opacity-90"
-                >
-                  Get an instant quote <ArrowRight className="size-4" aria-hidden />
-                </Link>
-                {services.length > 0 && (
-                  <a
-                    href="#services"
-                    className="inline-flex h-12 items-center rounded-full border border-current/30 px-6 font-medium transition hover:bg-current/10"
-                  >
-                    See our services
-                  </a>
-                )}
+        <section id="home-top" className="bg-wash">
+          <div
+            className={cn(
+              container,
+              "grid gap-10 py-12 sm:py-16 lg:py-20",
+              // The booking card overlaps the bottom of the hero when the photo takes the right.
+              cover && showCard && "pb-28 sm:pb-32 lg:pb-36",
+              (cover || showCard) && "lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-center lg:gap-12",
+            )}
+          >
+            <div className="grid content-start gap-6">
+              <div className="grid gap-4">
+                <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl lg:leading-[1.08]">
+                  {tenant.branding.hero_heading?.trim() || tenant.name}
+                </h1>
+                {tenant.branding.tagline && <p className="max-w-xl text-lg text-pretty opacity-85 sm:text-xl">{tenant.branding.tagline}</p>}
               </div>
-              <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm opacity-85">
-                {highlights.map((h) => (
-                  <li key={h} className="inline-flex items-center gap-2">
-                    <Check className="size-4" aria-hidden /> {h}
-                  </li>
-                ))}
-              </ul>
+              <div className="flex flex-wrap gap-3">
+                {bookButton("Check prices and book")}
+                {callButton ??
+                  (services.length > 0 && (
+                    <a
+                      href="#services"
+                      className="inline-flex h-12 items-center rounded-full border border-current/30 px-6 font-medium transition hover:bg-current/10"
+                    >
+                      See our services
+                    </a>
+                  ))}
+              </div>
+              {(reviews || jobsText || facts.length > 0) && (
+                <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm opacity-90">
+                  {reviews && (
+                    <li>
+                      <RatingLine reviews={reviews} />
+                    </li>
+                  )}
+                  {jobsText && (
+                    <li className="inline-flex items-center gap-1.5 font-medium">
+                      <Check className="size-4 shrink-0" strokeWidth={2.5} aria-hidden />
+                      {jobsText}
+                    </li>
+                  )}
+                  {facts.map((f) => (
+                    <li key={f} className="inline-flex items-center gap-1.5">
+                      <Check className="size-4 shrink-0" strokeWidth={2.5} aria-hidden />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
+
+            {/* The cover photo on the right; with none, the booking card has the space. */}
+            {cover ? (
+              <div className="relative aspect-4/3 overflow-hidden rounded-2xl shadow-lg ring-1 shadow-black/20 ring-black/10 lg:aspect-auto lg:h-full lg:min-h-96">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={cover}
+                  alt=""
+                  className="absolute inset-0 size-full object-cover"
+                  style={{ objectPosition: coverObjectPosition(tenant.branding.cover_position) }}
+                />
+              </div>
+            ) : (
+              bookCard(false)
+            )}
           </div>
         </section>
 
-        {settings?.offers_mobile && (
-          <SiteNeedsNotice needs={siteNeedsOf(settings.site_requirements)} unitAddress={unitAddress} />
+        {cover && showCard && (
+          <div id="home-card" className={cn(container, "relative z-10 -mt-20 sm:-mt-24")}>
+            {bookCard(true)}
+          </div>
         )}
 
         {services.length > 0 && (
           <section id="services" aria-labelledby="services-title" className="scroll-mt-4 py-14 sm:py-20">
             <div className={container}>
-              <div className="mb-10 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
-                <div className="grid max-w-2xl gap-3">
-                  <Eyebrow>Services</Eyebrow>
-                  <h2 id="services-title" className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-                    Our services
-                  </h2>
-                  <p className="text-neutral-600">
-                    Prices start from the amount shown. Your exact price depends on your car&apos;s size and condition, and
-                    you&apos;ll see it before you book.
-                  </p>
-                </div>
-                <Link
-                  href={quote}
-                  className="inline-flex items-center gap-1.5 border-b border-current/30 pb-0.5 text-sm font-medium transition hover:border-current"
-                >
-                  Get your exact price <ArrowRight className="size-4" aria-hidden />
-                </Link>
+              <div className="mb-8 grid max-w-2xl gap-3">
+                <h2 id="services-title" className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+                  Services and prices
+                </h2>
+                <p className="text-pretty text-neutral-600">
+                  Prices start from the amount shown. Your exact price depends on your car&apos;s size and condition, and
+                  you&apos;ll see it before you book.
+                  {enquiryUrl && (
+                    <>
+                      {" "}
+                      Need something not listed?{" "}
+                      <Link href={enquiryUrl} className="font-medium text-neutral-900 underline underline-offset-4">
+                        Ask about a job
+                      </Link>
+                      .
+                    </>
+                  )}
+                </p>
               </div>
-              <ul className={cn("grid gap-5 sm:grid-cols-2", services.length !== 2 && services.length !== 4 && "lg:grid-cols-3")}>
+              <ul className="divide-y overflow-hidden rounded-2xl border bg-surface">
                 {services.map((s) => (
                   <li key={s.id}>
-                    <ServiceTile service={s} href={pageUrl(tenant, `/services/${s.slug}`)} />
+                    <ServiceRow service={s} href={pageUrl(tenant, `/services/${s.slug}`)} withPhoto={withPhotos} />
                   </li>
                 ))}
               </ul>
@@ -144,73 +264,68 @@ export default async function Home() {
           </section>
         )}
 
-        
-        {availabilityMins !== null && config && (
-          <Suspense fallback={<AvailabilitySkeleton />}>
-            <Availability tenantId={tenant.id} config={config} durationMins={availabilityMins} quoteUrl={quote} />
-          </Suspense>
+        {/* After the services, so customers see what is on offer before what
+            the job needs. The booking form checks it again. */}
+        {settings?.offers_mobile && (
+          <SiteNeedsNotice
+            needs={siteNeedsOf(settings.site_requirements)}
+            unitAddress={unitAddress}
+            className={services.length > 0 ? "pb-14 sm:pb-20" : "py-14 sm:py-20"}
+          />
         )}
+
+        {gallery.length > 0 && (
+          <section id="work" aria-labelledby="work-title" className="scroll-mt-4 border-t py-14 sm:py-20">
+            <div className={cn(container, "grid gap-8")}>
+              <GalleryGrid photos={gallery} businessName={tenant.name} titleId="work-title" />
+            </div>
+          </section>
+        )}
+
+        <Reviews reviews={reviews} testimonials={testimonials} />
+
+        <AboutSection about={about} businessName={tenant.name} />
 
         {showArea && settings && (
           <Coverage businessName={tenant.name} settings={settings} places={home.places} quoteUrl={quote} contactHref={contactHref} />
         )}
 
-        <section aria-labelledby="how-title" className="border-y bg-surface py-14 sm:py-20">
-          <div className={cn(container, "grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:items-center")}>
-            <div>
-              <h2 id="how-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                Book online in minutes
-              </h2>
-              <p className="mt-2 max-w-md text-neutral-600">
-                No waiting for a call back. You see the price as you go, and there&apos;s nothing to pay to get a quote.
-              </p>
-              <Link
-                href={quote}
-                className="mt-6 inline-flex h-12 items-center gap-2 rounded-full bg-brand px-6 font-medium text-brand-fg transition hover:opacity-90"
+        {infoColumns > 0 && (
+          <section aria-label="Where we work and contact" className={cn("pb-14 sm:pb-20", afterReviews && "pt-14 sm:pt-20")}>
+            <div className={container}>
+              <div
+                className={cn(
+                  "grid divide-y overflow-hidden rounded-2xl border bg-surface md:divide-x md:divide-y-0",
+                  infoColumns === 2 && "md:grid-cols-2",
+                )}
               >
-                Start your booking <ArrowRight className="size-4" aria-hidden />
-              </Link>
-            </div>
-            <BookingSteps className="sm:grid-cols-3 sm:gap-6 sm:[&>li]:flex-col sm:[&>li]:gap-3" />
-          </div>
-        </section>
-
-        {infoCards > 0 && (
-          <section aria-label="Opening hours and contact" className="py-14 sm:py-20">
-            <div className={cn(container, "grid gap-5", infoCards === 3 ? "md:grid-cols-3" : infoCards === 2 && "md:grid-cols-2")}>
-              {showWhere && (
-                <InfoCard icon={<MapPin className="size-5" />} title="Where we work">
-                  {settings?.offers_mobile && !showArea && (
-                    <p>We come to your home or workplace. Enter your postcode when you book to check we cover your area.</p>
-                  )}
-                  {unitAddress && (
+                {showWhere && (
+                  <InfoColumn icon={<MapPin className="size-4" />} title="Where we work">
+                    {settings?.offers_mobile && !showArea && (
+                      <p>We come to your home or workplace. Enter your postcode when you book to check we cover your area.</p>
+                    )}
+                    {unitAddress && (
+                      <p>
+                        {settings?.offers_mobile ? (showArea ? "We come to you, or you can drop your car off at " : "Or drop your car off at ") : "Drop your car off at "}
+                        <span className="font-medium text-neutral-900">{unitAddress}</span>.
+                      </p>
+                    )}
+                  </InfoColumn>
+                )}
+                {showContact && (
+                  <InfoColumn icon={<Phone className="size-4" />} title="Get in touch">
                     <p>
-                      {settings?.offers_mobile ? (showArea ? "We come to you, or you can drop your car off at " : "Or drop your car off at ") : "Drop your car off at "}
-                      <span className="font-medium text-neutral-900">{unitAddress}</span>.
+                      Questions before you book? {ownerName ? `${ownerName} is` : "We're"} happy to help.
+                      {enquiryUrl && (
+                        <>
+                          {" "}
+                          <Link href={enquiryUrl} className="font-medium text-neutral-900 underline underline-offset-4">
+                            Send an enquiry
+                          </Link>
+                          .
+                        </>
+                      )}
                     </p>
-                  )}
-                </InfoCard>
-              )}
-              {hours.length > 0 && (
-                <InfoCard icon={<Clock className="size-5" />} title="Opening hours">
-                  {hours.map((set) => (
-                    <div key={set.label ?? "hours"} className="grid gap-1">
-                      {set.label && <p className="font-medium text-neutral-900">{set.label}</p>}
-                      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-                        {set.lines.map((line) => (
-                          <div key={line.days} className="contents">
-                            <dt>{line.days}</dt>
-                            <dd className={cn("text-right", line.hours === "Closed" ? "text-neutral-400" : "text-neutral-900")}>{line.hours}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </div>
-                  ))}
-                </InfoCard>
-              )}
-              {showContact && (
-              <InfoCard icon={<Phone className="size-5" />} title="Get in touch">
-                    <p>Questions before you book? We&apos;re happy to help.</p>
                     <ul className="grid gap-1.5">
                       {phone && (
                         <li>
@@ -227,23 +342,124 @@ export default async function Home() {
                         </li>
                       )}
                     </ul>
-              </InfoCard>
-              )}
+                  </InfoColumn>
+                )}
+              </div>
             </div>
           </section>
         )}
+
+        <FaqSection faqs={tenant.branding.faqs} contactHref={enquiryUrl ?? contactHref} />
+
+        {/* The last word: book, or ring. */}
+        <section aria-labelledby="book-title" className="bg-wash py-14 sm:py-16">
+          <div className={cn(container, "flex flex-wrap items-center justify-between gap-x-10 gap-y-6")}>
+            <div className="grid max-w-xl gap-2">
+              <h2 id="book-title" className="text-3xl font-semibold tracking-tight text-balance">
+                Ready to book?
+              </h2>
+              <p className="text-pretty opacity-85">
+                {callPhone
+                  ? `Get your price and pick a time online in a couple of minutes, or call ${ownerName ?? "us"} on ${formatPhone(callPhone)}.`
+                  : "Get your price and pick a time online in a couple of minutes. There's nothing to pay for a quote."}
+              </p>
+              {policyLine && <p className="text-sm opacity-75">{policyLine}</p>}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {bookButton("Check prices and book")}
+              {callButton}
+            </div>
+          </div>
+        </section>
+
+        {showCard && (
+          <BookBar
+            watch={["home-top", "home-card"]}
+            href={quote}
+            priceFrom={services.length ? formatPence(Math.min(...services.map((s) => s.base_price_pence))) : null}
+            terms={policyLine}
+            phone={callPhone}
+          />
+        )}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(jsonLd) }} />
       </main>
     </SiteFrame>
   );
 }
 
-function InfoCard({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+// Beside the heading: the week's availability (when the owner shows it) and
+// what the services start from, with the way into the booking form.
+const CARD_SERVICES = 4;
+
+function BookCard({
+  services,
+  quoteUrl,
+  terms,
+  availability,
+  wide,
+}: {
+  services: Service[];
+  quoteUrl: string;
+  // The deposit and cancellation line, when it's shown.
+  terms: string | null;
+  availability: React.ReactNode;
+  // Side by side across the page on big screens, rather than stacked.
+  wide: boolean;
+}) {
+  const shown = services.slice(0, CARD_SERVICES);
+  const more = services.length - shown.length;
+  // The rule between parts: above each on phones, beside each when wide.
+  // None before the first, as the week may not show or be worked out.
+  const divided = cn("border-t pt-6 first:border-t-0 first:pt-0", wide && "lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8 lg:first:border-l-0 lg:first:pl-0");
   return (
-    <div className="grid content-start gap-3 rounded-2xl border bg-surface p-6 text-sm text-neutral-600">
-      <span aria-hidden className="grid size-10 place-items-center rounded-xl bg-neutral-100 text-neutral-700">
-        {icon}
-      </span>
-      <h2 className="text-base font-semibold text-neutral-900">{title}</h2>
+    <div
+      className={cn(
+        "grid gap-6 rounded-2xl bg-surface p-6 text-(--ink) shadow-lg ring-1 shadow-black/15 ring-black/5 sm:p-7",
+        wide && "lg:grid-flow-col lg:auto-cols-fr lg:items-center lg:gap-8 lg:p-8",
+      )}
+    >
+      {availability}
+      {shown.length > 0 && (
+        <div className={cn("grid gap-3", divided)}>
+          <p className="text-sm font-semibold text-neutral-900">Prices from</p>
+          <ul className="grid gap-2.5">
+            {shown.map((s) => (
+              <li key={s.id} className="flex items-baseline gap-3 text-sm">
+                <span className="truncate text-neutral-700">{s.name}</span>
+                <span aria-hidden className="min-w-4 flex-1 translate-y-[-0.2em] border-b border-dotted border-neutral-300" />
+                <span className="font-semibold text-neutral-900 tabular-nums">{formatPence(s.base_price_pence)}</span>
+              </li>
+            ))}
+          </ul>
+          {more > 0 && (
+            <a href="#services" className="w-fit text-sm text-neutral-500 underline-offset-4 hover:text-neutral-900 hover:underline">
+              and {more} more {more === 1 ? "service" : "services"}
+            </a>
+          )}
+        </div>
+      )}
+      <div className={cn("grid gap-2", wide && divided)}>
+        <Link
+          href={quoteUrl}
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-accent px-6 font-medium text-accent-fg shadow-sm ring-1 ring-black/5 transition hover:opacity-90"
+        >
+          Check prices and book <ArrowRight className="size-4" aria-hidden />
+        </Link>
+        <p className="text-center text-xs text-pretty text-neutral-500">{terms ?? "Nothing to pay for a quote."}</p>
+      </div>
+    </div>
+  );
+}
+
+function InfoColumn({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  return (
+    <div className="grid content-start gap-3 p-6 text-sm text-neutral-600 sm:p-8">
+      <div className="flex items-center gap-2">
+        <span aria-hidden className="text-neutral-400">
+          {icon}
+        </span>
+        <h2 className="text-base font-semibold text-neutral-900">{title}</h2>
+      </div>
       {children}
     </div>
   );

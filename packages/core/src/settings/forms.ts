@@ -2,6 +2,9 @@ import { z } from "zod";
 import { normalizePhone } from "../customer-fields";
 import type { DepositRule } from "../booking/config";
 import { BODY_FONT_KEYS, DEFAULT_FONT, FONT_KEYS } from "../branding/fonts";
+import { MAX_ABOUT_HEADING, MAX_ABOUT_TEXT, MAX_FACT_LENGTH, MAX_OWNER_NAME, cleanFacts } from "../branding/about";
+import { DEFAULT_LOGO_SIZE, LOGO_SIZE_KEYS } from "../branding/logo-size";
+import { DEFAULT_JOBS_LABEL, MAX_ENQUIRY_INTRO, MAX_JOBS_BEFORE, MAX_JOBS_LABEL, MAX_POLICY_LINE, type PageExtras } from "../branding/extras";
 import { AVAILABILITY_LENGTHS, parsePlaces, type HomeSettings } from "../branding/home";
 import { ASSISTANT_MODES, ASSISTANT_TONES, type AssistantMode, type AssistantSettings, type AssistantTone } from "./assistant";
 import { CUSTOMER_MESSAGES, type CustomerMessage, type NotificationSettings, unknownFields } from "./notifications";
@@ -139,11 +142,17 @@ export const brandingFormSchema = z.object({
   accent_color: hexColor,
   // Blank clears it.
   secondary_color: z.union([z.literal(""), hexColor]).optional().transform((v) => v || undefined),
+  // Blank shows the business name.
+  hero_heading: text(80, "the heading").transform((v) => v || undefined),
   tagline: text(120, "the tagline").transform((v) => v || undefined),
   website_url: optionalUrl.transform((v) => v ?? undefined),
   terms_url: optionalUrl.transform((v) => v ?? undefined),
   button_label: text(30, "the button text").transform((v) => v || undefined),
   button_position: z.enum(["right", "left"]).default("right"),
+  // The footer's contact details. Blank shows none.
+  page_email: optionalEmail.optional().transform((v) => v ?? undefined),
+  page_phone: z.string().trim().default(""),
+  logo_size: z.enum(LOGO_SIZE_KEYS, { error: "Pick a logo size from the list." }).default(DEFAULT_LOGO_SIZE),
   // Blank headings follow the body text; blank body text is the standard face.
   heading_font: z
     .union([z.literal(""), z.enum(FONT_KEYS)], { error: "Pick a typeface from the list." })
@@ -157,7 +166,14 @@ export const brandingFormSchema = z.object({
   // fills). Anything that isn't a percentage is left as it was.
   cover_x: z.string().optional(),
   cover_y: z.string().optional(),
-}).transform(({ cover_x, cover_y, ...rest }) => ({ ...rest, cover_position: coverPosition(cover_x, cover_y) }));
+}).transform(({ cover_x, cover_y, page_phone, ...rest }, ctx) => {
+  const phone = page_phone ? normalizePhone(page_phone) : null;
+  if (page_phone && !phone) {
+    ctx.addIssue({ code: "custom", path: ["page_phone"], message: "Enter a valid phone number." });
+    return z.NEVER;
+  }
+  return { ...rest, page_phone: phone ?? undefined, cover_position: coverPosition(cover_x, cover_y) };
+});
 export type BrandingForm = z.output<typeof brandingFormSchema>;
 
 // The home page's extra sections. A length that isn't on the list means the
@@ -168,6 +184,7 @@ export const homeFormSchema = z
     availability_mins: z.string().optional(),
     show_area: checkbox,
     places: text(2000, "the places you cover"),
+    show_phone: checkbox,
   })
   .transform(
     (v): HomeSettings => ({
@@ -177,6 +194,57 @@ export const homeFormSchema = z
         : null,
       show_area: v.show_area,
       places: parsePlaces(v.places),
+      show_phone: v.show_phone,
+    }),
+  );
+
+// About you: the owner's name, their story, a heading over it, and the
+// facts under the main heading (fact_0 to fact_3). The photo is a file, so
+// the action handles it. Blanks are left out rather than stored empty.
+const fact = text(MAX_FACT_LENGTH, "each point");
+
+export const aboutFormSchema = z
+  .object({
+    name: text(MAX_OWNER_NAME, "your name"),
+    heading: text(MAX_ABOUT_HEADING, "the heading"),
+    text: text(MAX_ABOUT_TEXT, "your story"),
+    fact_0: fact,
+    fact_1: fact,
+    fact_2: fact,
+    fact_3: fact,
+  })
+  .transform((v) => ({
+    name: v.name || undefined,
+    heading: v.heading || undefined,
+    // Windows line endings and runs of blank lines tidied, so paragraphs split cleanly.
+    text: v.text.replace(/\r\n?/g, "\n").replace(/\n{3,}/g, "\n\n") || undefined,
+    facts: cleanFacts([v.fact_0, v.fact_1, v.fact_2, v.fact_3]),
+  }));
+
+// Trust and enquiries: the deposit line, the jobs count and the enquiry
+// page, each with a switch and its wording. Blank wording uses the default.
+export const extrasFormSchema = z
+  .object({
+    policy_show: checkbox,
+    policy_text: text(MAX_POLICY_LINE, "the line"),
+    jobs_show: checkbox,
+    jobs_label: text(MAX_JOBS_LABEL, "the wording"),
+    jobs_before: z
+      .string()
+      .trim()
+      .default("")
+      .refine((v) => v === "" || (/^\d+$/.test(v.replace(/,/g, "")) && Number(v.replace(/,/g, "")) <= MAX_JOBS_BEFORE), {
+        message: `Enter a whole number up to ${MAX_JOBS_BEFORE.toLocaleString("en-GB")}, or leave it blank.`,
+      })
+      .transform((v) => (v ? Number(v.replace(/,/g, "")) : 0)),
+    enquiries_show: checkbox,
+    enquiries_intro: text(MAX_ENQUIRY_INTRO, "the introduction"),
+  })
+  .transform(
+    (v): PageExtras => ({
+      policy_line: { show: v.policy_show, ...(v.policy_text && { text: v.policy_text }) },
+      jobs_count: { show: v.jobs_show, label: v.jobs_label || DEFAULT_JOBS_LABEL, before: v.jobs_before },
+      enquiries: { show: v.enquiries_show, ...(v.enquiries_intro && { intro: v.enquiries_intro }) },
     }),
   );
 

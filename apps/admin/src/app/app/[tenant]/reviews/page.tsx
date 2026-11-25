@@ -3,23 +3,33 @@ import Link from "next/link";
 import { after } from "next/server";
 import { Star } from "lucide-react";
 import { formatDate } from "@leadgen/core/dates";
+import { MAX_PINNED, reviewSettingsSchema } from "@leadgen/core/branding/reviews";
 import { reviewSummary } from "@leadgen/core/reviews/rules";
 import { STALE_MS, syncReviews } from "@leadgen/core/reviews/sync";
+import { SaveFormDefaults } from "@/components/dashboard/form-kit";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ReviewPin } from "@/components/dashboard/review-pin";
 import { ReviewReply } from "@/components/dashboard/review-reply";
 import { ActionButton } from "@/components/dashboard/settings/connection-bits";
+import { ReadOnlyNotice, SettingsSection } from "@/components/dashboard/settings/section";
+import { TestimonialsForm } from "@/components/dashboard/testimonials-form";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { requireAccess } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { appUrl } from "@/lib/urls";
 import { cn } from "@/lib/utils";
-import { deleteReplyAction, refreshReviewsPageAction, replyToReviewAction } from "./actions";
+import { deleteReplyAction, pinReviewAction, refreshReviewsPageAction, replyToReviewAction, saveTestimonialsAction } from "./actions";
 
 export const metadata: Metadata = { title: "Reviews" };
 
 const FILTERS = { waiting: "Needs a reply", all: "All" } as const;
 type Filter = keyof typeof FILTERS;
+
+// Google reviews (read and reply, pick which show on the booking page) and
+// testimonials (kind words sent another way, added for the booking page).
+const TABS = { google: "Google reviews", testimonials: "Testimonials" } as const;
+type Tab = keyof typeof TABS;
 
 type ReviewRow = {
   id: string;
@@ -36,9 +46,10 @@ export default async function ReviewsPage({ params, searchParams }: PageProps<"/
   const { tenant, can } = await requireAccess(slug, "customers.view");
   const sp = await searchParams;
   const filter: Filter = sp.show === "all" ? "all" : "waiting";
+  const tab: Tab = sp.tab === "testimonials" ? "testimonials" : "google";
 
   const supabase = await createClient();
-  const [connection, all] = await Promise.all([
+  const [connection, all, business] = await Promise.all([
     supabase
       .from("google_business_connections")
       .select("location_title, review_url, average_rating, total_reviews, status, last_error, last_synced_at")
@@ -50,17 +61,75 @@ export default async function ReviewsPage({ params, searchParams }: PageProps<"/
       .eq("tenant_id", tenant.id)
       .order("created_at_google", { ascending: false })
       .limit(500),
+    // Which reviews the booking page quotes.
+    supabase.from("tenants").select("branding").eq("id", tenant.id).single(),
   ]);
   if (connection.error) throw connection.error;
   if (all.error) throw all.error;
+  if (business.error) throw business.error;
+  const reviewSettings = reviewSettingsSchema.parse((business.data.branding as { reviews?: unknown } | null)?.reviews);
+  const pinned = reviewSettings.pinned;
+  const canPin = can("settings.edit");
   const conn = connection.data;
   const reviews = all.data as ReviewRow[];
 
   const integrations = appUrl(`/${slug}/settings/integrations`);
+  const base = appUrl(`/${slug}/reviews`);
+  const tabs = (
+    <nav aria-label="Reviews" className="mb-6 flex gap-1 border-b">
+      {(Object.keys(TABS) as Tab[]).map((t) => (
+        <Link
+          key={t}
+          href={t === "google" ? base : `${base}?tab=${t}`}
+          aria-current={tab === t ? "page" : undefined}
+          className={cn(
+            "-mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground",
+            tab === t && "border-primary text-foreground",
+          )}
+        >
+          {TABS[t]}
+          {t === "testimonials" && reviewSettings.testimonials.length > 0 ? ` (${reviewSettings.testimonials.length})` : ""}
+        </Link>
+      ))}
+    </nav>
+  );
+
+  if (tab === "testimonials") {
+    const readOnly = !can("settings.edit");
+    return (
+      <>
+        <PageHeader title="Reviews" description="What customers say about you, on your booking page." />
+        {tabs}
+        <SaveFormDefaults requireChanges footer>
+          <div className="grid gap-4">
+            {readOnly && <ReadOnlyNotice />}
+            <SettingsSection
+              id="testimonials"
+              title="Reviews on your booking page"
+              description="Your Google reviews, and kind words customers sent you another way, shown on your booking page's home."
+            >
+              {/* Remounted after a save, so the rows show as saved. */}
+              <TestimonialsForm
+                key={JSON.stringify(reviewSettings.testimonials)}
+                settings={reviewSettings}
+                google={Boolean(conn?.location_title)}
+                reviewsUrl={base}
+                integrationsUrl={integrations}
+                action={saveTestimonialsAction.bind(null, slug)}
+                readOnly={readOnly}
+              />
+            </SettingsSection>
+          </div>
+        </SaveFormDefaults>
+      </>
+    );
+  }
+
   if (!conn) {
     return (
       <>
         <PageHeader title="Reviews" />
+        {tabs}
         <EmptyState
           title="Connect Google to see your reviews here"
           action={
@@ -71,7 +140,12 @@ export default async function ReviewsPage({ params, searchParams }: PageProps<"/
             ) : undefined
           }
         >
-          Read every Google review in one place and reply to them as your business, without opening Google.
+          Read every Google review in one place and reply to them as your business, without opening Google. You can
+          still add kind words customers sent you under{" "}
+          <Link href={`${base}?tab=testimonials`} className="underline underline-offset-2">
+            Testimonials
+          </Link>
+          .
         </EmptyState>
       </>
     );
@@ -83,12 +157,12 @@ export default async function ReviewsPage({ params, searchParams }: PageProps<"/
 
   const summary = reviewSummary(reviews);
   const shown = filter === "waiting" ? reviews.filter((r) => !r.reply) : reviews;
-  const base = appUrl(`/${slug}/reviews`);
   const canReply = can("reviews.reply") && conn.status === "active";
 
   return (
     <>
       <PageHeader title="Reviews" description={conn.location_title ? `Google reviews for ${conn.location_title}` : undefined} />
+      {tabs}
 
       {conn.status !== "active" && (
         <p className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/40">
@@ -141,6 +215,17 @@ export default async function ReviewsPage({ params, searchParams }: PageProps<"/
           </div>
         </div>
       </section>
+
+      {canPin && reviews.some((r) => r.comment) && (
+        <p className="mb-4 text-sm text-muted-foreground">
+          {pinned.length
+            ? `${pinned.length} of up to ${MAX_PINNED} reviews picked to show on your booking page.`
+            : `Your booking page shows your newest 4 and 5 star reviews. Pick up to ${MAX_PINNED} of your own with Show on booking page.`}{" "}
+          <Link href={`${base}?tab=testimonials`} className="underline underline-offset-2">
+            Add testimonials
+          </Link>
+        </p>
+      )}
 
       <nav className="mb-4 flex gap-1">
         {(Object.keys(FILTERS) as Filter[]).map((f) => (
@@ -198,6 +283,9 @@ export default async function ReviewsPage({ params, searchParams }: PageProps<"/
                     {formatDate(r.created_at_google)}
                   </p>
                 </div>
+                {canPin && r.comment && (
+                  <ReviewPin shown={pinned.includes(r.id)} action={pinReviewAction.bind(null, slug, r.id)} />
+                )}
               </div>
               {r.comment ? (
                 <p className="whitespace-pre-wrap text-sm">{r.comment}</p>

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { bookableDatesForAny } from "@leadgen/core/booking/capacity";
 import { multiCarOf, type LocationType } from "@leadgen/core/booking/config";
 import { localDate } from "@leadgen/core/booking/time";
-import { getBookingConfig } from "@leadgen/core/booking/engine";
+import { loadBookingConfig } from "@/lib/booking-config";
 import { isUkPostcode } from "@leadgen/core/booking/geo";
 import { normalizePostcode } from "@leadgen/core/customer-fields";
 import { DEFAULT_MARKETING_CONSENT } from "@leadgen/core/settings/forms";
@@ -17,11 +17,11 @@ import { SiteFrame, container } from "@/components/site";
 import { cn } from "@/lib/cn";
 import { BookingFlow } from "./booking-flow";
 
-export const metadata: Metadata = { title: "Instant quote" };
+export const metadata: Metadata = { title: "Check prices and book" };
 
 export default async function QuotePage({ searchParams }: PageProps<"/sites/[tenant]/quote">) {
   const tenant = await requireRequestTenant();
-  const config = await getBookingConfig(tenant.id);
+  const config = await loadBookingConfig(tenant.id);
   // Opened inside the embed script's panel: the panel has its own header.
   const query = await searchParams;
   const embedded = query.embed === "1";

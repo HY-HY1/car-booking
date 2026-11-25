@@ -5,7 +5,9 @@ import { RefreshCw, Star, Trash2 } from "lucide-react";
 import { BUTTON_POSITIONS, TIMEZONES, TRADES } from "@leadgen/core/settings/forms";
 import type { Branding } from "@leadgen/core/tenants";
 import { readableOn as textOn } from "@leadgen/core/branding/colors";
+import { formatPhone } from "@leadgen/core/customer-fields";
 import { BODY_FONT_KEYS, DEFAULT_FONT, FONTS, fontGroups, type FontKey } from "@leadgen/core/branding/fonts";
+import { LOGO_SIZES, LOGO_SIZE_KEYS, type LogoSize } from "@leadgen/core/branding/logo-size";
 import {
   checkDomainAction,
   makePrimaryDomainAction,
@@ -60,7 +62,12 @@ export function GeneralForm({ values, action, readOnly }: { values: GeneralValue
                 ))}
               </Select>
             </Field>
-            <Field label="Contact email" name="contact_email" error={errors.contact_email} hint="Shown to customers.">
+            <Field
+              label="Contact email"
+              name="contact_email"
+              error={errors.contact_email}
+              hint="On your emails and invoices. Your booking pages use the details under Booking page."
+            >
               <Input
                 name="contact_email"
                 type="email"
@@ -70,7 +77,12 @@ export function GeneralForm({ values, action, readOnly }: { values: GeneralValue
                 placeholder="e.g. hello@yourbusiness.co.uk"
               />
             </Field>
-            <Field label="Contact phone" name="contact_phone" error={errors.contact_phone} hint="Shown to customers.">
+            <Field
+              label="Contact phone"
+              name="contact_phone"
+              error={errors.contact_phone}
+              hint="On your emails and invoices. Your booking pages use the details under Booking page."
+            >
               <Input
                 name="contact_phone"
                 type="tel"
@@ -124,6 +136,8 @@ export function BrandingForm({
   businessName,
   contact,
   services,
+  facts,
+  showPhone,
   action,
   readOnly,
 }: {
@@ -131,6 +145,9 @@ export function BrandingForm({
   businessName: string;
   contact: { email: string | null; phone: string | null };
   services: PreviewService[];
+  // From About you and Home page, saved separately; the preview shows them as saved.
+  facts: string[];
+  showPhone: boolean;
   action: Action;
   readOnly: boolean;
 }) {
@@ -139,6 +156,8 @@ export function BrandingForm({
   const [secondary, setSecondary] = useState(branding.secondary_color ?? "");
   const [label, setLabel] = useState(branding.button_label ?? "");
   const [position, setPosition] = useState(branding.button_position);
+  const [logoSize, setLogoSize] = useState<LogoSize>(branding.logo_size);
+  const [heroHeading, setHeroHeading] = useState(branding.hero_heading ?? "");
   const [tagline, setTagline] = useState(branding.tagline ?? "");
   const [headingFont, setHeadingFont] = useState<FontKey | null>(branding.heading_font ?? null);
   const [bodyFont, setBodyFont] = useState<FontKey>(branding.body_font ?? DEFAULT_FONT);
@@ -233,7 +252,21 @@ export function BrandingForm({
             </Group>
 
             <Group title="Words and links">
-              <Field label="Tagline" name="tagline" error={errors.tagline} hint="Under your name at the top of the booking page.">
+              <Field
+                label="Main heading"
+                name="hero_heading"
+                error={errors.hero_heading}
+                hint="The big heading at the top of your booking page. Blank shows your business name."
+              >
+                <Input
+                  name="hero_heading"
+                  value={heroHeading}
+                  onChange={(e) => setHeroHeading(e.target.value)}
+                  placeholder={`e.g. Showroom shine, on your drive`}
+                  maxLength={80}
+                />
+              </Field>
+              <Field label="Tagline" name="tagline" error={errors.tagline} hint="Under the main heading at the top of your booking page.">
                 <Input
                   name="tagline"
                   value={tagline}
@@ -242,6 +275,43 @@ export function BrandingForm({
                   maxLength={120}
                 />
               </Field>
+              <div className="grid gap-4 @lg:grid-cols-2">
+                <Field
+                  label="Contact email"
+                  name="page_email"
+                  error={errors.page_email}
+                  hint="On your booking pages: the footer, the booking form and Get in touch. Blank shows none."
+                >
+                  <Input
+                    name="page_email"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="off"
+                    defaultValue={branding.page_email ?? ""}
+                    placeholder="e.g. hello@yourbusiness.co.uk"
+                  />
+                </Field>
+                <Field
+                  label="Contact phone"
+                  name="page_phone"
+                  error={errors.page_phone}
+                  hint="On your booking pages: the header, Call buttons, booking form and footer. Blank shows none."
+                >
+                  <Input
+                    name="page_phone"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="off"
+                    defaultValue={branding.page_phone ? formatPhone(branding.page_phone) : ""}
+                    placeholder="e.g. 07700 900123"
+                  />
+                </Field>
+              </div>
+              {!branding.page_email && !branding.page_phone && (
+                <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                  Customers can&apos;t see a phone number or email anywhere on your booking pages until you add one here.
+                </p>
+              )}
               <div className="grid gap-4 @lg:grid-cols-2">
                 <Field
                   label="Your website"
@@ -283,7 +353,45 @@ export function BrandingForm({
                   current={branding.logo_url}
                   error={errors.logo}
                   onChange={setLogo}
+                  hint="Shown in light mode, and in emails."
                 />
+                <ImageField
+                  key={`logo-dark-${generation}`}
+                  label="Dark mode logo"
+                  name="logo_dark"
+                  current={branding.logo_dark_url}
+                  error={errors.logo_dark}
+                  hint="Optional. A version that shows up on a dark background. Blank uses your logo."
+                  dark
+                />
+              </div>
+              <fieldset className="grid content-start gap-2">
+                <legend className="mb-2 text-sm font-medium">Logo size</legend>
+                <div className="grid grid-cols-2 gap-2 @lg:grid-cols-4">
+                  {LOGO_SIZE_KEYS.map((k) => (
+                    <label
+                      key={k}
+                      className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border text-sm font-medium has-checked:border-primary has-checked:bg-primary/10 has-focus-visible:ring-3 has-focus-visible:ring-ring/50 has-disabled:cursor-not-allowed has-disabled:opacity-60"
+                    >
+                      <input
+                        type="radio"
+                        name="logo_size"
+                        value={k}
+                        checked={logoSize === k}
+                        onChange={() => setLogoSize(k)}
+                        className="sr-only"
+                      />
+                      {/* A bar as tall as the logo will be, to compare. */}
+                      <span aria-hidden className="w-1.5 rounded-sm bg-current opacity-40" style={{ height: LOGO_SIZES[k].height / 2.5 }} />
+                      {LOGO_SIZES[k].label}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  In the header of your booking pages. Phones show the larger sizes a little smaller, to leave room for the menu.
+                </p>
+              </fieldset>
+              <div className="grid gap-4">
                 <ImageField
                   key={`cover-${generation}`}
                   label="Cover image"
@@ -362,12 +470,15 @@ export function BrandingForm({
               businessName={businessName}
               primary={primary}
               accent={accent}
+              heroHeading={heroHeading}
               tagline={tagline}
               fonts={fonts}
               logoUrl={shown(logo, branding.logo_url)}
+              logoSize={logoSize}
               coverUrl={coverSrc}
               coverPosition={coverPosition}
-              contact={contact}
+              phone={showPhone ? contact.phone : null}
+              facts={facts}
               services={services}
             />
           </div>
@@ -404,7 +515,7 @@ type PickedImage = { picked: string | null; removed: boolean };
 const UNPICKED: PickedImage = { picked: null, removed: false };
 
 // A titled group of fields inside a card.
-function Group({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+export function Group({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
     <fieldset className="grid min-w-0 gap-4">
       <legend className="mb-3 grid gap-0.5">
@@ -476,12 +587,15 @@ function ColourField({
   );
 }
 
-function ImageField({
+export function ImageField({
   label,
   name,
   current,
   error,
   wide,
+  hint,
+  dark,
+  maxEdge,
   onChange,
 }: {
   label: string;
@@ -489,8 +603,14 @@ function ImageField({
   current?: string;
   error?: string;
   wide?: boolean;
+  hint?: string;
+  // Shown on a dark backing, as it will be used.
+  dark?: boolean;
+  // The longest side it is shrunk to. Unset: 2400px wide, 800px otherwise.
+  maxEdge?: number;
   // For the preview: the image picked but not saved yet, and "Remove".
-  onChange: (image: { picked: string | null; removed: boolean }) => void;
+  // Not every image is in the preview, which is always light.
+  onChange?: (image: { picked: string | null; removed: boolean }) => void;
 }) {
   const [problem, setProblem] = useState<string>();
   const [shrinking, setShrinking] = useState(false);
@@ -508,7 +628,7 @@ function ImageField({
   function showInPreview(file?: File) {
     if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
     previewUrl.current = file ? URL.createObjectURL(file) : null;
-    onChange({ picked: previewUrl.current, removed: removed.current });
+    onChange?.({ picked: previewUrl.current, removed: removed.current });
   }
 
   // The chosen file is shrunk straight away and swapped into the input, so
@@ -524,7 +644,7 @@ function ImageField({
     }
     setShrinking(true);
     try {
-      const small = await shrinkImage(file, wide ? 2400 : 800);
+      const small = await shrinkImage(file, maxEdge ?? (wide ? 2400 : 800));
       const files = new DataTransfer();
       files.items.add(small);
       input.files = files.files;
@@ -542,7 +662,7 @@ function ImageField({
 
   return (
     <div className="grid content-start gap-2">
-      <Field label={label} name={name} error={problem ?? error}>
+      <Field label={label} name={name} error={problem ?? error} hint={hint}>
         <Input
           name={name}
           type="file"
@@ -559,7 +679,8 @@ function ImageField({
             src={current}
             alt={`Current ${label.toLowerCase()}`}
             className={cn(
-              "h-12 w-24 rounded bg-muted",
+              "h-12 w-24 rounded",
+              dark ? "bg-neutral-900 p-1" : "bg-muted",
               wide ? "object-cover" : "object-contain",
               removing && "opacity-40",
             )}
@@ -570,7 +691,7 @@ function ImageField({
             onChange={(e) => {
               removed.current = e.target.checked;
               setRemoving(e.target.checked);
-              onChange({ picked: previewUrl.current, removed: e.target.checked });
+              onChange?.({ picked: previewUrl.current, removed: e.target.checked });
             }}
           >
             {removing ? "Removed when you save" : `Remove this ${label.toLowerCase()}`}
